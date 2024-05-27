@@ -1,37 +1,37 @@
 ## Tasks
-- Build
-- Build Target
-- Clean
-- Cancel Build
-- Clean Rebuild
-- Compile Active File
-- Configure
-- Configure with CMake Debugger
-- Debug
-- Delete Cache and Reconfigure
-- Delete Cache and Reconfigure with CMake Debugger
-- Install
-- Run Tests (CTest?)
-- Run Without Debugging
+- [x] Build
+- [ ] Build Target
+- [x] Clean
+- [ ] Cancel Build
+- [ ] Clean Rebuild
+- [ ] Compile Active File
+- [x] Configure
+- [ ] Configure with CMake Debugger
+- [ ] Debug
+- [ ] Delete Cache and Reconfigure
+- [ ] Delete Cache and Reconfigure with CMake Debugger
+- [ ] Install
+- [ ] Run Tests (CTest?)
+- [ ] Run Without Debugging
 
 ## Commands
-- Edit CMake Cache
-- Edit CMake Cache (UI)
-- Edit User-Local CMake Kits
-- Focus on Pinned Commands View
-- Focus on Project Outline View
-- Focus on Project Status View
-- Refresh extension state
-- Log Diagnostics
-- Online Help
-- Settings
-- Open Log File
-- Quick Start
-- Scan for Kits
-- Select a Kit
-- Select Active Folder
-- Select Variant
-- Set Build Target
-- Set Debug Target
-- Show Build Command
-- Show Configure Command
+- [ ] Edit CMake Cache
+- [ ] Edit CMake Cache (UI)
+- [ ] Edit User-Local CMake Kits
+- [ ] Focus on Pinned Commands View
+- [ ] Focus on Project Outline View
+- [ ] Focus on Project Status View
+- [ ] Refresh extension state
+- [ ] Log Diagnostics
+- [ ] Online Help
+- [ ] Settings
+- [ ] Open Log File
+- [ ] Quick Start
+- [ ] Scan for Kits
+- [ ] Select a Kit
+- [ ] Select Active Folder
+- [ ] Select Variant
+- [ ] Set Build Target
+- [ ] Set Debug Target
+- [x] Show Build Command
+- [x] Show Configure Command
