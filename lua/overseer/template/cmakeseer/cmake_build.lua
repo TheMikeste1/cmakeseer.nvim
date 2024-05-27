@@ -1,11 +1,12 @@
+local cmakeseer = require("cmakeseer")
+
 local function builder()
-	local cwd = vim.fn.getcwd()
-	local build_dir = cwd .. "/build"
+	local build_dir = cmakeseer.get_build_directory()
 
 	---@type overseer.TaskDefinition
 	local task = {
 		name = "CMake Build",
-		cmd = "cmake --build " .. build_dir,
+		cmd = cmakeseer.get_build_command(),
 		components = {
 			{
 				"unique",
@@ -15,7 +16,7 @@ local function builder()
 		},
 	}
 
-	if vim.fn.filereadable(build_dir .. "/CMakeCache.txt") == 0 then
+	if not cmakeseer.project_is_configured() then
 		-- Insert just before "default" to minimize shifts
 		table.insert(task.components, #task.components - 1, {
 			"dependencies",
@@ -35,7 +36,7 @@ return {
 	builder = builder,
 	condition = {
 		callback = function()
-			return true
+			return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") ~= 0
 		end,
 	},
 }

@@ -1,15 +1,10 @@
+local cmakeseer = require("cmakeseer")
+
 local function builder()
-	local cwd = vim.fn.getcwd()
 	---@type overseer.TaskDefinition
 	return {
 		name = "CMake Configure",
-		cmd = "cmake",
-		args = {
-			"-B",
-			cwd .. "/build",
-			"-S",
-			cwd,
-		},
+		cmd = cmakeseer.get_configure_command()
 	}
 end
 
@@ -20,7 +15,7 @@ return {
 	builder = builder,
 	condition = {
 		callback = function()
-			return true
+			return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") ~= 0
 		end,
 	},
 }

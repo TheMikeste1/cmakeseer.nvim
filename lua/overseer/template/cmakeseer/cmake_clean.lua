@@ -1,3 +1,5 @@
+local cmakeseer = require("cmakeseer")
+
 local function builder()
 	---@type overseer.TaskDefinition
 	return {
@@ -5,7 +7,7 @@ local function builder()
 		cmd = "cmake",
 		args = {
 			"--build",
-			vim.fn.getcwd() .. "/build",
+			cmakeseer.get_build_directory(),
 			"--target",
 			"clean",
 		},
@@ -19,7 +21,7 @@ return {
 	builder = builder,
 	condition = {
 		callback = function()
-			return true
+			return cmakeseer.project_is_configured()
 		end,
 	},
 }
