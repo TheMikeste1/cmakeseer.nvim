@@ -1,5 +1,5 @@
 ---@class Options
----@field build_directory string The path to the build directory. Can be relative to the current working directory.
+---@field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
 ---@field kit_paths table<string> Paths to files containing CMake kit definitions. These will not be expanded.
 ---@field kits table<cmakeseer.Kit>? Global user-defined kits.
 
@@ -18,10 +18,15 @@ local M = {
 
 ---@return string build_directory The project's build directory.
 function M.get_build_directory()
-  if M.options.build_directory[1] == "/" then
-    return M.options.build_directory
+  local build_dir = M.options.build_directory --[[@as string]]
+  if type(M.options.build_directory) == "function" then
+    build_dir = M.options.build_directory()
+  end
+
+  if build_dir[1] == "/" then
+    return build_dir
   else
-    return vim.fn.getcwd() .. M.options.build_directory
+    return vim.fn.getcwd() .. "/" .. build_dir
   end
 end
 
