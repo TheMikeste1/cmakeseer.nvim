@@ -1,22 +1,26 @@
----@class Options
----@field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
----@field kit_paths table<string> Paths to files containing CMake kit definitions. These will not be expanded.
----@field kits table<cmakeseer.Kit>? Global user-defined kits.
+--- @class Options
+--- @field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
+--- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
+--- @field kit_paths table<string> Paths to files containing CMake kit definitions. These will not be expanded.
+--- @field kits table<cmakeseer.Kit>? Global user-defined kits.
 
 local M = {
-  ---@type cmakeseer.Kit[]
+  --- @type cmakeseer.Kit[]
   kits = {},
-  ---@type cmakeseer.Kit
+  --- @type cmakeseer.Kit
   selected_kit = nil,
-  ---@type Options
+  --- @type Options
   options = {
     build_directory = "build",
+    default_cmake_settings = {
+      configureSettings = {},
+    },
     kit_paths = {},
     kits = nil,
   },
 }
 
----@return string build_directory The project's build directory.
+--- @return string build_directory The project's build directory.
 function M.get_build_directory()
   local build_dir = M.options.build_directory --[[@as string]]
   if type(M.options.build_directory) == "function" then
@@ -30,17 +34,17 @@ function M.get_build_directory()
   end
 end
 
----@return boolean is_configured If the project is configured.
+--- @return boolean is_configured If the project is configured.
 function M.project_is_configured()
   return vim.fn.filereadable(M.get_build_directory() .. "/CMakeCache.txt") ~= 0
 end
 
----@return string build_cmd The command used to build the CMake project.
+--- @return string build_cmd The command used to build the CMake project.
 function M.get_build_command()
   return "cmake --build " .. M.get_build_directory()
 end
 
----@return string configure_command The command used to configure the CMake project.
+--- @return string configure_command The command used to configure the CMake project.
 function M.get_configure_command()
   local command = "cmake -S" .. vim.fn.getcwd() .. " -B" .. M.get_build_directory()
 
@@ -72,8 +76,8 @@ function M.select_kit()
     M.kits,
     {
       prompt = "Select kit",
-      ---@param item cmakeseer.Kit
-      ---@return string
+      --- @param item cmakeseer.Kit
+      --- @return string
       format_item = function(item)
         vim.print(item)
         local c_compiler = item.compilers.C
@@ -88,14 +92,14 @@ function M.select_kit()
         return item.name .. " (" .. c_compiler .. ", " .. cxx_compiler .. ")"
       end,
     },
-    ---@param choice cmakeseer.Kit
+    --- @param choice cmakeseer.Kit
     function(choice)
       M.selected_kit = choice
     end
   )
 end
 
----@param opts Options
+--- @param opts Options
 function M.setup(opts)
   if type(opts.kit_paths) == "string" then
     opts.kit_paths = { opts.kit_paths }
@@ -103,6 +107,7 @@ function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", M.options, opts)
 
   M.kits = M.get_all_kits()
+  require("cmakeseer.settings").setup(M.options)
   require("cmakeseer.neoconf").setup()
 end
 

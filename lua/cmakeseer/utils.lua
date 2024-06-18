@@ -3,10 +3,11 @@ local Settings = require("cmakeseer.settings")
 local M = {}
 
 --- Creates a list of CMake definitions strings generated from the currents settings.``
----@return table<string> definitions The definitions.
+--- @return table<string> definitions The definitions.
 function M.create_definition_strings()
 	local definitions = {}
-	for key, value in pairs(Settings.settings.configureSettings) do
+
+	for key, value in pairs(Settings.get_settings().configureSettings) do
 		local definition = "-D" .. key
 		local value_type = type(value)
 
@@ -18,7 +19,7 @@ function M.create_definition_strings()
 			definition = definition .. ":STRING"
 		else
 			vim.notify(
-				"cmake.configureSettings value for `" .. definition .. "` is invalid. Skipping definition.",
+				"cmake.configureSettings value for `" .. key .. "` is invalid. Skipping definition.",
 				vim.log.levels.ERROR
 			)
 			good = false
@@ -34,8 +35,8 @@ function M.create_definition_strings()
 end
 
 --- Merges two tables arrays into one, leaving duplicates.
----@param a table The first table.
----@param b table The second table
+--- @param a table The first table.
+--- @param b table The second table
 function M.merge_tables(a, b)
 	if a == nil then
 		return b
@@ -56,12 +57,12 @@ function M.merge_tables(a, b)
 	return merged_table
 end
 
----@param kit_files table<string> Paths to files containing CMake kit definitions. These will not be expanded.
----@return cmakeseer.Kit[] kits The kits
+--- @param kit_files table<string> Paths to files containing CMake kit definitions. These will not be expanded.
+--- @return cmakeseer.Kit[] kits The kits
 function M.read_cmakekit_files(kit_files)
 	assert(kit_files ~= nil, "kit_files must not be nil")
 
-	---@type cmakeseer.Kit[]
+	--- @type cmakeseer.Kit[]
 	local kits = {}
 	for _, file_path in ipairs(kit_files) do
 		if vim.fn.filereadable(file_path) == 0 then

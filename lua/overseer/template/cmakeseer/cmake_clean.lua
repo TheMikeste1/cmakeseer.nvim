@@ -1,7 +1,7 @@
 local Cmakeseer = require("cmakeseer")
 
 local function builder()
-  ---@type overseer.TaskDefinition
+  --- @type overseer.TaskDefinition
   return {
     name = "CMake Clean",
     cmd = "cmake",
@@ -14,7 +14,7 @@ local function builder()
   }
 end
 
----@type overseer.TemplateFileDefinition
+--- @type overseer.TemplateFileDefinition
 return {
   name = "CMake Clean",
   desc = "Cleans the CMake build directory",

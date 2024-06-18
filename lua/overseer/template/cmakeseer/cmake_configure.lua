@@ -1,6 +1,7 @@
 local Cmakeseer = require("cmakeseer")
 local Utils = require("cmakeseer.utils")
 
+--- @return overseer.TaskDefinition
 local function builder()
 	local args = {
 		"-S",
@@ -29,9 +30,8 @@ local function builder()
 	end
 
 	local definitions = Utils.create_definition_strings()
-	vim.tbl_extend("force", args, definitions)
+  args = Utils.merge_tables(args, definitions)
 
-	---@type overseer.TaskDefinition
 	return {
 		name = "CMake Configure",
 		cmd = "cmake",
@@ -46,7 +46,7 @@ local function builder()
 	}
 end
 
----@type overseer.TemplateFileDefinition
+--- @type overseer.TemplateFileDefinition
 return {
 	name = "CMake Configure",
 	desc = "Configure the current CMake projects",

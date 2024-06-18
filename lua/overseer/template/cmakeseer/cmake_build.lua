@@ -1,7 +1,7 @@
 local Cmakeseer = require("cmakeseer")
 
 local function builder()
-  ---@type overseer.TaskDefinition
+  --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Build",
     cmd = "cmake",
@@ -31,7 +31,7 @@ local function builder()
   return task
 end
 
----@type overseer.TemplateFileDefinition
+--- @type overseer.TemplateFileDefinition
 return {
   name = "CMake Build",
   desc = "Builds all targets in the current CMake project, configuring the project if it isn't already",
