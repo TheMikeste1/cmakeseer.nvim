@@ -1,17 +1,18 @@
-local cmakeseer = require("cmakeseer")
+local Cmakeseer = require("cmakeseer")
+local Utils = require("cmakeseer.utils")
 
 local function builder()
 	local args = {
 		"-S",
 		vim.fn.getcwd(),
 		"-B",
-		cmakeseer.get_build_directory(),
+		Cmakeseer.get_build_directory(),
 	}
-	if cmakeseer.selected_kit == nil then
+	if Cmakeseer.selected_kit == nil then
 		-- If a kit isn't selected, we'll just select the first
-		if #cmakeseer.kits >= 1 then
-			cmakeseer.selected_kit = cmakeseer.kits[1]
-			vim.notify_once("No kit selected; selecting " .. cmakeseer.selected_kit.name, vim.log.levels.INFO)
+		if #Cmakeseer.kits >= 1 then
+			Cmakeseer.selected_kit = Cmakeseer.kits[1]
+			vim.notify_once("No kit selected; selecting " .. Cmakeseer.selected_kit.name, vim.log.levels.INFO)
 		else
 			vim.notify_once(
 				"Could not find a kit; not specifying compilers in CMake configuration",
@@ -20,12 +21,15 @@ local function builder()
 		end
 	end
 
-	if cmakeseer.selected_kit ~= nil then
-		vim.tbl_extend(args, {
-			"-DCMAKE_C_COMPILER:FILEPATH=" .. cmakeseer.selected_kit.compilers.C,
-			"-DCMAKE_CXX_COMPILER:FILEPATH=" .. cmakeseer.selected_kit.compilers.CXX,
+	if Cmakeseer.selected_kit ~= nil then
+		vim.tbl_extend("error", args, {
+			"-DCMAKE_C_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.C,
+			"-DCMAKE_CXX_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.CXX,
 		})
 	end
+
+	local definitions = Utils.create_definition_strings()
+	vim.tbl_extend("force", args, definitions)
 
 	---@type overseer.TaskDefinition
 	return {

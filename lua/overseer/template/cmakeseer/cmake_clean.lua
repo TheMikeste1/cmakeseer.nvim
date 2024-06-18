@@ -1,4 +1,4 @@
-local cmakeseer = require("cmakeseer")
+local Cmakeseer = require("cmakeseer")
 
 local function builder()
 	---@type overseer.TaskDefinition
@@ -7,7 +7,7 @@ local function builder()
 		cmd = "cmake",
 		args = {
 			"--build",
-			cmakeseer.get_build_directory(),
+			Cmakeseer.get_build_directory(),
 			"--target",
 			"clean",
 		},
@@ -21,7 +21,7 @@ return {
 	builder = builder,
 	condition = {
 		callback = function()
-			return cmakeseer.project_is_configured()
+			return Cmakeseer.project_is_configured()
 		end,
 	},
 }

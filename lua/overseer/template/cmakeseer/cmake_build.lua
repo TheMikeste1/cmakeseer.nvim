@@ -1,12 +1,10 @@
-local cmakeseer = require("cmakeseer")
+local Cmakeseer = require("cmakeseer")
 
 local function builder()
-	local build_dir = cmakeseer.get_build_directory()
-
 	---@type overseer.TaskDefinition
 	local task = {
 		name = "CMake Build",
-		cmd = cmakeseer.get_build_command(),
+		cmd = Cmakeseer.get_build_command(),
 		components = {
 			{
 				"unique",
@@ -16,7 +14,7 @@ local function builder()
 		},
 	}
 
-	if not cmakeseer.project_is_configured() then
+	if not Cmakeseer.project_is_configured() then
 		-- Insert just before "default" to minimize shifts
 		table.insert(task.components, #task.components - 1, {
 			"dependencies",
