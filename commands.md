@@ -1,4 +1,7 @@
+# Commands and Tasks
+
 ## Tasks
+
 - [x] Build
 - [ ] Build Target
 - [x] Clean
@@ -15,6 +18,7 @@
 - [ ] Run Without Debugging
 
 ## Commands
+
 - [ ] Edit CMake Cache
 - [ ] Edit CMake Cache (UI)
 - [ ] Edit User-Local CMake Kits
@@ -27,8 +31,8 @@
 - [ ] Settings
 - [ ] Open Log File
 - [ ] Quick Start
-- [ ] Scan for Kits
-- [ ] Select a Kit
+- [X] Scan for Kits
+- [X] Select a Kit
 - [ ] Select Active Folder
 - [ ] Select Variant
 - [ ] Set Build Target
