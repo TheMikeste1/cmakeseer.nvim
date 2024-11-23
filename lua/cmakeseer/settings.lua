@@ -16,11 +16,13 @@ end
 
 --- @return CMakeSettings default_settings The default settings to use.
 function M.get_default_settings()
+  assert(_default_settings, "Settings were never set!")
   return _default_settings
 end
 
 --- @return CMakeSettings settings The current CMake settings.
 function M.get_settings()
+  assert(_settings, "Settings were never set!")
   return _settings
 end
 

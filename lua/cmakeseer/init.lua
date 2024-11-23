@@ -88,7 +88,6 @@ function M.select_kit()
       --- @param item Kit
       --- @return string
       format_item = function(item)
-        vim.print(item)
         local c_compiler = item.compilers.C
         if #c_compiler > 20 then
           c_compiler = vim.fn.pathshorten(c_compiler)
@@ -120,7 +119,6 @@ function M.scan_for_kits()
     -- TODO: Remove duplicates
     paths = Utils.merge_tables(paths, env_paths)
   end
-  print(vim.inspect(paths))
 
   for _, path in ipairs(paths) do
     local new_kits = Kit.scan_for_kits(path)
