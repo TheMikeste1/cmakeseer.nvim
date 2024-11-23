@@ -9,17 +9,20 @@ local function builder()
     "-B",
     Cmakeseer.get_build_directory(),
   }
+
   if Cmakeseer.selected_kit == nil then
     -- If a kit isn't selected, we'll just select the first
     if #Cmakeseer.kits >= 1 then
-      Cmakeseer.selected_kit = Cmakeseer.kits[1]
-      vim.notify_once("No kit selected; selecting " .. Cmakeseer.selected_kit.name, vim.log.levels.INFO)
-    else
-      vim.notify_once("Could not find a kit; not specifying compilers in CMake configuration", vim.log.levels.WARN)
+      Cmakeseer.selected_kit = Cmakeseer.get_all_kits()[1]
+      if Cmakeseer.selected_kit ~= nil then
+        vim.notify_once("No kit selected; selecting " .. Cmakeseer.selected_kit.name, vim.log.levels.INFO)
+      end
     end
   end
 
-  if Cmakeseer.selected_kit ~= nil then
+  if Cmakeseer.selected_kit == nil then
+    vim.notify_once("Could not find a kit; not specifying compilers in CMake configuration", vim.log.levels.WARN)
+  else
     vim.tbl_extend("error", args, {
       "-DCMAKE_C_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.C,
       "-DCMAKE_CXX_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.CXX,
