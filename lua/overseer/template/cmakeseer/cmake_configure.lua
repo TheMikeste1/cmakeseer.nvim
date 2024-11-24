@@ -51,9 +51,4 @@ return {
   name = "CMake Configure",
   desc = "Configure the current CMake projects",
   builder = builder,
-  condition = {
-    callback = function()
-      return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") ~= 0
-    end,
-  },
 }

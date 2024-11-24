@@ -1,6 +1,16 @@
 return {
-  "cmakeseer.cmake_build",
-  "cmakeseer.cmake_clean",
-  "cmakeseer.cmake_configure",
-  "cmakeseer.cmake_configure_fresh",
+  generator = function(search, cb)
+    cb({
+      require("overseer.template.cmakeseer.cmake_build"),
+      require("overseer.template.cmakeseer.cmake_clean"),
+      require("overseer.template.cmakeseer.cmake_configure"),
+      require("overseer.template.cmakeseer.cmake_configure_fresh"),
+    })
+  end,
+  -- Optional. Same as template.condition
+  condition = {
+    callback = function(search)
+      return vim.fn.filereadable(search.dir .. "CMakeLists.txt") ~= 0
+    end,
+  },
 }
