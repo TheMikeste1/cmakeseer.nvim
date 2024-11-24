@@ -15,6 +15,8 @@ local Utils = require("cmakeseer.utils")
 ---@return Options opts The cleaned options.
 local function cleanup_opts(opts)
   opts.kit_paths = opts.kit_paths or {}
+  opts.kits = opts.kits or {}
+
   if type(opts.kit_paths) == "string" then
     opts.kit_paths = {
       opts.kit_paths --[[@as string]],
@@ -96,6 +98,7 @@ function M.get_all_kits()
   kits = Utils.merge_arrays(kits, M.scanned_kits)
   local file_kits = Kit.load_all_kits(M.options.kit_paths)
   kits = Utils.merge_arrays(kits, file_kits)
+  kits = Kit.remove_duplicate_kits(kits)
   return kits
 end
 

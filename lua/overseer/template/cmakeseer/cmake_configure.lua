@@ -16,6 +16,7 @@ local function builder()
     if #kits >= 1 then
       Cmakeseer.selected_kit = kits[1]
       if Cmakeseer.selected_kit ~= nil then
+        -- TODO: Create auto-set option
         vim.notify_once("No kit selected; selecting " .. Cmakeseer.selected_kit.name, vim.log.levels.INFO)
       end
     end
@@ -24,10 +25,8 @@ local function builder()
   if Cmakeseer.selected_kit == nil then
     vim.notify_once("Could not find a kit; not specifying compilers in CMake configuration", vim.log.levels.WARN)
   else
-    vim.tbl_extend("error", args, {
-      "-DCMAKE_C_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.C,
-      "-DCMAKE_CXX_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.CXX,
-    })
+    table.insert(args, "-DCMAKE_C_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.C)
+    table.insert(args, "-DCMAKE_CXX_COMPILER:FILEPATH=" .. Cmakeseer.selected_kit.compilers.CXX)
   end
 
   local definitions = Utils.create_definition_strings()
