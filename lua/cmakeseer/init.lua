@@ -10,6 +10,27 @@ local Utils = require("cmakeseer.utils")
 --- @field kits Kit[] Global user-defined kits.
 --- @field persist_file string|nil The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
 
+--- Cleans user-provided options so they are consistent with the data model used.
+---@param opts Options The options to clean.
+---@return Options opts The cleaned options.
+local function cleanup_opts(opts)
+  opts.kit_paths = opts.kit_paths or {}
+  if type(opts.kit_paths) == "string" then
+    opts.kit_paths = {
+      opts.kit_paths --[[@as string]],
+    }
+  end
+
+  if opts.persist_file then
+    table.insert(opts.kit_paths, opts.persist_file)
+  end
+
+  opts.kit_paths = Utils.remove_duplicates(opts.kit_paths)
+  opts.kits = Kit.remove_duplicate_kits(opts.kits)
+
+  return opts
+end
+
 local M = {
   --- @type Kit[]
   scanned_kits = {},
@@ -72,9 +93,9 @@ end
 
 function M.get_all_kits()
   local kits = M.options.kits
-  kits = Utils.merge_tables(kits, M.scanned_kits)
+  kits = Utils.merge_arrays(kits, M.scanned_kits)
   local file_kits = Kit.load_all_kits(M.options.kit_paths)
-  kits = Utils.merge_tables(kits, file_kits)
+  kits = Utils.merge_arrays(kits, file_kits)
   return kits
 end
 
@@ -116,14 +137,12 @@ function M.scan_for_kits()
   local paths = M.options.scan_paths or {}
   if M.options.should_scan_path then
     local env_paths = vim.split(vim.env.PATH, ":", { trimempty = true })
-    -- TODO: Remove duplicates
-    paths = Utils.merge_tables(paths, env_paths)
+    paths = Utils.merge_sets(paths, env_paths)
   end
 
   for _, path in ipairs(paths) do
     local new_kits = Kit.scan_for_kits(path)
-    kits = Utils.merge_tables(kits, new_kits)
-    -- TODO: Remove duplicates
+    kits = Utils.merge_arrays(kits, new_kits)
   end
 
   local count_message = "Found " .. #kits .. " kit"
@@ -132,27 +151,17 @@ function M.scan_for_kits()
   end
   vim.notify(count_message)
 
-  -- TODO: Check for duplicates in M.options.kits
-  M.scanned_kits = kits
+  M.scanned_kits = Kit.remove_duplicate_kits(kits)
 
   if M.options.persist_file then
     Kit.persist_kits(M.options.persist_file, M.get_all_kits())
   end
 end
 
---- @param opts Options
+--- @param opts Options The options for setup.
 function M.setup(opts)
-  if type(opts.kit_paths) == "string" then
-    opts.kit_paths = {
-      opts.kit_paths --[[@as string]],
-    }
-  end
+  opts = cleanup_opts(opts)
   M.options = vim.tbl_deep_extend("force", M.options, opts)
-
-  if M.options.persist_file then
-    table.insert(M.options.kit_paths, M.options.persist_file)
-  end
-
   M.options.default_cmake_settings = M.options.default_cmake_settings or {}
   require("cmakeseer.settings").setup(M.options)
   require("cmakeseer.neoconf").setup()

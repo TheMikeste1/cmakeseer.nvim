@@ -130,6 +130,8 @@ local function extract_kit_from_clang(filepath)
     return nil
   end
 
+  -- TODO: Get version
+
   ---@type Kit
   local kit = {
     name = name,
@@ -156,7 +158,7 @@ function M.load_all_kits(kit_paths)
   local kits = {}
   for _, file_path in ipairs(kit_paths) do
     local kits_from_file = read_cmakekit_files(file_path)
-    kits = Utils.merge_tables(kits, kits_from_file)
+    kits = Utils.merge_arrays(kits, kits_from_file)
   end
   return kits
 end
@@ -213,6 +215,38 @@ function M.persist_kits(filepath, kits)
   if maybe_err then
     vim.notify("Unable to write to file `" .. filepath .. "`: " .. maybe_err, vim.log.levels.ERROR)
   end
+end
+
+---@param a Kit The lhs kit.
+---@param b Kit the rhs kit.
+---@return boolean equal If the two kits are considered equal.
+function M.are_kits_equal(a, b)
+  return a.compilers.C == b.compilers.C and a.compilers.CXX == b.compilers.CXX
+end
+
+--- Removes duplicate kits.
+---@param kits Kit[] The array of kits.
+---@return Kit[] kits The array of kits without duplicates.
+function M.remove_duplicate_kits(kits)
+  local kit_set = {}
+  for _, kit in ipairs(kits) do
+    if not M.kit_exists(kit_set, kit) then
+      table.insert(kit_set, kit)
+    end
+  end
+  return kits
+end
+
+---@param kits Kit[] The array containing kits.
+---@param kit Kit The kit to check.
+---@return boolean exists If the kit is already in the array.
+function M.kit_exists(kits, kit)
+  for _, value in ipairs(kits) do
+    if M.are_kits_equal(value, kit) then
+      return true
+    end
+  end
+  return false
 end
 
 return M

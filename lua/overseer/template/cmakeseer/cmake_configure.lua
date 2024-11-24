@@ -31,7 +31,7 @@ local function builder()
   end
 
   local definitions = Utils.create_definition_strings()
-  args = Utils.merge_tables(args, definitions)
+  args = Utils.merge_arrays(args, definitions)
 
   return {
     name = "CMake Configure",
