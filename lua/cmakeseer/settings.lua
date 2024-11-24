@@ -10,6 +10,7 @@ local _settings = nil
 
 --- @param opts Options
 function M.setup(opts)
+  assert(opts.default_cmake_settings)
   _default_settings = opts.default_cmake_settings
   _settings = M.get_default_settings()
 end

@@ -12,8 +12,9 @@ local function builder()
 
   if Cmakeseer.selected_kit == nil then
     -- If a kit isn't selected, we'll just select the first
-    if #Cmakeseer.kits >= 1 then
-      Cmakeseer.selected_kit = Cmakeseer.get_all_kits()[1]
+    local kits = Cmakeseer.get_all_kits()
+    if #kits >= 1 then
+      Cmakeseer.selected_kit = kits[1]
       if Cmakeseer.selected_kit ~= nil then
         vim.notify_once("No kit selected; selecting " .. Cmakeseer.selected_kit.name, vim.log.levels.INFO)
       end

@@ -196,4 +196,23 @@ function M.scan_for_kits(directory)
   return kits
 end
 
+--- Persists the given kits to disk, overwriting any contents that are already there.
+---@param filepath string The path to which the kits should be persisted.
+---@param kits Kit[] The kits to persist.
+function M.persist_kits(filepath, kits)
+  local kits_as_json = vim.json.encode(kits)
+
+  local file = io.open(filepath, "w")
+  if file == nil then
+    vim.notify("Unable to open file `" .. filepath .. "` for saving kits", vim.log.levels.ERROR)
+    return
+  end
+
+  local _, maybe_err = file:write(kits_as_json)
+  file:close()
+  if maybe_err then
+    vim.notify("Unable to write to file `" .. filepath .. "`: " .. maybe_err, vim.log.levels.ERROR)
+  end
+end
+
 return M

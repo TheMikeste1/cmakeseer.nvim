@@ -8,10 +8,9 @@ local Utils = require("cmakeseer.utils")
 --- @field scan_paths string[] Additional paths to scan for kits.
 --- @field kit_paths string[] Paths to files containing CMake kit definitions. These will not be expanded.
 --- @field kits Kit[] Global user-defined kits.
+--- @field persist_file string|nil The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
 
 local M = {
-  --- @type Kit[]
-  kits = {},
   --- @type Kit[]
   scanned_kits = {},
   --- @type Kit
@@ -27,6 +26,7 @@ local M = {
     kit_paths = {},
     --- @type Kit[]
     kits = {},
+    persist_file = nil,
   },
 }
 
@@ -80,9 +80,9 @@ end
 
 --- Select a kit to use
 function M.select_kit()
-  M.kits = M.get_all_kits()
+  local kits = M.get_all_kits()
   vim.ui.select(
-    M.kits,
+    kits,
     {
       prompt = "Select kit",
       --- @param item Kit
@@ -132,21 +132,28 @@ function M.scan_for_kits()
   end
   vim.notify(count_message)
 
-  -- TODO: Check for duplicates in M.kits
+  -- TODO: Check for duplicates in M.options.kits
   M.scanned_kits = kits
 
-  -- TODO: Persist
+  if M.options.persist_file then
+    Kit.persist_kits(M.options.persist_file, M.get_all_kits())
+  end
 end
 
 --- @param opts Options
 function M.setup(opts)
   if type(opts.kit_paths) == "string" then
-    ---@diagnostic disable-next-line: assign-type-mismatch
-    opts.kit_paths = { opts.kit_paths }
+    opts.kit_paths = {
+      opts.kit_paths --[[@as string]],
+    }
   end
   M.options = vim.tbl_deep_extend("force", M.options, opts)
 
-  M.kits = M.get_all_kits()
+  if M.options.persist_file then
+    table.insert(M.options.kit_paths, M.options.persist_file)
+  end
+
+  M.options.default_cmake_settings = M.options.default_cmake_settings or {}
   require("cmakeseer.settings").setup(M.options)
   require("cmakeseer.neoconf").setup()
 end
