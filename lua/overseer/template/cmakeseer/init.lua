@@ -10,6 +10,7 @@ return {
   -- Optional. Same as template.condition
   condition = {
     callback = function(search)
+      -- TODO: Check CWD of nvim instead of current file directory
       return vim.fn.filereadable(search.dir .. "CMakeLists.txt") ~= 0
     end,
   },
