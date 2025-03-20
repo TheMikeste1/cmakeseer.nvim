@@ -1,5 +1,5 @@
 --- @class CMakeSettings
---- @field configureSettings table<string, string|boolean|number> Contains the definition:value pairs to be used when configuring the project.
+--- @field configureSettings table<string, string|boolean|number> Contains the definition:value pairs to be used when configuring the CMake project.
 
 local M = {}
 
