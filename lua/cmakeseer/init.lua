@@ -170,7 +170,8 @@ function M.selected_kit()
 
   local maybe_kit_name = require("cmakeseer.settings").get_settings().kit_name
   if maybe_kit_name then
-    for _, kit in ipairs(M.scanned_kits) do
+    local kits = M.get_all_kits()
+    for _, kit in ipairs(kits) do
       if kit.name == maybe_kit_name then
         M._selected_kit = kit
         return M._selected_kit
