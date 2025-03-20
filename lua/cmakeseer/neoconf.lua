@@ -22,9 +22,10 @@ function Plugin.setup()
   Settings.set_settings(settings)
 end
 
-function Plugin.on_update(--[[ updated_file_name ]])
+function Plugin.on_update(updated_file_name)
   -- We almost certainly could get the updates more efficiently, but we'll wait
   -- for load times to be a problem.
+  vim.notify("Updating settings from " .. updated_file_name)
   local settings = load_settings()
   Settings.set_settings(settings)
 end

@@ -36,13 +36,12 @@ end
 local M = {
   --- @type Kit[]
   scanned_kits = {},
-  --- @type Kit
-  selected_kit = nil,
   --- @type Options
   options = {
     build_directory = "build",
     default_cmake_settings = {
       configureSettings = {},
+      kit_name = nil,
     },
     should_scan_path = true,
     scan_paths = {},
@@ -51,6 +50,8 @@ local M = {
     kits = {},
     persist_file = nil,
   },
+  --- @type Kit
+  _selected_kit = nil,
 }
 
 --- @return string build_directory The project's build directory.
@@ -129,7 +130,7 @@ function M.select_kit()
     },
     --- @param choice Kit
     function(choice)
-      M.selected_kit = choice
+      M._selected_kit = choice
     end
   )
 end
@@ -159,6 +160,27 @@ function M.scan_for_kits()
   if M.options.persist_file then
     Kit.persist_kits(M.options.persist_file, M.get_all_kits())
   end
+end
+
+---@return Kit? selected_kit The currently selected kit, if one exists.
+function M.selected_kit()
+  if M._selected_kit ~= nil then
+    return M._selected_kit
+  end
+
+  local maybe_kit_name = require("cmakeseer.settings").get_settings().kit_name
+  if maybe_kit_name then
+    for _, kit in ipairs(M.scanned_kits) do
+      if kit.name == maybe_kit_name then
+        M._selected_kit = kit
+        return M._selected_kit
+      end
+    end
+
+    vim.notify_once("Unable to find default kit: " .. maybe_kit_name, vim.log.levels.ERROR)
+  end
+
+  return nil
 end
 
 --- @param opts Options The options for setup.

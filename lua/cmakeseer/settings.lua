@@ -1,5 +1,6 @@
 --- @class CMakeSettings
 --- @field configureSettings table<string, string|boolean|number> Contains the definition:value pairs to be used when configuring the CMake project.
+--- @field kit_name string? The name of the kit to use.
 
 local M = {}
 
