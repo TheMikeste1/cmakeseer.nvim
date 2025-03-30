@@ -1,4 +1,5 @@
 local Utils = require("cmakeseer.utils")
+local FileUtils = require("cmakeseer.file_utils")
 
 --- @class Compilers
 --- @field C string
@@ -202,15 +203,31 @@ end
 ---@param filepath string The path to which the kits should be persisted.
 ---@param kits Kit[] The kits to persist.
 function M.persist_kits(filepath, kits)
-  local kits_as_json = vim.json.encode(kits)
+  filepath = vim.fn.expand(filepath)
+  local parent_path = FileUtils.get_parent_path(filepath)
+  if not FileUtils.is_directory(parent_path) then
+    local success = vim.fn.mkdir(parent_path, "p") == 1
+    if not success then
+      vim.notify("Failed to create parent path for " .. filepath .. ". Cannot persist kits.", vim.log.levels.ERROR)
+      return
+    end
+  end
 
-  local file = io.open(filepath, "w")
+  local file, maybe_err = io.open(filepath, "w")
   if file == nil then
-    vim.notify("Unable to open file `" .. filepath .. "` for saving kits", vim.log.levels.ERROR)
+    local err_msg = "Unable to open file `" .. filepath .. "` for saving kits: "
+    if maybe_err ~= nil then
+      err_msg = err_msg .. maybe_err
+    else
+      err_msg = err_msg .. "Unknown error"
+    end
+
+    vim.notify(err_msg, vim.log.levels.ERROR)
     return
   end
 
-  local _, maybe_err = file:write(kits_as_json)
+  local kits_as_json = vim.json.encode(kits)
+  _, maybe_err = file:write(kits_as_json)
   file:close()
   if maybe_err then
     vim.notify("Unable to write to file `" .. filepath .. "`: " .. maybe_err, vim.log.levels.ERROR)

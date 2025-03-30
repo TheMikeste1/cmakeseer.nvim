@@ -1,14 +1,6 @@
 local Kit = require("cmakeseer.kit")
 local Utils = require("cmakeseer.utils")
-
---- @class Options
---- @field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
---- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
---- @field should_scan_path boolean If the PATH environment variable directories should be scanned for kits.
---- @field scan_paths string[] Additional paths to scan for kits.
---- @field kit_paths string[] Paths to files containing CMake kit definitions. These will not be expanded.
---- @field kits Kit[] Global user-defined kits.
---- @field persist_file string|nil The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
+local Options = require("cmakeseer.options")
 
 --- Cleans user-provided options so they are consistent with the data model used.
 ---@param opts Options The options to clean.
@@ -23,7 +15,8 @@ local function cleanup_opts(opts)
     }
   end
 
-  if opts.persist_file then
+  if opts.persist_file ~= nil then
+    opts.persist_file = vim.fn.expand(opts.persist_file)
     table.insert(opts.kit_paths, opts.persist_file)
   end
 
@@ -34,22 +27,10 @@ local function cleanup_opts(opts)
 end
 
 local M = {
+  --- @type Options
+  options = Options.default(),
   --- @type Kit[]
   scanned_kits = {},
-  --- @type Options
-  options = {
-    build_directory = "build",
-    default_cmake_settings = {
-      configureSettings = {},
-      kit_name = nil,
-    },
-    should_scan_path = true,
-    scan_paths = {},
-    kit_paths = {},
-    --- @type Kit[]
-    kits = {},
-    persist_file = nil,
-  },
   --- @type Kit
   _selected_kit = nil,
 }
@@ -158,6 +139,7 @@ function M.scan_for_kits()
   M.scanned_kits = Kit.remove_duplicate_kits(kits)
 
   if M.options.persist_file then
+    vim.notify("Persisting kits", vim.log.levels.INFO)
     Kit.persist_kits(M.options.persist_file, M.get_all_kits())
   end
 end
