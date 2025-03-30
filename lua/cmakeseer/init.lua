@@ -160,7 +160,7 @@ function M.selected_kit()
       end
     end
 
-    vim.notify_once("Unable to find default kit: " .. maybe_kit_name, vim.log.levels.ERROR)
+    vim.notify_once("Unable to find selected kit: " .. maybe_kit_name, vim.log.levels.ERROR)
   end
 
   return nil

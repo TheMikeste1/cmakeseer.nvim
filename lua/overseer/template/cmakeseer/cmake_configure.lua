@@ -1,4 +1,5 @@
 local Cmakeseer = require("cmakeseer")
+local Settings = require("cmakeseer.settings")
 local Utils = require("cmakeseer.utils")
 
 --- @return overseer.TaskDefinition
@@ -21,6 +22,9 @@ local function builder()
 
   local definitions = Utils.create_definition_strings()
   args = Utils.merge_arrays(args, definitions)
+
+  local additional_args = Settings.get_settings().configureArgs
+  args = Utils.merge_arrays(args, additional_args)
 
   return {
     name = "CMake Configure",

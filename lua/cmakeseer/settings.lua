@@ -1,4 +1,5 @@
 --- @class CMakeSettings
+--- @field configureArgs table<string> Contains arguments to be appended to the configure command.
 --- @field configureSettings table<string, string|boolean|number> Contains the definition:value pairs to be used when configuring the CMake project.
 --- @field kit_name string? The name of the kit to use.
 
