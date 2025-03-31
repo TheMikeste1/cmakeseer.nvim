@@ -5,7 +5,7 @@ local CmakeseerOverseerConfigure = require("overseer.template.cmakeseer.cmake_co
 local function builder(params)
   local config = CmakeseerOverseerConfigure.builder(params)
   config.name = "CMake Configure (fresh)"
-  table.insert(config.args, 1, "--fresh")
+  table.insert(config.args, "--fresh")
   return config
 end
 

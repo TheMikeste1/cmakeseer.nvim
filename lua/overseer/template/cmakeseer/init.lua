@@ -3,6 +3,7 @@ return {
     cb({
       require("overseer.template.cmakeseer.cmake_build"),
       require("overseer.template.cmakeseer.cmake_clean"),
+      require("overseer.template.cmakeseer.cmake_clean_rebuild"),
       require("overseer.template.cmakeseer.cmake_configure"),
       require("overseer.template.cmakeseer.cmake_configure_fresh"),
     })
@@ -10,7 +11,8 @@ return {
   -- Optional. Same as template.condition
   condition = {
     callback = function(search)
-      return vim.fn.filereadable(search.dir .. "CMakeLists.txt") ~= 0 or vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt")
+      return vim.fn.filereadable(search.dir .. "CMakeLists.txt") ~= 0
+        or vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt")
     end,
   },
 }

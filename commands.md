@@ -6,7 +6,7 @@
 - [ ] Build Target
 - [x] Clean
 - [ ] Cancel Build
-- [ ] Clean Rebuild
+- [X] Clean Rebuild
 - [ ] Compile Active File
 - [x] Configure
 - [ ] Configure with CMake Debugger
