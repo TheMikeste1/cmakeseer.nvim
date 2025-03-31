@@ -166,6 +166,11 @@ function M.selected_kit()
   return nil
 end
 
+---@return boolean is_cmake_project If the current projects is a CMake project.
+function M.is_cmake_project()
+  return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") == 1
+end
+
 --- @param opts Options The options for setup.
 function M.setup(opts)
   opts = cleanup_opts(opts)

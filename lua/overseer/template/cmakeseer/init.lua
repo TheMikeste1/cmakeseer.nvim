@@ -13,7 +13,7 @@ return {
   condition = {
     callback = function(search)
       return vim.fn.filereadable(search.dir .. "CMakeLists.txt") ~= 0
-        or vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt")
+        or require("cmakeseer").is_cmake_project()
     end,
   },
 }
