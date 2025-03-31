@@ -6,6 +6,7 @@ return {
       require("overseer.template.cmakeseer.cmake_clean_rebuild"),
       require("overseer.template.cmakeseer.cmake_configure"),
       require("overseer.template.cmakeseer.cmake_configure_fresh"),
+      require("overseer.template.cmakeseer.cmake_install"),
     })
   end,
   -- Optional. Same as template.condition

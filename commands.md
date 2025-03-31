@@ -13,7 +13,7 @@
 - [ ] Debug
 - [ ] Delete Cache and Reconfigure
 - [ ] Delete Cache and Reconfigure with CMake Debugger
-- [ ] Install
+- [X] Install
 - [ ] Run Tests (CTest?)
 - [ ] Run Without Debugging
 
