@@ -1,6 +1,5 @@
 local Neoconf = require("neoconf")
 local NeoconfPlugins = require("neoconf.plugins")
-
 local Settings = require("cmakeseer.settings")
 
 local DEFAULT_SETTINGS = Settings.get_default_settings()

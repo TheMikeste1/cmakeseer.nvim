@@ -1,3 +1,6 @@
+local Kit = require("cmakeseer.kit")
+local Utils = require("cmakeseer.utils")
+
 --- @class Options
 --- @field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
 --- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
@@ -20,10 +23,33 @@ function M.default()
     should_scan_path = true,
     scan_paths = {},
     kit_paths = {},
-    --- @type Kit[]
     kits = {},
     persist_file = nil,
   }
+end
+
+--- Cleans user-provided options so they are consistent with the data model used.
+---@param opts Options The options to clean.
+---@return Options opts The cleaned options.
+function M.cleanup(opts)
+  opts.kit_paths = opts.kit_paths or {}
+  opts.kits = opts.kits or {}
+
+  if type(opts.kit_paths) == "string" then
+    opts.kit_paths = {
+      opts.kit_paths --[[@as string]],
+    }
+  end
+
+  if opts.persist_file ~= nil then
+    opts.persist_file = vim.fn.expand(opts.persist_file)
+    table.insert(opts.kit_paths, opts.persist_file)
+  end
+
+  opts.kit_paths = Utils.remove_duplicates(opts.kit_paths)
+  opts.kits = Kit.remove_duplicate_kits(opts.kits)
+
+  return opts
 end
 
 return M

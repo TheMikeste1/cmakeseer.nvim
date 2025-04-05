@@ -1,3 +1,4 @@
+local CmakeUtils = require("cmakeseer.cmake.utils")
 local Cmakeseer = require("cmakeseer")
 local Settings = require("cmakeseer.settings")
 local Utils = require("cmakeseer.utils")
@@ -20,7 +21,8 @@ local function builder()
     table.insert(args, "-DCMAKE_CXX_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.CXX)
   end
 
-  local definitions = Utils.create_definition_strings()
+  local configure_settings = Settings.get_settings().configureSettings
+  local definitions = CmakeUtils.create_definition_strings(configure_settings)
   args = Utils.merge_arrays(args, definitions)
 
   local additional_args = Settings.get_settings().configureArgs

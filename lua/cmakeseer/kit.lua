@@ -1,5 +1,5 @@
-local Utils = require("cmakeseer.utils")
 local FileUtils = require("cmakeseer.file_utils")
+local Utils = require("cmakeseer.utils")
 
 --- @class Compilers
 --- @field C string

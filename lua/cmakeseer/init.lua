@@ -1,45 +1,22 @@
+local CmakeUtils = require("cmakeseer.cmake.utils")
 local Kit = require("cmakeseer.kit")
-local Utils = require("cmakeseer.utils")
 local Options = require("cmakeseer.options")
-
---- Cleans user-provided options so they are consistent with the data model used.
----@param opts Options The options to clean.
----@return Options opts The cleaned options.
-local function cleanup_opts(opts)
-  opts.kit_paths = opts.kit_paths or {}
-  opts.kits = opts.kits or {}
-
-  if type(opts.kit_paths) == "string" then
-    opts.kit_paths = {
-      opts.kit_paths --[[@as string]],
-    }
-  end
-
-  if opts.persist_file ~= nil then
-    opts.persist_file = vim.fn.expand(opts.persist_file)
-    table.insert(opts.kit_paths, opts.persist_file)
-  end
-
-  opts.kit_paths = Utils.remove_duplicates(opts.kit_paths)
-  opts.kits = Kit.remove_duplicate_kits(opts.kits)
-
-  return opts
-end
+local Utils = require("cmakeseer.utils")
 
 local M = {
   --- @type Options
-  options = Options.default(),
+  __options = Options.default(),
   --- @type Kit[]
-  scanned_kits = {},
-  --- @type Kit
-  _selected_kit = nil,
+  __scanned_kits = {},
+  --- @type Kit?
+  __selected_kit = nil,
 }
 
 --- @return string build_directory The project's build directory.
 function M.get_build_directory()
-  local build_dir = M.options.build_directory --[[@as string]]
-  if type(M.options.build_directory) == "function" then
-    build_dir = M.options.build_directory()
+  local build_dir = M.__options.build_directory --[[@as string]]
+  if type(M.__options.build_directory) == "function" then
+    build_dir = M.__options.build_directory()
   end
 
   if build_dir[1] == "/" then
@@ -63,7 +40,8 @@ end
 function M.get_configure_command()
   local command = "cmake -S" .. vim.fn.getcwd() .. " -B" .. M.get_build_directory()
 
-  local definitions = require("cmakeseer.utils").create_definition_strings()
+  local configure_settings = require("cmakeseer.settings").get_settings().configureSettings
+  local definitions = CmakeUtils.create_definition_strings(configure_settings)
   for _, value in ipairs(definitions) do
     if string.find(value, " ") then
       value = '"' .. value .. '"'
@@ -76,9 +54,9 @@ function M.get_configure_command()
 end
 
 function M.get_all_kits()
-  local kits = M.options.kits
-  kits = Utils.merge_arrays(kits, M.scanned_kits)
-  local file_kits = Kit.load_all_kits(M.options.kit_paths)
+  local kits = M.__options.kits
+  kits = Utils.merge_arrays(kits, M.__scanned_kits)
+  local file_kits = Kit.load_all_kits(M.__options.kit_paths)
   kits = Utils.merge_arrays(kits, file_kits)
   kits = Kit.remove_duplicate_kits(kits)
   return kits
@@ -111,7 +89,7 @@ function M.select_kit()
     },
     --- @param choice Kit
     function(choice)
-      M._selected_kit = choice
+      M.__selected_kit = choice
     end
   )
 end
@@ -119,8 +97,8 @@ end
 function M.scan_for_kits()
   local kits = {}
 
-  local paths = M.options.scan_paths or {}
-  if M.options.should_scan_path then
+  local paths = M.__options.scan_paths or {}
+  if M.__options.should_scan_path then
     local env_paths = vim.split(vim.env.PATH, ":", { trimempty = true })
     paths = Utils.merge_sets(paths, env_paths)
   end
@@ -136,18 +114,18 @@ function M.scan_for_kits()
   end
   vim.notify(count_message)
 
-  M.scanned_kits = Kit.remove_duplicate_kits(kits)
+  M.__scanned_kits = Kit.remove_duplicate_kits(kits)
 
-  if M.options.persist_file then
+  if M.__options.persist_file then
     vim.notify("Persisting kits", vim.log.levels.INFO)
-    Kit.persist_kits(M.options.persist_file, M.get_all_kits())
+    Kit.persist_kits(M.__options.persist_file, M.get_all_kits())
   end
 end
 
 ---@return Kit? selected_kit The currently selected kit, if one exists.
 function M.selected_kit()
-  if M._selected_kit ~= nil then
-    return M._selected_kit
+  if M.__selected_kit ~= nil then
+    return M.__selected_kit
   end
 
   local maybe_kit_name = require("cmakeseer.settings").get_settings().kit_name
@@ -155,8 +133,8 @@ function M.selected_kit()
     local kits = M.get_all_kits()
     for _, kit in ipairs(kits) do
       if kit.name == maybe_kit_name then
-        M._selected_kit = kit
-        return M._selected_kit
+        M.__selected_kit = kit
+        return M.__selected_kit
       end
     end
 
@@ -166,17 +144,17 @@ function M.selected_kit()
   return nil
 end
 
----@return boolean is_cmake_project If the current projects is a CMake project.
+---@return boolean is_cmake_project If the current project is a CMake project.
 function M.is_cmake_project()
   return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") == 1
 end
 
 --- @param opts Options The options for setup.
 function M.setup(opts)
-  opts = cleanup_opts(opts)
-  M.options = vim.tbl_deep_extend("force", M.options, opts)
-  M.options.default_cmake_settings = M.options.default_cmake_settings or {}
-  require("cmakeseer.settings").setup(M.options)
+  opts = Options.cleanup(opts)
+  M.__options = vim.tbl_deep_extend("force", M.__options, opts)
+  M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
+  require("cmakeseer.settings").setup(M.__options)
   require("cmakeseer.neoconf").setup()
 end
 
