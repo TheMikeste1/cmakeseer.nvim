@@ -1,6 +1,8 @@
 return {
   generator = function(search, cb)
     cb({
+      -- TODO: Add cmake_build_target for each target (maybe provide an option)
+      -- Also provide one for the currently selected target.
       require("overseer.template.cmakeseer.cmake_build"),
       require("overseer.template.cmakeseer.cmake_clean"),
       require("overseer.template.cmakeseer.cmake_clean_rebuild"),

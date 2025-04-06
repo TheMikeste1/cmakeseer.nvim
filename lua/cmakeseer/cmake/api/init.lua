@@ -1,3 +1,4 @@
+local CodeModel = require("cmakeseer.cmake.api.model.codemodel")
 local ObjectKind = require("cmakeseer.cmake.api.model.object_kind")
 local Utils = require("cmakeseer.utils")
 
@@ -55,7 +56,32 @@ function _M.convert_fields_to_snakecase(obj)
   return obj
 end
 
-local M = {}
+--- Generates a query object for the given ObjectKind.
+---@param kind Kind The object kind for which the query should be generated.
+---@return table<string, any>? query The query object for the ObjectKind.
+function _M.generate_query_object(kind)
+  if kind == ObjectKind.Kind.codemodel then
+    return {
+      kind = ObjectKind.Kind.codemodel,
+      version = {
+        major = 2,
+      },
+    }
+  else
+    vim.notify("TODO: Implement query for " .. kind)
+  end
+
+  return nil
+end
+
+local M = {
+  --- @enum IssueQueryError The possible types of errors that could be produced when issuing a query.
+  IssueQueryError = {
+    failed_to_make_directory = 0,
+    failed_to_make_query_file = 1,
+  },
+  __api_directory = ".cmake/api/v1",
+}
 
 --- Reads a file and returns the associated ObjectKind, if it contains one.
 --- @param filename string The file containing the ObjectKind.
@@ -73,6 +99,52 @@ function M.read_object_kind_file(filename)
   end
 
   return maybe_object_kind
+end
+
+--- Issue a query to the CMake file API.
+---@param kinds Kind[]|Kind The Kinds (or Kind) for the query.
+---@param build_directory string The directory in which the CMake project will be configured.
+---@return IssueQueryError? maybe_error An error, if one occurs.
+function M.issue_query(kinds, build_directory)
+  if string.sub(build_directory, #build_directory) ~= "/" then
+    build_directory = build_directory .. "/"
+  end
+
+  local client_dir = build_directory .. M.__api_directory .. "/query/client-cmakeseer"
+  local success = vim.fn.mkdir(client_dir, "p") == 1
+  if not success then
+    return M.IssueQueryError.failed_to_make_directory
+  end
+
+  local query = {
+    requests = {},
+  }
+
+  if type(kinds) == "string" then
+    local request = _M.generate_query_object(kinds --[[@as Kind]])
+    if request == nil then
+      vim.notify("Query not implemented for " .. kinds .. ". Skipping.", vim.log.levels.WARN)
+    else
+      table.insert(query.requests, request)
+    end
+  else
+    for _, kind in
+      ipairs(kinds --[[@as Kind[] ]])
+    do
+      local request = _M.generate_query_object(kind)
+      if request == nil then
+        vim.notify("Query not implemented for " .. kind .. ". Skipping.", vim.log.levels.WARN)
+      else
+        table.insert(query.requests, request)
+      end
+    end
+  end
+
+  local json = vim.fn.json_encode(query)
+  success = vim.fn.writefile({ json }, client_dir .. "/query.json") == 0
+  if not success then
+    return M.IssueQueryError.failed_to_make_query_file
+  end
 end
 
 return M
