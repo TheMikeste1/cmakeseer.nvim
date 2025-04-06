@@ -39,7 +39,7 @@ local function builder()
         "unique",
         restart_interrupts = false,
       },
-      "cmakeseer.preconfigure",
+      "cmakeseer.configure_hooks",
       "default",
     },
   }

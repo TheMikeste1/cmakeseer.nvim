@@ -1,8 +1,19 @@
-local CodeModel = require("cmakeseer.cmake.api.model.codemodel")
 local ObjectKind = require("cmakeseer.cmake.api.model.object_kind")
 local Utils = require("cmakeseer.utils")
 
-local _M = {}
+---@class ReplyFileReference A successful reply provided in response to a query.
+---@field kind Kind The Kind for which the response if provided.
+---@field version Version The Version of the ObjectKind.
+---@field json_file string The reference to the JSON file that contains more information. Relative to the index file.
+
+---@class ReplyFileError An error provided in response to a query.
+---@field error string The error description
+
+---@alias ApiResponse ReplyFileReference|ReplyFileError The possible response types to a query.
+
+local _M = {
+  api_directory = ".cmake/api/v1",
+}
 
 --- Coverts a string from camel to snakecase.
 ---@param str string The string to convert.
@@ -74,19 +85,69 @@ function _M.generate_query_object(kind)
   return nil
 end
 
+--- Gets the name of the index file for the CMake API, if one exists.
+---@param response_dir string The path to the reply directory used by the CMake API.
+---@return string? index_file_path The path to the index file, if one exists.
+function _M.get_index_file_path(response_dir)
+  local index_files = vim.fs.find(function(name)
+    return name:match("index-.+%.json$")
+  end, {
+    -- There is a small possibility that there are two index files at once. If there is, the lexicographically larger one if the current index.
+    -- Source: https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html#v1-reply-index-file
+    limit = 2,
+    type = "file",
+    path = response_dir,
+  })
+  table.sort(index_files)
+  return index_files[#index_files]
+end
+
+--- Extracts the responses from an index file.
+---@param index_file_path string The path to the index file.
+---@return ApiResponse[]? maybe_responses An array of API responses, if the index file had them.
+function _M.get_responses_from_index_file(index_file_path)
+  local lines = vim.fn.readfile(index_file_path)
+  if #lines == 0 then
+    return nil
+  end
+
+  local contents = vim.fn.json_decode(lines)
+  local responses = contents.reply["client-cmakeseer"]["query.json"].responses
+  assert(Utils.is_array(responses) or #responses == 0)
+  return _M.convert_array_object_fields_to_snakecase(responses)
+end
+
+---@param build_directory string The directory in which the CMake project was configured.
+---@return string query_directory The directory in which API query files should be written for this client.
+function _M.get_query_directory(build_directory)
+  return vim.fs.joinpath(build_directory, _M.api_directory, "query/client-cmakeseer")
+end
+
+---@param build_directory string The directory in which the CMake project was configured.
+---@return string reply_directory The directory in which CMake will provide its responses.
+function _M.get_reply_directory(build_directory)
+  return vim.fs.joinpath(build_directory, _M.api_directory, "reply")
+end
+
 local M = {
   --- @enum IssueQueryError The possible types of errors that could be produced when issuing a query.
   IssueQueryError = {
-    failed_to_make_directory = 0,
-    failed_to_make_query_file = 1,
+    FailedToMakeDirectory = 0,
+    FailedToMakeQueryFile = 1,
   },
-  __api_directory = ".cmake/api/v1",
+  --- @enum ReadResponseError The possible types of errors that could be produced when reading the response to a query.
+  ReadResponseError = {
+    IndexDoesNotExist = 0,
+  },
 }
 
---- Reads a file and returns the associated ObjectKind, if it contains one.
---- @param filename string The file containing the ObjectKind.
---- @return ObjectKind? object_kind The object kind in the file, nil if the file didn't contain one.
-function M.read_object_kind_file(filename)
+--- Reads and parses an ObjectKind file given its reference.
+---@param reference ReplyFileReference The reference to the ObjectKind file.
+---@param build_directory string The directory in which the CMake project was configured.
+---@return ObjectKind? maybe_object_kind The parsed ObjectKind, if the file contained a valid one.
+function M.parse_object_kind_file(reference, build_directory)
+  local response_directory = _M.get_reply_directory(build_directory)
+  local filename = vim.fs.joinpath(response_directory, reference.json_file)
   local file_contents = vim.fn.readfile(filename)
   if #file_contents == 0 then
     return nil
@@ -106,14 +167,10 @@ end
 ---@param build_directory string The directory in which the CMake project will be configured.
 ---@return IssueQueryError? maybe_error An error, if one occurs.
 function M.issue_query(kinds, build_directory)
-  if string.sub(build_directory, #build_directory) ~= "/" then
-    build_directory = build_directory .. "/"
-  end
-
-  local client_dir = build_directory .. M.__api_directory .. "/query/client-cmakeseer"
+  local client_dir = _M.get_query_directory(build_directory)
   local success = vim.fn.mkdir(client_dir, "p") == 1
   if not success then
-    return M.IssueQueryError.failed_to_make_directory
+    return M.IssueQueryError.FailedToMakeDirectory
   end
 
   local query = {
@@ -143,8 +200,28 @@ function M.issue_query(kinds, build_directory)
   local json = vim.fn.json_encode(query)
   success = vim.fn.writefile({ json }, client_dir .. "/query.json") == 0
   if not success then
-    return M.IssueQueryError.failed_to_make_query_file
+    return M.IssueQueryError.FailedToMakeQueryFile
   end
+end
+
+--- Read the response to a query from the CMake API.
+---@param build_directory string The directory in which the CMake project was configured.
+---@return ReplyFileReference[] reply_file_references The list of reply file references provided by the API.
+function M.read_responses(build_directory)
+  local response_dir = _M.get_reply_directory(build_directory)
+  local index_file_path = _M.get_index_file_path(response_dir)
+  if index_file_path == nil then
+    vim.notify("Cannot read CMake API response. Index file did not exist in " .. response_dir, vim.log.levels.ERROR)
+    return {}
+  end
+
+  local maybe_responses = _M.get_responses_from_index_file(index_file_path)
+  if maybe_responses == nil then
+    vim.notify("Index file `" .. index_file_path .. "` did not contain any responses", vim.log.levels.WARN)
+    return {}
+  end
+
+  return maybe_responses
 end
 
 return M
