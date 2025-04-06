@@ -5,7 +5,6 @@ local ObjectKind = require("cmakeseer.cmake.api.model.object_kind").Kind
 local M = {}
 
 --- Called before the project is configured.
---- TODO: Sneak this into a CMake component so it's called whenever Configure is ran, not just built
 function M.onPreConfigure()
   local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, Cmakeseer.get_build_directory())
   if maybe_error ~= nil then

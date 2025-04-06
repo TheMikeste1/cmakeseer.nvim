@@ -2,7 +2,6 @@
 
 local CmakeUtils = require("cmakeseer.cmake.utils")
 local Cmakeseer = require("cmakeseer")
-local CmakeseerCallbacks = require("cmakeseer.callbacks")
 local Settings = require("cmakeseer.settings")
 local Utils = require("cmakeseer.utils")
 
@@ -31,8 +30,6 @@ local function builder()
   local additional_args = Settings.get_settings().configureArgs
   args = Utils.merge_arrays(args, additional_args)
 
-  CmakeseerCallbacks.onPreConfigure()
-
   return {
     name = "CMake Configure",
     cmd = "cmake",
@@ -42,6 +39,7 @@ local function builder()
         "unique",
         restart_interrupts = false,
       },
+      "cmakeseer.preconfigure",
       "default",
     },
   }
