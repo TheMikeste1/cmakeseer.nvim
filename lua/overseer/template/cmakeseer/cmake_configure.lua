@@ -15,6 +15,12 @@ local function builder()
     "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
   }
 
+  local variant = Cmakeseer.selected_variant()
+  if variant ~= Cmakeseer.Variant.Unspecified then
+    local definition = string.format("-DCMAKE_BUILD_TYPE=%s", variant)
+    table.insert(args, definition)
+  end
+
   local maybe_selected_kit = Cmakeseer.selected_kit()
   if maybe_selected_kit == nil then
     vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)

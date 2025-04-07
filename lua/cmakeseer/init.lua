@@ -3,7 +3,18 @@ local Kit = require("cmakeseer.kit")
 local Options = require("cmakeseer.options")
 local Utils = require("cmakeseer.utils")
 
+--- TODO: Allow custom variants
+---@enum Variant
+local Variant = {
+  Debug = "Debug",
+  Release = "Release",
+  RelWithDebInfo = "RelWithDebInfo",
+  MinSizeRel = "MinSizeRel",
+  Unspecified = "Unspecified",
+}
+
 local M = {
+  Variant = Variant,
   --- @type Options
   __options = Options.default(),
   --- @type Kit[]
@@ -12,6 +23,8 @@ local M = {
   __selected_kit = nil,
   --- @type Target[]
   __targets = {},
+  ---@type Variant
+  __selected_variant = Variant.Debug,
 }
 
 --- @return string build_directory The project's build directory.
@@ -26,6 +39,11 @@ function M.get_build_directory()
   else
     return vim.fs.joinpath(vim.fn.getcwd(), build_dir)
   end
+end
+
+---@return Variant variant The selected variant.
+function M.selected_variant()
+  return M.__selected_variant
 end
 
 --- @return boolean is_configured If the project is configured.
@@ -98,6 +116,19 @@ function M.select_kit()
     --- @param choice Kit
     function(choice)
       M.__selected_kit = choice
+    end
+  )
+end
+
+function M.select_variant()
+  vim.ui.select(
+    Variant,
+    {
+      prompt = "Select variant",
+    },
+    --- @param choice Variant
+    function(choice)
+      M.__selected_variant = choice
     end
   )
 end
