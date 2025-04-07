@@ -12,12 +12,12 @@ local function builder()
     vim.fn.getcwd(),
     "-B",
     Cmakeseer.get_build_directory(),
-    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
   }
 
   local variant = Cmakeseer.selected_variant()
   if variant ~= Cmakeseer.Variant.Unspecified then
-    local definition = string.format("-DCMAKE_BUILD_TYPE=%s", variant)
+    local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
     table.insert(args, definition)
   end
 
