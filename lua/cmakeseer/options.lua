@@ -2,7 +2,7 @@ local Kit = require("cmakeseer.kit")
 local Utils = require("cmakeseer.utils")
 
 --- @class Options
---- @field build_directory string|function The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
+--- @field build_directory string|fun(): string The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
 --- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
 --- @field should_scan_path boolean If the PATH environment variable directories should be scanned for kits.
 --- @field scan_paths string[] Additional paths to scan for kits.

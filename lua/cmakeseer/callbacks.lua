@@ -1,6 +1,7 @@
 local CMakeApi = require("cmakeseer.cmake.api")
 local Cmakeseer = require("cmakeseer")
-local ObjectKind = require("cmakeseer.cmake.api.model.object_kind").Kind
+local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
+local Target = require("cmakeseer.cmake.api.codemodel.target")
 
 local M = {}
 
@@ -39,7 +40,7 @@ function M.onPostConfigureSuccess()
   local codemodel = CMakeApi.parse_object_kind_file(codemodel_reference, Cmakeseer.get_build_directory())
   if codemodel == nil then
     vim.notify(
-      "Codemodel file does not exist. Cannot find targets. File: `" .. codemodel_reference.json_file .. "`",
+      "Codemodel file invalid. Cannot find targets. File: `" .. codemodel_reference.json_file .. "`",
       vim.log.levels.ERROR
     )
     return
@@ -48,9 +49,31 @@ function M.onPostConfigureSuccess()
   assert(codemodel.kind == ObjectKind.codemodel)
   ---@cast codemodel CodeModel
 
+  if #codemodel.configurations == 0 then
+    vim.notify(
+      "No configurations exist in CMake codemodel: `" .. codemodel_reference.json_file .. "`",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
   -- TODO: Support multiple configurations
   local configuration = codemodel.configurations[1]
-  -- TODO: Parse target files and create list of targets.
+  local target_references = configuration.targets
+  ---@type Target[]
+  local parsed_targets = {}
+  for _, reference in ipairs(target_references) do
+    local target = Target.parse(reference, Cmakeseer.get_build_directory())
+    if target == nil then
+      vim.notify(string.format("JSON file for %s target not valid", reference.name), vim.log.levels.WARN)
+    else
+      table.insert(parsed_targets, target)
+    end
+  end
+
+  Cmakeseer.__targets = parsed_targets
+
+  vim.notify(string.format("Found %i targets", #parsed_targets))
 end
 
 return M

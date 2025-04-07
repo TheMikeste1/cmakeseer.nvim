@@ -14,7 +14,7 @@ local Utils = require("cmakeseer.utils")
 --- @field string string
 --- TODO: Add methods to get major/minor/etc.
 
---- @class Directory
+--- @class DirectoryReference
 --- @field source string
 --- @field parent_index integer?
 --- @field child_indexes integer[]?
@@ -31,7 +31,7 @@ local Utils = require("cmakeseer.utils")
 --- @field directory_indexes integer[]
 --- @field target_indexes integer[]?
 
---- @class Target
+--- @class TargetReference
 --- @field name string
 --- @field id string?
 --- @field directory_index integer
@@ -40,9 +40,9 @@ local Utils = require("cmakeseer.utils")
 
 --- @class Configuration
 --- @field name string
---- @field directories Directory[]
+--- @field directories DirectoryReference[]
 --- @field projects Project[]
---- @field targets Target[]
+--- @field targets TargetReference[]
 
 --- @class CodeModel: ObjectKind
 --- @field paths Paths The Paths used by the project.
@@ -58,7 +58,7 @@ local function is_valid_directory(obj)
     return false
   end
 
-  if obj.parent_index ~= nil and type(obj.parent_index) ~= "integer" then
+  if obj.parent_index ~= nil and type(obj.parent_index) ~= "number" then
     return false
   end
 
@@ -66,7 +66,7 @@ local function is_valid_directory(obj)
     return false
   end
 
-  if type(obj.project_index) ~= "integer" then
+  if type(obj.project_index) ~= "number" then
     return false
   end
 
@@ -75,8 +75,8 @@ local function is_valid_directory(obj)
   end
 
   if
-    obj.minimum_c_make_version ~= nil and type(obj.minimum_c_make_version) ~= "table"
-    or type(obj.minimum_c_make_version.string) ~= "string" -- TODO: Validate version
+    obj.minimum_c_make_version ~= nil
+    and (type(obj.minimum_c_make_version) ~= "table" or type(obj.minimum_c_make_version.string) ~= "string") -- TODO: Validate version
   then
     return false
   end
@@ -100,7 +100,7 @@ local function is_valid_project(obj)
     return false
   end
 
-  if obj.parent_index ~= nil and type(obj.parent_index) ~= "integer" then
+  if obj.parent_index ~= nil and type(obj.parent_index) ~= "number" then
     return false
   end
 
@@ -131,11 +131,11 @@ local function is_valid_target(obj)
     return false
   end
 
-  if type(obj.directory_index) ~= "integer" then
+  if type(obj.directory_index) ~= "number" then
     return false
   end
 
-  if type(obj.project_index) ~= "integer" then
+  if type(obj.project_index) ~= "number" then
     return false
   end
 

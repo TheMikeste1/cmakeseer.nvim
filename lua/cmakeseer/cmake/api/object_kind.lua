@@ -1,4 +1,4 @@
-local CodeModel = require("cmakeseer.cmake.api.model.codemodel")
+local CodeModel = require("cmakeseer.cmake.api.codemodel")
 
 --- @class Version
 --- @field major integer
@@ -31,7 +31,7 @@ function M.is_valid(obj)
     return false
   end
 
-  if type(obj.version) ~= "table" or type(obj.version.major) ~= "string" or type(obj.version.minor) ~= "string" then
+  if type(obj.version) ~= "table" or type(obj.version.major) ~= "number" or type(obj.version.minor) ~= "number" then
     return false
   end
 

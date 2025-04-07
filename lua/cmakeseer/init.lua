@@ -10,19 +10,21 @@ local M = {
   __scanned_kits = {},
   --- @type Kit?
   __selected_kit = nil,
+  --- @type Target[]
+  __targets = {},
 }
 
 --- @return string build_directory The project's build directory.
 function M.get_build_directory()
-  local build_dir = M.__options.build_directory --[[@as string]]
-  if type(M.__options.build_directory) == "function" then
-    build_dir = M.__options.build_directory()
+  local build_dir = M.__options.build_directory
+  if type(build_dir) == "function" then
+    build_dir = build_dir()
   end
 
-  if build_dir[1] == "/" then
+  if build_dir:sub(1, 1) == "/" then
     return build_dir
   else
-    return vim.fn.getcwd() .. "/" .. build_dir
+    return vim.fs.joinpath(vim.fn.getcwd(), build_dir)
   end
 end
 
@@ -53,6 +55,7 @@ function M.get_configure_command()
   return command
 end
 
+---@return Kit[] kits All kits known by CMakeseer.
 function M.get_all_kits()
   local kits = M.__options.kits
   kits = Utils.merge_arrays(kits, M.__scanned_kits)
@@ -60,6 +63,11 @@ function M.get_all_kits()
   kits = Utils.merge_arrays(kits, file_kits)
   kits = Kit.remove_duplicate_kits(kits)
   return kits
+end
+
+---@return Target[] targets The list of CMake targets.
+function M.get_targets()
+  return M.__targets
 end
 
 --- Select a kit to use
@@ -156,6 +164,11 @@ function M.setup(opts)
   M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
   require("cmakeseer.settings").setup(M.__options)
   require("cmakeseer.neoconf").setup()
+
+  if M.project_is_configured() then
+    vim.notify("Project is already configured; attempting to load targets. . .")
+    require("cmakeseer.callbacks").onPostConfigureSuccess()
+  end
 end
 
 return M

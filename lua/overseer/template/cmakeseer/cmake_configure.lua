@@ -35,11 +35,11 @@ local function builder()
     cmd = "cmake",
     args = args,
     components = {
+      "cmakeseer.configure_hooks",
       {
         "unique",
         restart_interrupts = false,
       },
-      "cmakeseer.configure_hooks",
       "default",
     },
   }
