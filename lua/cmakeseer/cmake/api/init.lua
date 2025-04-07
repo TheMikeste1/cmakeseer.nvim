@@ -35,7 +35,7 @@ end
 ---@return string? index_file_path The path to the index file, if one exists.
 local function get_index_file_path(response_dir)
   local index_files = vim.fs.find(function(name)
-    return name:match("index-.+%.json$")
+    return name:match("^index%-.+%.json$") ~= nil
   end, {
     -- There is a small possibility that there are two index files at once. If there is, the lexicographically larger one if the current index.
     -- Source: https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html#v1-reply-index-file

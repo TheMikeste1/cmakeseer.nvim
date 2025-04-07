@@ -88,6 +88,15 @@ function M.get_targets()
   return M.__targets
 end
 
+---@return Target[] targets The list of CMake targets.
+function M.reload_targets()
+  if M.project_is_configured() then
+    require("cmakeseer.callbacks").onPostConfigureSuccess()
+  end
+
+  return M.__targets
+end
+
 --- Select a kit to use
 function M.select_kit()
   local kits = M.get_all_kits()
