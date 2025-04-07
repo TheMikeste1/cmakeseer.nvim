@@ -40,7 +40,7 @@ function M.onPostConfigureSuccess()
   local codemodel = CMakeApi.parse_object_kind_file(codemodel_reference, Cmakeseer.get_build_directory())
   if codemodel == nil then
     vim.notify(
-      "Codemodel file invalid. Cannot find targets. File: `" .. codemodel_reference.json_file .. "`",
+      "Codemodel file invalid. Cannot find targets. File: `" .. codemodel_reference.jsonFile .. "`",
       vim.log.levels.ERROR
     )
     return
@@ -51,7 +51,7 @@ function M.onPostConfigureSuccess()
 
   if #codemodel.configurations == 0 then
     vim.notify(
-      "No configurations exist in CMake codemodel: `" .. codemodel_reference.json_file .. "`",
+      "No configurations exist in CMake codemodel: `" .. codemodel_reference.jsonFile .. "`",
       vim.log.levels.ERROR
     )
     return

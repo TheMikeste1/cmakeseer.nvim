@@ -16,27 +16,27 @@ local Utils = require("cmakeseer.utils")
 
 --- @class DirectoryReference
 --- @field source string
---- @field parent_index integer?
---- @field child_indexes integer[]?
---- @field project_index integer
---- @field target_indexes integer[]?
---- @field minimum_c_make_version CMakeVersion?
---- @field has_install_rule boolean?
---- @field json_file string
+--- @field parentIndex integer?
+--- @field childIndexes integer[]?
+--- @field projectIndex integer
+--- @field targetIndexes integer[]?
+--- @field minimumCMakeVersion CMakeVersion?
+--- @field hasInstallRule boolean?
+--- @field jsonFile string
 
 --- @class Project
 --- @field name string
---- @field parent_index integer?
---- @field child_indexes integer[]?
---- @field directory_indexes integer[]
---- @field target_indexes integer[]?
+--- @field parentIndex integer?
+--- @field childIndexes integer[]?
+--- @field directoryIndexes integer[]
+--- @field targetIndexes integer[]?
 
 --- @class TargetReference
 --- @field name string
 --- @field id string?
---- @field directory_index integer
---- @field project_index integer
---- @field json_file string
+--- @field directoryIndex integer
+--- @field projectIndex integer
+--- @field jsonFile string
 
 --- @class Configuration
 --- @field name string
@@ -58,34 +58,34 @@ local function is_valid_directory(obj)
     return false
   end
 
-  if obj.parent_index ~= nil and type(obj.parent_index) ~= "number" then
+  if obj.parentIndex ~= nil and type(obj.parentIndex) ~= "number" then
     return false
   end
 
-  if obj.child_indexes ~= nil and type(obj.child_indexes) ~= "table" then
+  if obj.childIndexes ~= nil and type(obj.childIndexes) ~= "table" then
     return false
   end
 
-  if type(obj.project_index) ~= "number" then
+  if type(obj.projectIndex) ~= "number" then
     return false
   end
 
-  if obj.target_indexes ~= nil and type(obj.target_indexes) ~= "table" then
+  if obj.targetIndexes ~= nil and type(obj.targetIndexes) ~= "table" then
     return false
   end
 
   if
-    obj.minimum_c_make_version ~= nil
-    and (type(obj.minimum_c_make_version) ~= "table" or type(obj.minimum_c_make_version.string) ~= "string") -- TODO: Validate version
+    obj.minimumCMakeVersion ~= nil
+    and (type(obj.minimumCMakeVersion) ~= "table" or type(obj.minimumCMakeVersion.string) ~= "string") -- TODO: Validate version
   then
     return false
   end
 
-  if obj.has_install_rule ~= nil and type(obj.has_install_rule) ~= "boolean" then
+  if obj.hasInstallRule ~= nil and type(obj.hasInstallRule) ~= "boolean" then
     return false
   end
 
-  if type(obj.json_file) ~= "string" then
+  if type(obj.jsonFile) ~= "string" then
     return false
   end
 
@@ -100,19 +100,19 @@ local function is_valid_project(obj)
     return false
   end
 
-  if obj.parent_index ~= nil and type(obj.parent_index) ~= "number" then
+  if obj.parentIndex ~= nil and type(obj.parentIndex) ~= "number" then
     return false
   end
 
-  if obj.child_indexes ~= nil and type(obj.child_indexes) ~= "table" then
+  if obj.childIndexes ~= nil and type(obj.childIndexes) ~= "table" then
     return false
   end
 
-  if type(obj.directory_indexes) ~= "table" then
+  if type(obj.directoryIndexes) ~= "table" then
     return false
   end
 
-  if obj.target_indexes ~= nil and type(obj.target_indexes) ~= "table" then
+  if obj.targetIndexes ~= nil and type(obj.targetIndexes) ~= "table" then
     return false
   end
 
@@ -131,15 +131,15 @@ local function is_valid_target(obj)
     return false
   end
 
-  if type(obj.directory_index) ~= "number" then
+  if type(obj.directoryIndex) ~= "number" then
     return false
   end
 
-  if type(obj.project_index) ~= "number" then
+  if type(obj.projectIndex) ~= "number" then
     return false
   end
 
-  if type(obj.json_file) ~= "string" then
+  if type(obj.jsonFile) ~= "string" then
     return false
   end
 
@@ -202,11 +202,17 @@ local function is_valid_configuration(obj)
     return false
   end
 
-  local valid_directories = has_valid_directories(obj.directories)
-  local valid_projects = has_valid_projects(obj.projects)
-  local valid_targets = has_valid_targets(obj.targets)
+  if not has_valid_directories(obj.directories) then
+    return false
+  end
+  if not has_valid_projects(obj.projects) then
+    return false
+  end
+  if not has_valid_targets(obj.targets) then
+    return false
+  end
 
-  return valid_directories and valid_projects and valid_targets
+  return true
 end
 
 --- Checks if the configurations in the provided array are valid.

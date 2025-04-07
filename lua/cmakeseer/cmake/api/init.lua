@@ -5,7 +5,7 @@ local Utils = require("cmakeseer.utils")
 ---@class ReplyFileReference A successful reply provided in response to a query.
 ---@field kind Kind The Kind for which the response if provided.
 ---@field version Version The Version of the ObjectKind.
----@field json_file string The reference to the JSON file that contains more information. Relative to the index file.
+---@field jsonFile string The reference to the JSON file that contains more information. Relative to the index file.
 
 ---@class ReplyFileError An error provided in response to a query.
 ---@field error string The error description
@@ -59,7 +59,7 @@ local function get_responses_from_index_file(index_file_path)
   local contents = vim.fn.json_decode(lines)
   local responses = contents.reply["client-cmakeseer"]["query.json"].responses
   assert(Utils.is_array(responses) or #responses == 0)
-  return ApiUtils.convert_array_object_fields_to_snakecase(responses)
+  return responses
 end
 
 local M = {
@@ -92,16 +92,15 @@ end
 ---@return ObjectKind? maybe_object_kind The parsed ObjectKind, if the file contained a valid one.
 function M.parse_object_kind_file(reference, build_directory)
   local response_directory = M.get_reply_directory(build_directory)
-  local file_path = vim.fs.joinpath(response_directory, reference.json_file)
+  local file_path = vim.fs.joinpath(response_directory, reference.jsonFile)
   local file_contents = vim.fn.readfile(file_path)
   if #file_contents == 0 then
     return nil
   end
 
   local maybe_object_kind = vim.fn.json_decode(file_contents)
-  maybe_object_kind = ApiUtils.convert_fields_to_snakecase(maybe_object_kind)
   if not ObjectKind.is_valid(maybe_object_kind) then
-    vim.notify("ObjectKind not valid for file `" .. reference.json_file .. "`", vim.log.levels.ERROR)
+    vim.notify("ObjectKind not valid for file `" .. reference.jsonFile .. "`", vim.log.levels.ERROR)
     return nil
   end
 

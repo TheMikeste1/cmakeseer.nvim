@@ -8,7 +8,7 @@ local CMakeApi = require("cmakeseer.cmake.api")
 ---@field name string The name of the target.
 ---@field id string The unique ID for the target.
 ---@field type TargetType The type of the target.
----@field name_on_disk string? The name of the target on disk.
+---@field nameOnDisk string? The name of the target on disk.
 ---@field artifacts Artifact[]? The artifacts produced by the target.
 ---TODO: Add the rest
 
@@ -41,14 +41,13 @@ end
 ---@return Target|nil maybe_target The target, if one was contained in the referenced file.
 function M.parse(reference, build_directory)
   local response_directory = CMakeApi.get_reply_directory(build_directory)
-  local file_path = vim.fs.joinpath(response_directory, reference.json_file)
+  local file_path = vim.fs.joinpath(response_directory, reference.jsonFile)
   local file_contents = vim.fn.readfile(file_path)
   if #file_contents == 0 then
     return nil
   end
 
   local maybe_target = vim.fn.json_decode(file_contents)
-  maybe_target = ApiUtils.convert_fields_to_snakecase(maybe_target)
   if not M.is_valid(maybe_target) then
     return nil
   end
@@ -73,7 +72,7 @@ function M.is_valid(obj)
     return false
   end
 
-  if obj.name_on_disk ~= nil and type(obj.name_on_disk) ~= "string" then
+  if obj.nameOnDisk ~= nil and type(obj.nameOnDisk) ~= "string" then
     return false
   end
 
