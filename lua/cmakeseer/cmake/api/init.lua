@@ -57,7 +57,12 @@ local function get_responses_from_index_file(index_file_path)
   end
 
   local contents = vim.fn.json_decode(lines)
-  local responses = contents.reply["client-cmakeseer"]["query.json"].responses
+  local client_data = contents.reply["client-cmakeseer"]
+  if client_data == nil then
+    return nil
+  end
+
+  local responses = client_data["query.json"].responses
   assert(Utils.is_array(responses) or #responses == 0)
   return responses
 end
@@ -162,7 +167,7 @@ function M.read_responses(build_directory)
 
   local maybe_responses = get_responses_from_index_file(index_file_path)
   if maybe_responses == nil then
-    vim.notify("Index file `" .. index_file_path .. "` did not contain any responses", vim.log.levels.WARN)
+    vim.notify("Index file `" .. index_file_path .. "` did not contain any responses for this client", vim.log.levels.WARN)
     return {}
   end
 
