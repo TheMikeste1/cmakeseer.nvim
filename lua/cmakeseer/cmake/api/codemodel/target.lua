@@ -1,4 +1,4 @@
-local ApiUtils = require("cmakeseer.cmake.api.utils")
+local Cmakeseer = require("cmakeseer")
 local CMakeApi = require("cmakeseer.cmake.api")
 
 ---@class Artifact An artifact produced by a target.
@@ -81,6 +81,21 @@ function M.is_valid(obj)
   end
 
   return true
+end
+
+---@param target Target
+---@return string? target_path The path to the target's executable or library output, if one exists.
+function M.get_target_path(target)
+  if target.artifacts == nil then
+    return nil
+  end
+
+  local path = target.artifacts[1].path
+  if path:sub(1, 1) == "/" then
+    return path
+  end
+
+  return vim.fs.joinpath(Cmakeseer.get_build_directory(), path)
 end
 
 return M

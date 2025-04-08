@@ -34,11 +34,7 @@ function M.get_build_directory()
     build_dir = build_dir()
   end
 
-  if build_dir:sub(1, 1) == "/" then
-    return build_dir
-  else
-    return vim.fs.joinpath(vim.fn.getcwd(), build_dir)
-  end
+  return vim.fs.abspath(build_dir)
 end
 
 ---@return Variant variant The selected variant.
@@ -48,26 +44,22 @@ end
 
 --- @return boolean is_configured If the project is configured.
 function M.project_is_configured()
-  return vim.fn.filereadable(M.get_build_directory() .. "/CMakeCache.txt") ~= 0
+  return vim.fn.glob(vim.fs.joinpath(M.get_build_directory(), "CMakeCache.txt")) ~= ""
 end
 
 --- @return string build_cmd The command used to build the CMake project.
 function M.get_build_command()
-  return "cmake --build " .. M.get_build_directory()
+  return string.format("cmake --build %s", M.get_build_directory())
 end
 
 --- @return string configure_command The command used to configure the CMake project.
 function M.get_configure_command()
-  local command = "cmake -S" .. vim.fn.getcwd() .. " -B" .. M.get_build_directory()
+  local command = string.format("cmake -S %s -B %s", vim.fn.getcwd(), M.get_build_directory())
 
   local configure_settings = require("cmakeseer.settings").get_settings().configureSettings
   local definitions = CmakeUtils.create_definition_strings(configure_settings)
   for _, value in ipairs(definitions) do
-    if string.find(value, " ") then
-      value = '"' .. value .. '"'
-    end
-
-    command = command .. " " .. value
+    command = string.format('%s "%s"', command, value)
   end
 
   return command
@@ -194,7 +186,7 @@ end
 
 ---@return boolean is_cmake_project If the current project is a CMake project.
 function M.is_cmake_project()
-  return vim.fn.filereadable(vim.fn.getcwd() .. "/CMakeLists.txt") == 1
+  return vim.fn.glob(vim.fs.joinpath(vim.fn.getcwd(), "CMakeLists.txt")) ~= ""
 end
 
 --- @param opts Options The options for setup.
