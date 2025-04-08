@@ -6,7 +6,7 @@ local Target = require("cmakeseer.cmake.api.codemodel.target")
 local M = {}
 
 --- Called before the project is configured.
-function M.onPreConfigure()
+function M.on_pre_configure()
   local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, Cmakeseer.get_build_directory())
   if maybe_error ~= nil then
     local error_str = "Unknown error"
@@ -21,7 +21,7 @@ function M.onPreConfigure()
   end
 end
 
-function M.onPostConfigureSuccess()
+function M.on_post_configure_success()
   local responses = CMakeApi.read_responses(Cmakeseer.get_build_directory())
   local codemodel_reference = nil
   for _, response in ipairs(responses) do

@@ -83,7 +83,7 @@ end
 ---@return Target[] targets The list of CMake targets.
 function M.reload_targets()
   if M.project_is_configured() then
-    require("cmakeseer.callbacks").onPostConfigureSuccess()
+    require("cmakeseer.callbacks").on_post_configure_success()
   end
 
   return M.__targets
@@ -189,6 +189,11 @@ function M.is_cmake_project()
   return vim.fn.glob(vim.fs.joinpath(vim.fn.getcwd(), "CMakeLists.txt")) ~= ""
 end
 
+---@return Callbacks callbacks The user-defined callbacks object for the project.
+function M.callbacks()
+  return M.__options.callbacks
+end
+
 --- @param opts Options The options for setup.
 function M.setup(opts)
   opts = Options.cleanup(opts)
@@ -199,7 +204,7 @@ function M.setup(opts)
 
   if M.project_is_configured() then
     vim.notify("Project is already configured; attempting to load targets. . .")
-    require("cmakeseer.callbacks").onPostConfigureSuccess()
+    require("cmakeseer.callbacks").on_post_configure_success()
   end
 end
 

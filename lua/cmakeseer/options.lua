@@ -1,6 +1,10 @@
 local Kit = require("cmakeseer.kit")
 local Utils = require("cmakeseer.utils")
 
+--- @class Callbacks
+--- @field preconfigure fun()? Ran before CMake configures the project.
+--- @field postconfigure fun()? Ran after CMake successfully configures the project.
+
 --- @class Options
 --- @field build_directory string|fun(): string The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
 --- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
@@ -8,7 +12,8 @@ local Utils = require("cmakeseer.utils")
 --- @field scan_paths string[] Additional paths to scan for kits.
 --- @field kit_paths string[] Paths to files containing CMake kit definitions. These will not be expanded.
 --- @field kits Kit[] Global user-defined kits.
---- @field persist_file string|nil The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
+--- @field persist_file string? The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
+--- @field callbacks Callbacks Optional callbacks to run during various parts of the CMake cycle.
 
 local M = {}
 
@@ -25,6 +30,7 @@ function M.default()
     kit_paths = {},
     kits = {},
     persist_file = nil,
+    callbacks = {},
   }
 end
 
