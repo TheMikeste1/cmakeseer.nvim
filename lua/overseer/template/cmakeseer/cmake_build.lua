@@ -10,6 +10,7 @@ local function builder()
       Cmakeseer.get_build_directory(),
     },
     components = {
+      "cmakeseer.build_hooks",
       {
         "unique",
         restart_interrupts = false,

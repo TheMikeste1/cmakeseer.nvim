@@ -76,4 +76,30 @@ function M.on_post_configure_success()
   vim.notify(string.format("Found %i targets", #parsed_targets))
 end
 
+--- Runs the user's preconfigure callback.
+function M.run_user_preconfigure()
+  if Cmakeseer.callbacks().preconfigure ~= nil then
+    local success, maybe_error = pcall(Cmakeseer.callbacks().preconfigure)
+    if not success then
+      vim.notify(
+        string.format("User preconfigure callback failed with error: %s", vim.inspect(maybe_error)),
+        vim.log.levels.ERROR
+      )
+    end
+  end
+end
+
+--- Runs the user's postconfigure callback.
+function M.run_user_postconfigure()
+  if Cmakeseer.callbacks().postconfigure ~= nil then
+    local success, maybe_error = pcall(Cmakeseer.callbacks().postconfigure)
+    if not success then
+      vim.notify(
+        string.format("User postconfigure callback failed with error: %s", vim.inspect(maybe_error)),
+        vim.log.levels.ERROR
+      )
+    end
+  end
+end
+
 return M
