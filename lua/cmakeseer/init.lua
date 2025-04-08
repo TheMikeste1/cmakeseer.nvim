@@ -203,8 +203,12 @@ function M.setup(opts)
   require("cmakeseer.neoconf").setup()
 
   if M.project_is_configured() then
-    vim.notify("Project is already configured; attempting to load targets. . .")
-    require("cmakeseer.callbacks").on_post_configure_success()
+    if vim.fn.glob(require("cmakeseer.cmake.api").get_query_directory(M.get_build_directory())) == "" then
+      vim.notify("Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured.")
+    else
+      vim.notify("Project is already configured; attempting to load targets. . .")
+      require("cmakeseer.callbacks").on_post_configure_success()
+    end
   end
 end
 
