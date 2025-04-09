@@ -122,8 +122,13 @@ function M.select_kit()
 end
 
 function M.select_variant()
+  local variants = {}
+  for _, value in pairs(Variant) do
+    table.insert(variants, value)
+  end
+
   vim.ui.select(
-    Variant,
+    variants,
     {
       prompt = "Select variant",
     },
@@ -204,7 +209,9 @@ function M.setup(opts)
 
   if M.project_is_configured() then
     if vim.fn.glob(require("cmakeseer.cmake.api").get_query_directory(M.get_build_directory())) == "" then
-      vim.notify("Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured.")
+      vim.notify(
+        "Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured."
+      )
     else
       vim.notify("Project is already configured; attempting to load targets. . .")
       require("cmakeseer.callbacks").on_post_configure_success()

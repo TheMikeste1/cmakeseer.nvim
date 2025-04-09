@@ -30,7 +30,10 @@ function M.default()
     kit_paths = {},
     kits = {},
     persist_file = nil,
-    callbacks = {},
+    callbacks = {
+      preconfigure = nil,
+      postconfigure = nil,
+    },
   }
 end
 
