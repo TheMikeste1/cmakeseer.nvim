@@ -4,11 +4,8 @@ local function builder()
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Build",
-    cmd = "cmake",
-    args = {
-      "--build",
-      Cmakeseer.get_build_directory(),
-    },
+    cmd = Cmakeseer.cmake_command(),
+    args = Cmakeseer.get_build_args(),
     components = {
       "cmakeseer.build_hooks",
       {

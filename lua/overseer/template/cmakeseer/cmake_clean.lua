@@ -2,16 +2,15 @@ local Cmakeseer = require("cmakeseer")
 
 local function builder()
   --- @type overseer.TaskDefinition
-  return {
+  local task = {
     name = "CMake Clean",
-    cmd = "cmake",
-    args = {
-      "--build",
-      Cmakeseer.get_build_directory(),
-      "--target",
-      "clean",
-    },
+    cmd = Cmakeseer.cmake_command(),
+    args = Cmakeseer.get_build_args(),
   }
+
+  table.insert(task.args, "--target")
+  table.insert(task.args, "clean")
+  return task
 end
 
 --- @type overseer.TemplateFileDefinition

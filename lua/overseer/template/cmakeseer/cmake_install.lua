@@ -5,7 +5,7 @@ local function builder()
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Install",
-    cmd = "cmake",
+    cmd =Cmakeseer.cmake_command(),
     args = {
       "--install",
       Cmakeseer.get_build_directory(),

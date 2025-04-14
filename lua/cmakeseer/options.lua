@@ -6,6 +6,7 @@ local Utils = require("cmakeseer.utils")
 --- @field postconfigure fun()? Ran after CMake successfully configures the project.
 
 --- @class Options
+--- @field cmake_command string The command used to run CMake. Defaults to `cmake`.
 --- @field build_directory string|fun(): string The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
 --- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
 --- @field should_scan_path boolean If the PATH environment variable directories should be scanned for kits.
@@ -20,6 +21,7 @@ local M = {}
 ---@return Options options The default set of options.
 function M.default()
   return {
+    cmake_command = "cmake",
     build_directory = "build",
     default_cmake_settings = {
       configureSettings = {},

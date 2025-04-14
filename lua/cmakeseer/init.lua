@@ -1,6 +1,7 @@
 local CmakeUtils = require("cmakeseer.cmake.utils")
 local Kit = require("cmakeseer.kit")
 local Options = require("cmakeseer.options")
+local Settings = require("cmakeseer.settings")
 local Utils = require("cmakeseer.utils")
 
 --- TODO: Allow custom variants
@@ -27,6 +28,11 @@ local M = {
   __selected_variant = Variant.Debug,
 }
 
+---@return string command The command used to run cmake.
+function M.cmake_command()
+  return M.__options.cmake_command
+end
+
 --- @return string build_directory The project's build directory.
 function M.get_build_directory()
   local build_dir = M.__options.build_directory
@@ -49,17 +55,56 @@ end
 
 --- @return string build_cmd The command used to build the CMake project.
 function M.get_build_command()
-  return string.format("cmake --build %s", M.get_build_directory())
+  return string.format("%s --build %s", M.cmake_command(), M.get_build_directory())
+end
+
+---@return string[] args The args used to build a CMake project.
+function M.get_build_args()
+  return {
+    "--build",
+    M.get_build_directory(),
+  }
+end
+
+---@return string[] args The args used to configure a CMake project.
+function M.get_configure_args()
+  local args = {
+    "-S",
+    vim.fn.getcwd(),
+    "-B",
+    M.get_build_directory(),
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
+  }
+
+  local variant = M.selected_variant()
+  if variant ~= M.Variant.Unspecified then
+    local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
+    table.insert(args, definition)
+  end
+
+  local maybe_selected_kit = M.selected_kit()
+  if maybe_selected_kit == nil then
+    vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)
+  else
+    table.insert(args, "-DCMAKE_C_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.C)
+    table.insert(args, "-DCMAKE_CXX_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.CXX)
+  end
+
+  local configure_settings = Settings.get_settings().configureSettings
+  local definitions = CmakeUtils.create_definition_strings(configure_settings)
+  args = Utils.merge_arrays(args, definitions)
+
+  local additional_args = Settings.get_settings().configureArgs
+  args = Utils.merge_arrays(args, additional_args)
+  return args
 end
 
 --- @return string configure_command The command used to configure the CMake project.
 function M.get_configure_command()
-  local command = string.format("cmake -S %s -B %s", vim.fn.getcwd(), M.get_build_directory())
-
-  local configure_settings = require("cmakeseer.settings").get_settings().configureSettings
-  local definitions = CmakeUtils.create_definition_strings(configure_settings)
-  for _, value in ipairs(definitions) do
-    command = string.format('%s "%s"', command, value)
+  local command = string.format("%s", M.cmake_command())
+  local args = M.get_configure_args()
+  for _, value in ipairs(args) do
+    command = string.format("%s '%s'", command, value)
   end
 
   return command
@@ -204,7 +249,7 @@ function M.setup(opts)
   opts = Options.cleanup(opts)
   M.__options = vim.tbl_deep_extend("force", M.__options, opts)
   M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
-  require("cmakeseer.settings").setup(M.__options)
+  Settings.setup(M.__options)
   require("cmakeseer.neoconf").setup()
 
   if M.project_is_configured() then
