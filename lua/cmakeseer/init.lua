@@ -250,7 +250,10 @@ function M.setup(opts)
   M.__options = vim.tbl_deep_extend("force", M.__options, opts)
   M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
   Settings.setup(M.__options)
-  require("cmakeseer.neoconf").setup()
+
+  if pcall(require, "neoconf") then
+    require("cmakeseer.neoconf").setup()
+  end
 
   if M.project_is_configured() then
     if vim.fn.glob(require("cmakeseer.cmake.api").get_query_directory(M.get_build_directory())) == "" then
