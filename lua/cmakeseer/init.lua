@@ -239,6 +239,11 @@ function M.is_cmake_project()
   return vim.fn.glob(vim.fs.joinpath(vim.fn.getcwd(), "CMakeLists.txt")) ~= ""
 end
 
+---@return boolean is_ctest_project If the current project is a CTest project.
+function M.is_ctest_project()
+  return require("cmakeseer.ctest.api").is_ctest_project(M.get_build_directory())
+end
+
 ---@return Callbacks callbacks The user-defined callbacks object for the project.
 function M.callbacks()
   return M.__options.callbacks
