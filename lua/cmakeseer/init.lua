@@ -5,7 +5,7 @@ local Settings = require("cmakeseer.settings")
 local Utils = require("cmakeseer.utils")
 
 --- TODO: Allow custom variants
----@enum Variant
+---@enum cmakeseer.Variant
 local Variant = {
   Debug = "Debug",
   Release = "Release",
@@ -16,16 +16,18 @@ local Variant = {
 
 local M = {
   Variant = Variant,
-  --- @type Options
+  --- @type cmakeseer.cmake.api.Options
   __options = Options.default(),
-  --- @type Kit[]
+  --- @type cmakeseer.Kit[]
   __scanned_kits = {},
-  --- @type Kit?
+  --- @type cmakeseer.Kit?
   __selected_kit = nil,
-  --- @type Target[]
+  --- @type cmakeseer.cmake.api.codemodel.Target[]
   __targets = {},
-  ---@type Variant
+  ---@type cmakeseer.Variant
   __selected_variant = Variant.Debug,
+  ---@type cmakeseer.cmake.api.CTestInfo?
+  __ctest_info = nil,
 }
 
 ---@return string command The command used to run cmake.
@@ -43,7 +45,7 @@ function M.get_build_directory()
   return vim.fs.abspath(build_dir)
 end
 
----@return Variant variant The selected variant.
+---@return cmakeseer.Variant variant The selected variant.
 function M.selected_variant()
   return M.__selected_variant
 end
@@ -110,7 +112,7 @@ function M.get_configure_command()
   return command
 end
 
----@return Kit[] kits All kits known by CMakeseer.
+---@return cmakeseer.Kit[] kits All kits known by CMakeseer.
 function M.get_all_kits()
   local kits = M.__options.kits
   kits = Utils.merge_arrays(kits, M.__scanned_kits)
@@ -120,12 +122,20 @@ function M.get_all_kits()
   return kits
 end
 
----@return Target[] targets The list of CMake targets.
+---@return cmakeseer.cmake.api.codemodel.Target[] targets The list of CMake targets.
 function M.get_targets()
   return M.__targets
 end
 
----@return Target[] targets The list of CMake targets.
+---@return cmakeseer.cmake.api.Test[]? tests The CTest tests.
+function M.get_ctest_tests()
+  if M.__ctest_info then
+    return M.__ctest_info.tests
+  end
+  return nil
+end
+
+---@return cmakeseer.cmake.api.codemodel.Target[] targets The list of CMake targets.
 function M.reload_targets()
   if M.project_is_configured() then
     require("cmakeseer.callbacks").on_post_configure_success()
@@ -141,7 +151,7 @@ function M.select_kit()
     kits,
     {
       prompt = "Select kit",
-      --- @param item Kit
+      --- @param item cmakeseer.Kit
       --- @return string
       format_item = function(item)
         local c_compiler = item.compilers.C
@@ -159,7 +169,7 @@ function M.select_kit()
         return item.name .. " (" .. c_compiler .. ", " .. cxx_compiler .. ")"
       end,
     },
-    --- @param choice Kit
+    --- @param choice cmakeseer.Kit
     function(choice)
       M.__selected_kit = choice
     end
@@ -177,7 +187,7 @@ function M.select_variant()
     {
       prompt = "Select variant",
     },
-    --- @param choice Variant
+    --- @param choice cmakeseer.Variant
     function(choice)
       M.__selected_variant = choice
     end
@@ -212,7 +222,7 @@ function M.scan_for_kits()
   end
 end
 
----@return Kit? selected_kit The currently selected kit, if one exists.
+---@return cmakeseer.Kit? selected_kit The currently selected kit, if one exists.
 function M.selected_kit()
   if M.__selected_kit ~= nil then
     return M.__selected_kit
@@ -244,12 +254,12 @@ function M.is_ctest_project()
   return require("cmakeseer.ctest.api").is_ctest_project(M.get_build_directory())
 end
 
----@return Callbacks callbacks The user-defined callbacks object for the project.
+---@return cmakeseer.cmake.api.Callbacks callbacks The user-defined callbacks object for the project.
 function M.callbacks()
   return M.__options.callbacks
 end
 
---- @param opts Options The options for setup.
+--- @param opts cmakeseer.cmake.api.Options The options for setup.
 function M.setup(opts)
   opts = Options.cleanup(opts)
   M.__options = vim.tbl_deep_extend("force", M.__options, opts)

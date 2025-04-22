@@ -1,16 +1,16 @@
 local FileUtils = require("cmakeseer.file_utils")
 local Utils = require("cmakeseer.utils")
 
---- @class Compilers
+--- @class cmakeseer.Compilers
 --- @field C string
 --- @field CXX string|nil
 
---- @class Kit
+--- @class cmakeseer.Kit
 --- @field name string
---- @field compilers Compilers
+--- @field compilers cmakeseer.Compilers
 
 --- @param kit_file string Paths to file containing CMake kit definitions. These will not be expanded.
---- @return Kit[] kits The kits
+--- @return cmakeseer.Kit[] kits The kits
 local function read_cmakekit_files(kit_file)
   if vim.fn.filereadable(kit_file) == 0 then
     vim.notify("Kit file `" .. kit_file .. "` is not readable. Does it exist?", vim.log.levels.ERROR)
@@ -59,7 +59,7 @@ end
 
 --- Extracts a kit from a GCC filepath, if it is a kit.
 ---@param filepath string The filepath that may be a GCC kit, e.g. "/usr/bin/gcc-11." This should be the gcc compiler, not the g++.
----@return Kit|nil maybe_kit The kit, if the path was a kit.
+---@return cmakeseer.Kit|nil maybe_kit The kit, if the path was a kit.
 local function extract_kit_from_gcc(filepath)
   local name_parts = vim.split(filepath, "/", { trimempty = true })
   local name = name_parts[#name_parts]
@@ -84,7 +84,7 @@ local function extract_kit_from_gcc(filepath)
 
   -- TODO: Get version
 
-  ---@type Kit
+  ---@type cmakeseer.Kit
   local kit = {
     name = name,
     compilers = {
@@ -123,7 +123,7 @@ end
 
 --- Extracts a kit from a clang filepath, if it is a kit.
 ---@param filepath string The filepath that may be a clang kit.
----@return Kit|nil maybe_kit The kit, if the path was a kit.
+---@return cmakeseer.Kit|nil maybe_kit The kit, if the path was a kit.
 local function extract_kit_from_clang(filepath)
   local name_parts = vim.split(filepath, "/")
   local name = name_parts[#name_parts]
@@ -133,7 +133,7 @@ local function extract_kit_from_clang(filepath)
 
   -- TODO: Get version
 
-  ---@type Kit
+  ---@type cmakeseer.Kit
   local kit = {
     name = name,
     compilers = {
@@ -148,14 +148,14 @@ local M = {}
 
 --- Loads all kit information from kit paths.
 ---@param kit_paths string[] Paths to files containing kit information.
----@return Kit[] kits The list of known kits.
+---@return cmakeseer.Kit[] kits The list of known kits.
 function M.load_all_kits(kit_paths)
   if kit_paths == nil then
     vim.notify("List of kit files was nil", vim.log.levels.ERROR)
     return {}
   end
 
-  --- @type Kit[]
+  --- @type cmakeseer.Kit[]
   local kits = {}
   for _, file_path in ipairs(kit_paths) do
     local kits_from_file = read_cmakekit_files(file_path)
@@ -171,7 +171,7 @@ function M.scan_for_kits(directory)
     directory = directory .. "/"
   end
 
-  ---@type Kit[]
+  ---@type cmakeseer.Kit[]
   local kits = {}
 
   ---@type string[]
@@ -201,7 +201,7 @@ end
 
 --- Persists the given kits to disk, overwriting any contents that are already there.
 ---@param filepath string The path to which the kits should be persisted.
----@param kits Kit[] The kits to persist.
+---@param kits cmakeseer.Kit[] The kits to persist.
 function M.persist_kits(filepath, kits)
   filepath = vim.fn.expand(filepath)
   local parent_path = FileUtils.get_parent_path(filepath)
@@ -234,16 +234,16 @@ function M.persist_kits(filepath, kits)
   end
 end
 
----@param a Kit The lhs kit.
----@param b Kit the rhs kit.
+---@param a cmakeseer.Kit The lhs kit.
+---@param b cmakeseer.Kit the rhs kit.
 ---@return boolean equal If the two kits are considered equal.
 function M.are_kits_equal(a, b)
   return a.compilers.C == b.compilers.C and a.compilers.CXX == b.compilers.CXX
 end
 
 --- Removes duplicate kits.
----@param kits Kit[] The array of kits.
----@return Kit[] kits The array of kits without duplicates.
+---@param kits cmakeseer.Kit[] The array of kits.
+---@return cmakeseer.Kit[] kits The array of kits without duplicates.
 function M.remove_duplicate_kits(kits)
   local kit_set = {}
   for _, kit in ipairs(kits) do
@@ -254,8 +254,8 @@ function M.remove_duplicate_kits(kits)
   return kits
 end
 
----@param kits Kit[] The array containing kits.
----@param kit Kit The kit to check.
+---@param kits cmakeseer.Kit[] The array containing kits.
+---@param kit cmakeseer.Kit The kit to check.
 ---@return boolean exists If the kit is already in the array.
 function M.kit_exists(kits, kit)
   for _, value in ipairs(kits) do

@@ -4,22 +4,22 @@
 
 local Utils = require("cmakeseer.utils")
 
----@class BacktraceGraph
+---@class cmakeseer.cmake.api.BacktraceGraph
 
----@class TestProperty
+---@class cmakeseer.cmake.api.TestProperty
 ---@field name string
 ---@field value string
 
----@class Test
+---@class cmakeseer.cmake.api.Test
 ---@field name string
 ---@field config string?
 ---@field command string[]?
 ---@field backtrace number
----@field properties TestProperty[]
+---@field properties cmakeseer.cmake.api.TestProperty[]
 
----@class CTestInfo: ObjectKind
----@field backtraceGraph BacktraceGraph
----@field tests Test[]
+---@class cmakeseer.cmake.api.CTestInfo: cmakeseer.cmake.api.ObjectKind
+---@field backtraceGraph cmakeseer.cmake.api.BacktraceGraph
+---@field tests cmakeseer.cmake.api.Test[]
 
 --- Checks if the provided object is a valid Test.
 ---@param obj table<string, any> The object to check.

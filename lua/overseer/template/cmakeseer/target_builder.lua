@@ -8,7 +8,7 @@ local M = {}
 
 --- Builds a TaskTemplate for the provided target.
 ---@param target_name string The target to build.
----@param target_type TargetType The type of the target.
+---@param target_type cmakeseer.cmake.api.codemodel.TargetType The type of the target.
 ---@return overseer.TemplateFileDefinition
 function M.build_template_for(target_name, target_type)
   local run_verb = "Build"

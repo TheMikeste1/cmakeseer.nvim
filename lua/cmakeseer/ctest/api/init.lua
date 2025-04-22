@@ -1,7 +1,7 @@
 local ObjectKind = require("cmakeseer.cmake.api.object_kind")
 
 local M = {
-  --- @enum IssueQueryError The possible types of errors that could be produced when issuing a query.
+  --- @enum cmakeseer.ctest.api.IssueQueryError The possible types of errors that could be produced when issuing a query.
   IssueQueryError = {
     NotConfigured = 0,
     NotCTestProject = 1,
@@ -11,6 +11,9 @@ local M = {
   },
 }
 
+--- Issue a query to the CMake file API.
+---@param build_directory string The directory in which the CMake project will be configured.
+---@return cmakeseer.cmake.api.CTestInfo|cmakeseer.ctest.api.IssueQueryError maybe_error The CTestInfo response, or an error, if one occurs.
 function M.issue_query(build_directory)
   if not vim.fn.glob(build_directory) then
     return M.IssueQueryError.NotConfigured
@@ -41,7 +44,7 @@ function M.issue_query(build_directory)
 end
 
 function M.is_ctest_project(build_directory)
-  return vim.fn.glob(vim.fs.joinpath(build_directory, "CTestTestfile.cmake")) == ""
+  return vim.fn.glob(vim.fs.joinpath(build_directory, "CTestInfofile.cmake")) == ""
 end
 
 return M

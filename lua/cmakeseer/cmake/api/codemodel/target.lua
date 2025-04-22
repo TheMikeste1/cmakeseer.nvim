@@ -1,19 +1,19 @@
 local Cmakeseer = require("cmakeseer")
 local CMakeApi = require("cmakeseer.cmake.api")
 
----@class Artifact An artifact produced by a target.
+---@class cmakeseer.cmake.api.codemodel.Artifact An artifact produced by a target.
 ---@field path string The path to the artifact on disk. If relative, relative to the build directory.
 
----@class Target A CMake target.
+---@class cmakeseer.cmake.api.codemodel.Target A CMake target.
 ---@field name string The name of the target.
 ---@field id string The unique ID for the target.
----@field type TargetType The type of the target.
+---@field type cmakeseer.cmake.api.codemodel.TargetType The type of the target.
 ---@field nameOnDisk string? The name of the target on disk.
----@field artifacts Artifact[]? The artifacts produced by the target.
+---@field artifacts cmakeseer.cmake.api.codemodel.Artifact[]? The artifacts produced by the target.
 ---TODO: Add the rest
 
 local M = {
-  ---@enum TargetType The type of a target.
+  ---@enum cmakeseer.cmake.api.codemodel.TargetType The type of a target.
   TargetType = {
     Executable = "EXECUTABLE",
     StaticLibrary = "STATIC_LIBRARY",
@@ -25,7 +25,7 @@ local M = {
   },
 }
 
----@param type TargetType The type to check.
+---@param type cmakeseer.cmake.api.codemodel.TargetType The type to check.
 ---@return boolean is_library If the provided type is a library.
 function M.is_library(type)
   return type == M.TargetType.StaticLibrary
@@ -36,9 +36,9 @@ function M.is_library(type)
 end
 
 --- Parses a Target from the provided reference.
----@param reference TargetReference The reference to the Target.
+---@param reference cmakeseer.cmake.api.codemodel.TargetReference The reference to the Target.
 ---@param build_directory string The directory in which the CMake project was configured.
----@return Target|nil maybe_target The target, if one was contained in the referenced file.
+---@return cmakeseer.cmake.api.codemodel.Target|nil maybe_target The target, if one was contained in the referenced file.
 function M.parse(reference, build_directory)
   local response_directory = CMakeApi.get_reply_directory(build_directory)
   local file_path = vim.fs.joinpath(response_directory, reference.jsonFile)
@@ -83,7 +83,7 @@ function M.is_valid(obj)
   return true
 end
 
----@param target Target
+---@param target cmakeseer.cmake.api.codemodel.Target
 ---@return string? target_path The path to the target's executable or library output, if one exists.
 function M.get_target_path(target)
   if target.artifacts == nil then

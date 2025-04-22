@@ -1,24 +1,24 @@
 local Kit = require("cmakeseer.kit")
 local Utils = require("cmakeseer.utils")
 
---- @class Callbacks
+--- @class cmakeseer.cmake.api.Callbacks
 --- @field preconfigure fun()? Ran before CMake configures the project.
 --- @field postconfigure fun()? Ran after CMake successfully configures the project.
 
---- @class Options
+--- @class cmakeseer.cmake.api.Options
 --- @field cmake_command string The command used to run CMake. Defaults to `cmake`.
 --- @field build_directory string|fun(): string The path (or a function that generates a path) to the build directory. Can be relative to the current working directory.
---- @field default_cmake_settings CMakeSettings Contains definition:value pairs to be used when configuring the project.
+--- @field default_cmake_settings cmakeseer.cmake.api.CMakeSettings Contains definition:value pairs to be used when configuring the project.
 --- @field should_scan_path boolean If the PATH environment variable directories should be scanned for kits.
 --- @field scan_paths string[] Additional paths to scan for kits.
 --- @field kit_paths string[] Paths to files containing CMake kit definitions. These will not be expanded.
---- @field kits Kit[] Global user-defined kits.
+--- @field kits cmakeseer.Kit[] Global user-defined kits.
 --- @field persist_file string? The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
---- @field callbacks Callbacks Optional callbacks to run during various parts of the CMake cycle.
+--- @field callbacks cmakeseer.cmake.api.Callbacks Optional callbacks to run during various parts of the CMake cycle.
 
 local M = {}
 
----@return Options options The default set of options.
+---@return cmakeseer.cmake.api.Options options The default set of options.
 function M.default()
   return {
     cmake_command = "cmake",
@@ -40,8 +40,8 @@ function M.default()
 end
 
 --- Cleans user-provided options so they are consistent with the data model used.
----@param opts Options The options to clean.
----@return Options opts The cleaned options.
+---@param opts cmakeseer.cmake.api.Options The options to clean.
+---@return cmakeseer.cmake.api.Options opts The cleaned options.
 function M.cleanup(opts)
   opts.kit_paths = opts.kit_paths or {}
   opts.kits = opts.kits or {}

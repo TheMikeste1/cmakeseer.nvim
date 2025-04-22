@@ -6,47 +6,47 @@ local Utils = require("cmakeseer.utils")
 
 -- TODO: Fill out descriptions
 
---- @class Paths Contains information about the paths in the CMake projects.
+--- @class cmakeseer.cmake.api.codemodel.Paths Contains information about the paths in the CMake projects.
 --- @field source string The path to the top-level source directory for the CMake project.
 --- @field build string The path to the top-level build directory for the CMake project.
 
---- @class CMakeVersion
+--- @class cmakeseer.cmake.api.codemodel.CMakeVersion
 --- @field string string
 --- TODO: Add methods to get major/minor/etc.
 
---- @class DirectoryReference
+--- @class cmakeseer.cmake.api.codemodel.DirectoryReference
 --- @field source string
 --- @field parentIndex integer?
 --- @field childIndexes integer[]?
 --- @field projectIndex integer
 --- @field targetIndexes integer[]?
---- @field minimumCMakeVersion CMakeVersion?
+--- @field minimumCMakeVersion cmakeseer.cmake.api.codemodel.CMakeVersion?
 --- @field hasInstallRule boolean?
 --- @field jsonFile string
 
---- @class Project
+--- @class cmakeseer.cmake.api.codemodel.Project
 --- @field name string
 --- @field parentIndex integer?
 --- @field childIndexes integer[]?
 --- @field directoryIndexes integer[]
 --- @field targetIndexes integer[]?
 
---- @class TargetReference
+--- @class cmakeseer.cmake.api.codemodel.TargetReference
 --- @field name string
 --- @field id string?
 --- @field directoryIndex integer
 --- @field projectIndex integer
 --- @field jsonFile string
 
---- @class Configuration
+--- @class cmakeseer.cmake.api.codemodel.Configuration
 --- @field name string
---- @field directories DirectoryReference[]
---- @field projects Project[]
---- @field targets TargetReference[]
+--- @field directories cmakeseer.cmake.api.codemodel.DirectoryReference[]
+--- @field projects cmakeseer.cmake.api.codemodel.Project[]
+--- @field targets cmakeseer.cmake.api.codemodel.TargetReference[]
 
---- @class CodeModel: ObjectKind
---- @field paths Paths The Paths used by the project.
---- @field configurations Configuration[] Contains the different configurations for the project. In the case of a single-configuration generators there will only ever be one entry.
+--- @class cmakeseer.cmake.api.codemodel.CodeModel: cmakeseer.cmake.api.ObjectKind
+--- @field paths cmakeseer.cmake.api.codemodel.Paths The Paths used by the project.
+--- @field configurations cmakeseer.cmake.api.codemodel.Configuration[] Contains the different configurations for the project. In the case of a single-configuration generators there will only ever be one entry.
 
 -- TODO: Validate that all tables contain the correct data types
 

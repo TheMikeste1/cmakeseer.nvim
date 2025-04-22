@@ -18,7 +18,7 @@ local function load_targets()
     return
   end
 
-  ---@cast codemodel_reference ReplyFileReference
+  ---@cast codemodel_reference cmakeseer.cmake.api.ReplyFileReference
 
   local codemodel = CMakeApi.parse_object_kind_file(codemodel_reference, Cmakeseer.get_build_directory())
   if codemodel == nil then
@@ -30,7 +30,7 @@ local function load_targets()
   end
 
   assert(codemodel.kind == ObjectKind.codemodel)
-  ---@cast codemodel CodeModel
+  ---@cast codemodel cmakeseer.cmake.api.codemodel.CodeModel
 
   if #codemodel.configurations == 0 then
     vim.notify(
@@ -43,7 +43,7 @@ local function load_targets()
   -- TODO: Support multiple configurations
   local configuration = codemodel.configurations[1]
   local target_references = configuration.targets
-  ---@type Target[]
+  ---@type cmakeseer.cmake.api.codemodel.Target[]
   local parsed_targets = {}
   for _, reference in ipairs(target_references) do
     local target = Target.parse(reference, Cmakeseer.get_build_directory())
@@ -80,7 +80,10 @@ end
 function M.on_post_configure_success()
   load_targets()
   if Cmakeseer.is_ctest_project() then
-    -- TODO
+    local maybe_info = CTestApi.issue_query(Cmakeseer.get_build_directory())
+    if type(maybe_info) == "CTestInfo" then
+      Cmakeseer.__ctest_info = maybe_info
+    end
   end
 end
 

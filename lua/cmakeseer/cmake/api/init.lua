@@ -2,18 +2,18 @@ local ApiUtils = require("cmakeseer.cmake.api.utils")
 local ObjectKind = require("cmakeseer.cmake.api.object_kind")
 local Utils = require("cmakeseer.utils")
 
----@class ReplyFileReference A successful reply provided in response to a query.
----@field kind Kind The Kind for which the response if provided.
----@field version Version The Version of the ObjectKind.
+---@class cmakeseer.cmake.api.ReplyFileReference A successful reply provided in response to a query.
+---@field kind cmakeseer.cmake.api.Kind The Kind for which the response if provided.
+---@field version cmakeseer.cmake.api.Version The Version of the ObjectKind.
 ---@field jsonFile string The reference to the JSON file that contains more information. Relative to the index file.
 
----@class ReplyFileError An error provided in response to a query.
+---@class cmakeseer.cmake.api.ReplyFileError An error provided in response to a query.
 ---@field error string The error description
 
----@alias ApiResponse ReplyFileReference|ReplyFileError The possible response types to a query.
+---@alias ApiResponse cmakeseer.cmake.api.ReplyFileReference|cmakeseer.cmake.api.ReplyFileError The possible response types to a query.
 
 --- Generates a query object for the given ObjectKind.
----@param kind Kind The object kind for which the query should be generated.
+---@param kind cmakeseer.cmake.api.Kind The object kind for which the query should be generated.
 ---@return table<string, any>? query The query object for the ObjectKind.
 local function generate_query_object(kind)
   if kind == ObjectKind.Kind.codemodel then
@@ -68,12 +68,12 @@ local function get_responses_from_index_file(index_file_path)
 end
 
 local M = {
-  --- @enum IssueQueryError The possible types of errors that could be produced when issuing a query.
+  --- @enum cmakeseer.cmake.api.IssueQueryError The possible types of errors that could be produced when issuing a query.
   IssueQueryError = {
     FailedToMakeDirectory = 0,
     FailedToMakeQueryFile = 1,
   },
-  --- @enum ReadResponseError The possible types of errors that could be produced when reading the response to a query.
+  --- @enum cmakeseer.cmake.api.ReadResponseError The possible types of errors that could be produced when reading the response to a query.
   ReadResponseError = {
     IndexDoesNotExist = 0,
   },
@@ -92,9 +92,9 @@ function M.get_reply_directory(build_directory)
 end
 
 --- Reads and parses an ObjectKind file given its reference.
----@param reference ReplyFileReference The reference to the ObjectKind file.
+---@param reference cmakeseer.cmake.api.ReplyFileReference The reference to the ObjectKind file.
 ---@param build_directory string The directory in which the CMake project was configured.
----@return ObjectKind? maybe_object_kind The parsed ObjectKind, if the file contained a valid one.
+---@return cmakeseer.cmake.api.ObjectKind? maybe_object_kind The parsed ObjectKind, if the file contained a valid one.
 function M.parse_object_kind_file(reference, build_directory)
   local response_directory = M.get_reply_directory(build_directory)
   local file_path = vim.fs.joinpath(response_directory, reference.jsonFile)
@@ -113,9 +113,9 @@ function M.parse_object_kind_file(reference, build_directory)
 end
 
 --- Issue a query to the CMake file API.
----@param kinds Kind[]|Kind The Kinds (or Kind) for the query.
+---@param kinds cmakeseer.cmake.api.Kind[]|cmakeseer.cmake.api.Kind The Kinds (or Kind) for the query.
 ---@param build_directory string The directory in which the CMake project will be configured.
----@return IssueQueryError? maybe_error An error, if one occurs.
+---@return cmakeseer.cmake.api.IssueQueryError? maybe_error An error, if one occurs.
 function M.issue_query(kinds, build_directory)
   local client_dir = M.get_query_directory(build_directory)
   local success = vim.fn.mkdir(client_dir, "p") == 1
@@ -128,7 +128,7 @@ function M.issue_query(kinds, build_directory)
   }
 
   if type(kinds) == "string" then
-    local request = generate_query_object(kinds --[[@as Kind]])
+    local request = generate_query_object(kinds --[[@as cmakeseer.cmake.api.Kind]])
     if request == nil then
       vim.notify("Query not implemented for " .. kinds .. ". Skipping.", vim.log.levels.WARN)
     else
@@ -136,7 +136,7 @@ function M.issue_query(kinds, build_directory)
     end
   else
     for _, kind in
-      ipairs(kinds --[[@as Kind[] ]])
+      ipairs(kinds --[[@as cmakeseer.cmake.api.Kind[] ]])
     do
       local request = generate_query_object(kind)
       if request == nil then
@@ -156,7 +156,7 @@ end
 
 --- Read the response to a query from the CMake API.
 ---@param build_directory string The directory in which the CMake project was configured.
----@return ReplyFileReference[] reply_file_references The list of reply file references provided by the API.
+---@return cmakeseer.cmake.api.ReplyFileReference[] reply_file_references The list of reply file references provided by the API.
 function M.read_responses(build_directory)
   local response_dir = M.get_reply_directory(build_directory)
   local index_file_path = get_index_file_path(response_dir)
