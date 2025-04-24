@@ -38,7 +38,7 @@ function M.is_valid(obj, expected_kind)
     return false
   end
 
-  if obj.kind ~= expected_kind then
+  if expected_kind ~= nil and obj.kind ~= expected_kind then
     return false
   end
 

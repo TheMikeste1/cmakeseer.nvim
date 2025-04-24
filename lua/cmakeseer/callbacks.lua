@@ -59,6 +59,37 @@ local function load_targets()
   vim.notify(string.format("Found %i targets", #parsed_targets))
 end
 
+local function load_ctest_info()
+  local maybe_info = CTestApi.issue_query(Cmakeseer.get_build_directory())
+  if type(maybe_info) == "table" then
+    Cmakeseer.__ctest_info = maybe_info
+    return
+  end
+
+  if maybe_info == CTestApi.IssueQueryError.NotConfigured then
+    vim.notify("Unable to load CTest info: NotConfigured", vim.log.levels.ERROR)
+    return
+  end
+  if maybe_info == CTestApi.IssueQueryError.NotCTestProject then
+    vim.notify("Unable to load CTest info: NotCTestProject", vim.log.levels.ERROR)
+    return
+  end
+  if maybe_info == CTestApi.IssueQueryError.SpawnProcess then
+    vim.notify("Unable to load CTest info: SpawnProcess", vim.log.levels.ERROR)
+    return
+  end
+  if maybe_info == CTestApi.IssueQueryError.InvalidJson then
+    vim.notify("Unable to load CTest info: InvalidJson", vim.log.levels.ERROR)
+    return
+  end
+  if maybe_info == CTestApi.IssueQueryError.InvalidCTestInfo then
+    vim.notify("Unable to load CTest info: InvalidCTestInfo", vim.log.levels.ERROR)
+    return
+  end
+
+  error("Unreachable")
+end
+
 local M = {}
 
 --- Called before the project is configured.
@@ -79,11 +110,9 @@ end
 
 function M.on_post_configure_success()
   load_targets()
+
   if Cmakeseer.is_ctest_project() then
-    local maybe_info = CTestApi.issue_query(Cmakeseer.get_build_directory())
-    if type(maybe_info) == "CTestInfo" then
-      Cmakeseer.__ctest_info = maybe_info
-    end
+    load_ctest_info()
   end
 end
 

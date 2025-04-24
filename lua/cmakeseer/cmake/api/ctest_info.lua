@@ -4,7 +4,16 @@
 
 local Utils = require("cmakeseer.utils")
 
+---@class cmakeseer.cmake.api.Node
+---@field file number The index of the associated file.
+---@field command number? The index of the associated command.
+---@field line number? The line number in `file`.
+---@field parent number? The parent node.
+
 ---@class cmakeseer.cmake.api.BacktraceGraph
+---@field commands string[] The commands used to create the tests.
+---@field files string[] The files containing the tests.
+---@field nodes cmakeseer.cmake.api.Node[] Information about where tests are.
 
 ---@class cmakeseer.cmake.api.TestProperty
 ---@field name string

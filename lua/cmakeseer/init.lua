@@ -127,6 +127,11 @@ function M.get_targets()
   return M.__targets
 end
 
+---@return cmakeseer.cmake.api.CTestInfo? info The CTest info.
+function M.get_ctest_info()
+  return M.__ctest_info
+end
+
 ---@return cmakeseer.cmake.api.Test[]? tests The CTest tests.
 function M.get_ctest_tests()
   if M.__ctest_info then

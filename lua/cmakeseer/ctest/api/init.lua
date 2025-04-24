@@ -44,7 +44,8 @@ function M.issue_query(build_directory)
 end
 
 function M.is_ctest_project(build_directory)
-  return vim.fn.glob(vim.fs.joinpath(build_directory, "CTestInfofile.cmake")) == ""
+  local path = vim.fs.joinpath(build_directory, "CTestTestfile.cmake")
+  return vim.fn.glob(path) ~= ""
 end
 
 return M
