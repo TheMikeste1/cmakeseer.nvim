@@ -2,6 +2,162 @@ local NeotestTypes = require("neotest.types")
 local NeotestLib = require("neotest.lib")
 local Cmakeseer = require("cmakeseer")
 
+---@type table<string, neotest.Result>
+local g_test_results = {}
+
+---@private
+---@param test_name string The name of the test that should fail.
+---@return string[] command The command that fails.
+local function __generate_failing_command(test_name)
+  return {
+    "sh",
+    "-c",
+    string.format("echo 'Binary for %s doesn'\"'\"'t exist. . .' && exit 1", test_name),
+  }
+end
+
+---@private
+---@param file_path string The absolute path to the file whose nodes should be fetched.
+---@return [number, cmakeseer.cmake.api.Node]? maybe_nodes The nodes associated with the file. Nil if the file isn't recognized.
+local function __get_nodes_for_file(file_path)
+  local maybe_info = Cmakeseer.get_ctest_info()
+  if maybe_info == nil then
+    return nil
+  end
+
+  local file_index = 0
+  local files = maybe_info.backtraceGraph.files
+  for i, file in ipairs(files) do
+    if file_path == file then
+      file_index = i
+    end
+  end
+
+  if file_index == 0 then
+    return nil
+  end
+
+  file_index = file_index - 1
+
+  local nodes = maybe_info.backtraceGraph.nodes
+  ---@type [number, cmakeseer.cmake.api.Node]
+  local file_nodes = {}
+  for node_index, node in ipairs(nodes) do
+    if node.file == file_index then
+      node_index = node_index - 1
+      table.insert(file_nodes, { node_index, node })
+    end
+  end
+  return file_nodes
+end
+
+---@private
+--- Generates a neotest.RunSpec[] for all tests in a file.
+---@param file string The name of the file containing the tests.
+---@return neotest.RunSpec[] | nil specs The run specs in the file.
+local function __get_file_test_run_spec(file)
+  local maybe_info = Cmakeseer.get_ctest_info()
+  if maybe_info == nil then
+    return nil
+  end
+
+  local nodes = __get_nodes_for_file(file)
+  if nodes == nil then
+    return nil
+  end
+
+  ---@type neotest.RunSpec[]
+  local specs = {}
+  local tests = maybe_info.tests
+  for i, test in ipairs(tests) do
+    for _, index_and_node in ipairs(nodes) do
+      local node_index = index_and_node[1]
+
+      if test.backtrace ~= node_index then
+        goto continue
+      end
+
+      if test.command == nil then
+        vim.notify(
+          string.format("%s has an invalid command. Does the binary used exist?", test.name),
+          vim.log.levels.WARN
+        )
+        table.insert(specs, {
+          command = __generate_failing_command(test.name),
+          context = { id = file .. "::" .. test.name, test_index = i },
+        })
+        goto continue
+      end
+
+      local cwd = nil
+      for _, prop in ipairs(test.properties) do
+        if prop.name == "WORKING_DIRECTORY" then
+          cwd = prop.value
+          break
+        end
+      end
+
+      ---@type neotest.RunSpec
+      local spec = {
+        command = test.command,
+        cwd = cwd,
+        context = { id = file .. "::" .. test.name, test_index = i },
+      }
+      table.insert(specs, spec)
+
+      ::continue::
+    end
+  end
+
+  return specs
+end
+
+---@private
+--- Generates a neotest.RunSpec given a test's ID.
+---@param id string The ID the test.
+---@param test_name string The name, of the test.
+---@return neotest.RunSpec | nil spec The run spec, if the test exists.
+local function __get_test_run_spec_by_id(id, test_name)
+  local maybe_info = Cmakeseer.get_ctest_info()
+  if maybe_info == nil then
+    return nil
+  end
+
+  local tests = maybe_info.tests
+  for i, test in ipairs(tests) do
+    if test.name == test_name then
+      if test.command == nil then
+        vim.notify(
+          string.format("%s has an invalid command. Does the binary used exist?", test_name),
+          vim.log.levels.WARN
+        )
+        return {
+          command = __generate_failing_command(test_name),
+          context = { id = id, test_index = i },
+        }
+      end
+
+      local cwd = nil
+      for _, prop in ipairs(test.properties) do
+        if prop.name == "WORKING_DIRECTORY" then
+          cwd = prop.value
+          break
+        end
+      end
+
+      ---@type neotest.RunSpec
+      return {
+        command = test.command,
+        cwd = cwd,
+        context = { id = id, test_index = i },
+      }
+    end
+  end
+
+  vim.notify(string.format("Unknown test ID: %s", id), vim.log.levels.ERROR)
+  return nil
+end
+
 ---Find the project root directory given a current directory to work from.
 ---Should no root be found, the adapter can still be used in a non-project context if a test file matches.
 ---@async
@@ -66,10 +222,6 @@ local function discover_positions(file_path)
 
   file_index = file_index - 1
 
-  local tests = maybe_info.tests
-  local nodes = maybe_info.backtraceGraph.nodes
-  local relative_path = vim.fs.relpath(vim.fn.getcwd(), file_path) or file_path
-
   local file = io.open(file_path, "r")
   if file == nil then
     vim.notify("Could not open file. Failed to find tests in " .. file_path, vim.log.levels.ERROR)
@@ -84,9 +236,16 @@ local function discover_positions(file_path)
   end
 
   if num_lines == 0 then
-    return
+    return nil
   end
 
+  local nodes = __get_nodes_for_file(file_path)
+  if nodes == nil then
+    return nil
+  end
+
+  local tests = maybe_info.tests
+  local relative_path = vim.fs.relpath(vim.fn.getcwd(), file_path) or file_path
   ---@type neotest.Position[]
   local positions = {
     {
@@ -99,39 +258,43 @@ local function discover_positions(file_path)
   }
 
   local line_num = num_lines
-  for node_index, node in ipairs(nodes) do
-    if node.line ~= nil and node.file == file_index then
-      node_index = node_index - 1
-      local line_length = 1
-      if node.line < line_num then
-        file:seek("set")
-        line_num = 0
-      end
+  for _, index_and_node in ipairs(nodes) do
+    local node_index = index_and_node[1]
+    local node = index_and_node[2]
+    if node.line == nil then
+      goto continue
+    end
 
-      if line_num < node.line then
-        for line in file:lines() do
-          line_num = line_num + 1
-          if line_num == node.line then
-            line_length = #line
-            break
-          end
-        end
-      end
+    local line_length = 1
+    if node.line < line_num then
+      file:seek("set")
+      line_num = 0
+    end
 
-      for _, test in ipairs(tests) do
-        if test.backtrace == node_index then
-          ---@type neotest.Position
-          local position = {
-            id = test.name,
-            type = "test",
-            name = test.name,
-            path = file_path,
-            range = { node.line - 1, 0, node.line - 1, line_length - 1 },
-          }
-          positions[#positions + 1] = position
+    if line_num < node.line then
+      for line in file:lines() do
+        line_num = line_num + 1
+        if line_num == node.line then
+          line_length = #line
+          break
         end
       end
     end
+
+    for _, test in ipairs(tests) do
+      if test.backtrace == node_index then
+        ---@type neotest.Position
+        local position = {
+          id = test.name,
+          type = "test",
+          name = test.name,
+          path = file_path,
+          range = { node.line - 1, 0, node.line - 1, line_length - 1 },
+        }
+        positions[#positions + 1] = position
+      end
+    end
+    ::continue::
   end
 
   file:close()
@@ -143,77 +306,39 @@ end
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 local function build_spec(args)
-  local maybe_info = Cmakeseer.get_ctest_info()
-  if maybe_info == nil then
-    return nil
-  end
-
   local id = args[1]
   local id_parts = vim.fn.split(id, "::")
-  if #id_parts < 2 then
-    -- TODO: For running entire suite/files, only the filename/suitename is provided. Maybe we can provide our own ID function?
-    error(string.format("Invalid ID for test: %s. Did the ID builder get updated?", id))
-    return nil
+  if #id_parts == 1 then
+    return __get_file_test_run_spec(id)
   end
 
-  local test_name = id_parts[2]
-  local tests = maybe_info.tests
-  for i, test in ipairs(tests) do
-    if test.name == test_name then
-      if test.command == nil then
-        vim.notify(string.format("%s has an invalid command. Does the binary exist?", test_name), vim.log.levels.WARN)
-        return nil
-      end
-
-      local cwd = nil
-      for _, prop in ipairs(test.properties) do
-        if prop.name == "WORKING_DIRECTORY" then
-          cwd = prop.value
-          break
-        end
-      end
-
-      ---@type neotest.RunSpec
-      return {
-        command = test.command,
-        cwd = cwd,
-        context = { id = id, test_index = i },
-      }
-    end
-  end
-
-  return nil
+  local test_name = table.concat(id_parts, "::", 2)
+  return __get_test_run_spec_by_id(id, test_name)
 end
 
 ---@async
 ---@param spec neotest.RunSpec
 ---@param result neotest.StrategyResult
----@param tree neotest.Tree
+---@param _ neotest.Tree
 ---@return table<string, neotest.Result>
-local function results(spec, result, tree)
+local function results(spec, result, _)
   local context = spec.context
-  if context == nil then
-    error("Did not get context for test")
-    return {}
-  end
+  assert(context ~= nil, "Did not get context for test")
 
   local id = context.id
-  if id == nil then
-    error("Context did not have an id")
-    return {}
-  end
+  assert(id ~= nil, "Context did not have an id")
 
   local status = NeotestTypes.ResultStatus.passed
   if result.code ~= 0 then
     status = NeotestTypes.ResultStatus.failed
   end
 
-  ---@type table<string, neotest.Result>
-  return {
-    [context.id] = {
-      status = status,
-    },
+  g_test_results[context.id] = {
+    status = status,
   }
+
+  ---@type table<string, neotest.Result>
+  return g_test_results
 end
 
 ---@type neotest.Adapter
