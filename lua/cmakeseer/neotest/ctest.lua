@@ -412,14 +412,19 @@ function M.results(spec, result, _)
 
   local id = context.id
   if id ~= nil then
-    local status = NeotestTypes.ResultStatus.passed
+    local test_result = { status = NeotestTypes.ResultStatus.passed }
     if result.code ~= 0 then
-      status = NeotestTypes.ResultStatus.failed
+      assert(vim.fn.glob(result.output) ~= "", "Output file should exist")
+      local output = vim.fn.readfile(result.output)
+      local test_results = __parse_ctest_failures(output)
+
+      local k, v = next(test_results)
+      assert(v ~= nil, string.format("No error found: %s", vim.inspect(v)))
+      test_result = v or { status = NeotestTypes.ResultStatus.skipped }
+      assert(next(test_results, k) == nil, "There should only be one error")
     end
 
-    g_test_results[id] = {
-      status = status,
-    }
+    g_test_results[id] = test_result
   else
     local ids = context.ids
     assert(id ~= nil or ids ~= nil, "Context did not have an id")
