@@ -6,14 +6,11 @@ local Cmakeseer = require("cmakeseer")
 local g_test_results = {}
 
 ---@private
----@param test_name string The name of the test that should fail.
+---@param test cmakeseer.cmake.api.Test The test for which to generate the command.
 ---@return string[] command The command that fails.
-local function __generate_failing_command(test_name)
-  return {
-    "sh",
-    "-c",
-    string.format("echo 'Binary for %s doesn'\"'\"'t exist. . .' && exit 1", test_name),
-  }
+local function __generate_test_command(test)
+  local escaped_test_name = vim.fn.escape(test.name, "^$.*?\\[]~")
+  return { "ctest", "--test-dir", Cmakeseer.get_build_directory(), "-R", escaped_test_name }
 end
 
 ---@private
@@ -77,30 +74,10 @@ local function __get_file_test_run_spec(file)
         goto continue
       end
 
-      if test.command == nil then
-        vim.notify(
-          string.format("%s has an invalid command. Does the binary used exist?", test.name),
-          vim.log.levels.WARN
-        )
-        table.insert(specs, {
-          command = __generate_failing_command(test.name),
-          context = { id = file .. "::" .. test.name, test_index = i },
-        })
-        goto continue
-      end
-
-      local cwd = nil
-      for _, prop in ipairs(test.properties) do
-        if prop.name == "WORKING_DIRECTORY" then
-          cwd = prop.value
-          break
-        end
-      end
-
+      local command = __generate_test_command(test)
       ---@type neotest.RunSpec
       local spec = {
-        command = test.command,
-        cwd = cwd,
+        command = command,
         context = { id = file .. "::" .. test.name, test_index = i },
       }
       table.insert(specs, spec)
@@ -126,29 +103,10 @@ local function __get_test_run_spec_by_id(id, test_name)
   local tests = maybe_info.tests
   for i, test in ipairs(tests) do
     if test.name == test_name then
-      if test.command == nil then
-        vim.notify(
-          string.format("%s has an invalid command. Does the binary used exist?", test_name),
-          vim.log.levels.WARN
-        )
-        return {
-          command = __generate_failing_command(test_name),
-          context = { id = id, test_index = i },
-        }
-      end
-
-      local cwd = nil
-      for _, prop in ipairs(test.properties) do
-        if prop.name == "WORKING_DIRECTORY" then
-          cwd = prop.value
-          break
-        end
-      end
-
+      local command = __generate_test_command(test)
       ---@type neotest.RunSpec
       return {
-        command = test.command,
-        cwd = cwd,
+        command = command,
         context = { id = id, test_index = i },
       }
     end
