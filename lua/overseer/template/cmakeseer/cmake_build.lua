@@ -7,7 +7,7 @@ local function builder()
     cmd = Cmakeseer.cmake_command(),
     args = Cmakeseer.get_build_args(),
     components = {
-      "cmakeseer.build_hooks",
+      "cmakeseer.configure_hooks",
       {
         "unique",
         restart_interrupts = false,
