@@ -282,7 +282,7 @@ function M.setup(opts)
       )
     else
       vim.notify("Project is already configured; attempting to load targets. . .")
-      require("cmakeseer.callbacks").on_post_configure_success()
+      vim.schedule(require("cmakeseer.callbacks").on_post_configure_success)
     end
   end
 end
