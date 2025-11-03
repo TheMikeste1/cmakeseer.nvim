@@ -214,13 +214,15 @@ function M.scan_for_kits()
     kits = Utils.merge_arrays(kits, new_kits)
   end
 
+  kits = Kit.remove_duplicate_kits(kits)
+
   local count_message = "Found " .. #kits .. " kit"
   if #kits ~= 1 then
     count_message = count_message .. "s"
   end
   vim.notify(count_message)
 
-  M.__scanned_kits = Kit.remove_duplicate_kits(kits)
+  M.__scanned_kits = kits
 
   if M.__options.persist_file then
     vim.notify("Persisting kits", vim.log.levels.INFO)

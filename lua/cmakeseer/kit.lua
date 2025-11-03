@@ -35,26 +35,8 @@ end
 ---@param name string The name of the kit to check.
 ---@return boolean is_kit If the name is a GCC kit.
 local function name_is_gcc_kit(name)
-  if name:sub(1, 3) ~= "gcc" then
-    return false
-  end
-
-  if name == "gcc" then
-    return true
-  end
-
-  local sub = name:sub(4)
-  if #sub < 2 or sub[1] ~= "-" then
-    return false
-  end
-
-  local numbers = sub:sub(2)
-  for char in numbers:gmatch(".") do
-    if char:find("%D") then
-      return false
-    end
-  end
-  return true
+  -- TODO: Include cross-compiling gcc
+  return name == "gcc" or string.match(name, "^gcc%-%d%d?$") ~= nil
 end
 
 --- Extracts a kit from a GCC filepath, if it is a kit.
@@ -83,15 +65,29 @@ local function extract_kit_from_gcc(filepath)
   end
 
   -- TODO: Get version
+  local version_proc = vim.system({ filepath, "--version" })
+  local machine_proc = vim.system({ filepath, "-dumpmachine" })
+  local version_out = version_proc:wait()
+  local machine_out = machine_proc:wait()
+
+  local version = "<version unknown>"
+  local machine = "<machine unknown>"
+  if version_out.code == 0 then
+    version = version_out.stdout:match("[0-9.]+\n"):gsub("[\n]+$", "")
+  end
+  if machine_out.code == 0 then
+    machine = machine_out.stdout:gsub("[\n]+$", "")
+  end
 
   ---@type cmakeseer.Kit
   local kit = {
-    name = name,
+    name = string.format("GCC %s %s", version, machine),
     compilers = {
       C = filepath,
       CXX = cxx,
     },
   }
+
   return kit
 end
 
@@ -99,26 +95,8 @@ end
 ---@param name string The name of the kit to check.
 ---@return boolean is_kit If the name is a clang kit.
 local function name_is_clang_kit(name)
-  if name:sub(1, 3) ~= "clang" then
-    return false
-  end
-
-  if name == "clang" then
-    return true
-  end
-
-  local sub = name:sub(4)
-  if #sub < 2 or sub[1] ~= "-" then
-    return false
-  end
-
-  local numbers = sub:sub(2)
-  for char in numbers:gmatch(".") do
-    if char:find("%D") then
-      return false
-    end
-  end
-  return true
+  -- TODO: Include cross-compiling clang
+  return name == "clang" or string.match(name, "^clang%-%d%d?$") ~= nil
 end
 
 --- Extracts a kit from a clang filepath, if it is a kit.
@@ -245,6 +223,7 @@ end
 ---@param kits cmakeseer.Kit[] The array of kits.
 ---@return cmakeseer.Kit[] kits The array of kits without duplicates.
 function M.remove_duplicate_kits(kits)
+  -- TODO: This should include kits whose file is a symlink to the same executable
   local kit_set = {}
   for _, kit in ipairs(kits) do
     if not M.kit_exists(kit_set, kit) then

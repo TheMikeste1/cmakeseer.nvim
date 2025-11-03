@@ -22,13 +22,16 @@ local M = {}
 function M.default()
   return {
     cmake_command = "cmake",
-    build_directory = "build",
+    build_directory = "./build",
     default_cmake_settings = {
       configureSettings = {},
       kit_name = nil,
     },
     should_scan_path = true,
-    scan_paths = {},
+    scan_paths = {
+      "/usr/bin",
+      "/usr/local/bin",
+    },
     kit_paths = {},
     kits = {},
     persist_file = nil,
