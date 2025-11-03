@@ -37,6 +37,7 @@ end
 
 --- @return string build_directory The project's build directory.
 function M.get_build_directory()
+  -- FIXME: If the user changes tabs or directories while a build is going AND this path is relative, it will try to place the build directory in the cd'd to directory
   local build_dir = M.__options.build_directory
   if type(build_dir) == "function" then
     build_dir = build_dir()
