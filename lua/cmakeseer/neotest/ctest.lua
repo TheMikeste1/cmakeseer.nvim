@@ -256,7 +256,7 @@ end
 ---@return boolean
 function M.filter_dir(name, rel_path, project_root)
   return name ~= "__cmake_systeminformation"
-    and vim.fs.joinpath(project_root, rel_path) ~= Cmakeseer.get_build_directory()
+    and vim.fs.normalize(vim.fs.joinpath(project_root, rel_path)) ~= Cmakeseer.get_build_directory()
 end
 
 ---@async

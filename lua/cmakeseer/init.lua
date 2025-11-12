@@ -43,7 +43,7 @@ function M.get_build_directory()
     build_dir = build_dir()
   end
 
-  return vim.fs.abspath(build_dir)
+  return vim.fs.normalize(vim.fs.abspath(build_dir))
 end
 
 ---@return cmakeseer.Variant variant The selected variant.
