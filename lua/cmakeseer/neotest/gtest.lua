@@ -131,8 +131,20 @@ function M.discover_positions(file_path)
   local positions = {}
   ---@type {string: neotest.Position}
   local file_positions = {}
+  local cwd = vim.fn.getcwd()
   for suite_name, tests in pairs(suites) do
     for test_name, test in pairs(tests) do
+      assert(test.file:sub(1, #cwd) == cwd)
+      local relative_path = test.file:sub(#cwd + 2)
+      ---@type neotest.Position[]
+      file_positions[test.file] = {
+        id = test.file,
+        type = "file",
+        path = test.file,
+        name = relative_path,
+        range = { 0, 0, 99999, 99999 }, -- TSNode:range
+      }
+
       ---@type neotest.Position
       local position = {
         id = string.format("%s::%s::%s", executable, suite_name, test_name),
@@ -142,16 +154,6 @@ function M.discover_positions(file_path)
         range = { test.line, 0, test.line, 999 },
       }
       table.insert(positions, position)
-
-      local relative_path = test.file:sub(#vim.fn.getcwd() + 2)
-      ---@type neotest.Position[]
-      file_positions[test.file] = {
-        id = test.file,
-        type = "file",
-        path = test.file,
-        name = relative_path,
-        range = { 0, 0, 99999, 99999 }, -- TSNode:range
-      }
     end
   end
   table.sort(positions, function(a, b)
