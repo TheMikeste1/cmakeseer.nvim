@@ -148,23 +148,26 @@ function M.discover_positions(file_path)
   assert(executable ~= nil)
   local suites = g_test_executables_suites[executable]
 
-  ---@type neotest.Position[]
-  local positions = {}
-  ---@type {string: neotest.Position}
+  ---@type table<string, neotest.Position[]>
   local file_positions = {}
   local cwd = vim.fn.getcwd()
   for suite_name, tests in pairs(suites) do
     for test_name, test in pairs(tests) do
       assert(test.file:sub(1, #cwd) == cwd)
-      local relative_path = test.file:sub(#cwd + 2)
-      ---@type neotest.Position[]
-      file_positions[test.file] = {
-        id = test.file,
-        type = "file",
-        path = test.file,
-        name = relative_path,
-        range = { 0, 0, 99999, 99999 }, -- TSNode:range
-      }
+
+      if file_positions[test.file] == nil then
+        local relative_path = vim.fn.fnamemodify(test.file, ":t")
+        ---@type neotest.Position[]
+        file_positions[test.file] = {
+          {
+            id = test.file,
+            type = "file",
+            path = test.file,
+            name = relative_path,
+            range = { 0, 0, 99999, 99999 }, -- TSNode:range
+          },
+        }
+      end
 
       ---@type neotest.Position
       local position = {
@@ -174,18 +177,22 @@ function M.discover_positions(file_path)
         path = test.file,
         range = { test.line, 0, test.line, 999 },
       }
-      table.insert(positions, position)
+      table.insert(file_positions[test.file], position)
     end
   end
-  table.sort(positions, function(a, b)
-    return a.id < b.id
-  end)
-  for _, pos in pairs(file_positions) do
-    table.insert(positions, pos)
-  end
-  print("POS " .. vim.inspect(positions))
 
-  local tree = NeotestLib.positions.parse_tree(positions, { nested_tests = true })
+  ---@type neotest.Position[]
+  --- Sorted positions to be converted to a tree
+  local flat_tree = {}
+  for _, positions in pairs(file_positions) do
+    table.sort(positions, function (a, b)
+      return a.range[1] < b.range[1]
+    end)
+    vim.list_extend(flat_tree, positions)
+  end
+  print("POS " .. vim.inspect(flat_tree))
+
+  local tree = NeotestLib.positions.parse_tree(flat_tree, { nested_tests = true })
   print("TREE: " .. vim.inspect(tree))
   return tree
 end
