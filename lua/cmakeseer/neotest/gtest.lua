@@ -18,6 +18,11 @@ local g_test_files = {}
 local g_test_executables_suites = {}
 
 ---@private
+---@class cmakeseer.neotest.gtest.TestCmd
+---@field cmd vim.SystemObj
+---@field cache string
+
+---@private
 local function __find_test_executables()
   g_test_files = {}
   g_test_executables_suites = {}
@@ -26,7 +31,7 @@ local function __find_test_executables()
     return value.type == TargetType.Executable
   end, Cmakeseer.get_targets())
 
-  ---@type table<string, any>
+  ---@type table<string, cmakeseer.neotest.gtest.TestCmd>
   local executable_test_cmds = {}
   for _, target in ipairs(targets) do
     assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
@@ -37,16 +42,21 @@ local function __find_test_executables()
       Cmakeseer.get_build_directory(),
       string.format("cmakeseer_gtest_cache_%s.json", target.artifacts[1].path)
     )
-    local test_cmd = vim.system({
+    local success, test_cmd = pcall(vim.system, {
       executable,
       "--gtest_list_tests",
       string.format("--gtest_output=json:%s", cache),
     }, { timeout = 10 })
+    if not success then
+      goto continue
+    end
+
     executable_test_cmds[executable] = { cmd = test_cmd, cache = cache }
+    ::continue::
   end
 
   for executable, data in pairs(executable_test_cmds) do
-    data.cmd:wait()
+    data.cmd:wait(10)
     if vim.fn.filereadable(data.cache) == 0 then
       goto continue
     end
@@ -76,9 +86,6 @@ end
 
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
-
----@type cmakeseer.GTestAdapter
----@diagnostic disable-next-line: missing-fields
 local M = {
   name = "CMakeSeer GTest",
 }
