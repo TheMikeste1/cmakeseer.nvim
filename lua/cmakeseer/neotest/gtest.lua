@@ -14,6 +14,8 @@ local g_test_results = {}
 
 ---@type table<string, string>
 local g_test_files = {}
+---@type table<string, any>
+local g_test_dirs = {}
 ---@type table<string, table<string, table<string, cmakeseer.neotest.gtest.Test>>>
 local g_test_executables_suites = {}
 
@@ -25,10 +27,11 @@ local g_test_executables_suites = {}
 ---@private
 local function __find_test_executables()
   g_test_files = {}
+  g_test_dirs = {}
   g_test_executables_suites = {}
 
   local targets = vim.tbl_filter(function(value)
-    return value.type == TargetType.Executable
+    return value.type == TargetType.Executable and string.match(value.name, "[tT]est")
   end, Cmakeseer.get_targets())
 
   ---@type table<string, cmakeseer.neotest.gtest.TestCmd>
@@ -82,6 +85,23 @@ local function __find_test_executables()
     g_test_executables_suites[executable] = suites
     ::continue::
   end
+
+  -- TODO: Almost all CWD calls actually probably need to be the project root instead. . .
+  local cwd = vim.fn.getcwd()
+  g_test_dirs[cwd] = true
+  for file, _ in pairs(g_test_files) do
+    local path = vim.fn.fnamemodify(file, ":h")
+    if path:sub(1, #cwd) ~= cwd then
+      vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
+      goto continue
+    end
+
+    while #path > #cwd do
+      g_test_dirs[path] = true
+      path = vim.fn.fnamemodify(path, ":h")
+    end
+    ::continue::
+  end
 end
 
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
@@ -107,8 +127,9 @@ end
 ---@param project_root string Root directory of project
 ---@return boolean
 function M.filter_dir(name, rel_path, project_root)
-  return name ~= "__cmake_systeminformation"
-    and vim.fs.joinpath(project_root, rel_path) ~= Cmakeseer.get_build_directory()
+  _ = name
+  local path = vim.fs.joinpath(project_root, rel_path)
+  return g_test_dirs[path] ~= nil
 end
 
 ---@async
