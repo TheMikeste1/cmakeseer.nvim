@@ -139,6 +139,10 @@ function M.is_test_file(file_path)
   return g_test_files[file_path] ~= nil
 end
 
+---@class cmakeseer.neotest.gtest.Position
+---@field file_position neotest.Position
+---@field suites table<string, neotest.Position[]>
+
 ---Given a file path, parse all the tests within it.
 ---@async
 ---@param file_path string Absolute file path
@@ -148,52 +152,75 @@ function M.discover_positions(file_path)
   assert(executable ~= nil)
   local suites = g_test_executables_suites[executable]
 
-  ---@type table<string, neotest.Position[]>
-  local file_positions = {}
-  local cwd = vim.fn.getcwd()
-  for suite_name, tests in pairs(suites) do
-    for test_name, test in pairs(tests) do
-      assert(test.file:sub(1, #cwd) == cwd)
+  local relative_path = vim.fn.fnamemodify(file_path, ":.")
+  ---@type cmakeseer.neotest.gtest.Position
+  local gtest_positions = {
+    file_position = {
+      id = file_path,
+      type = "file",
+      path = file_path,
+      name = relative_path,
+      range = { 0, 0, 0, 0 }, -- TSNode:range
+    },
+    suites = {},
+  }
 
-      if file_positions[test.file] == nil then
-        local relative_path = vim.fn.fnamemodify(test.file, ":t")
-        ---@type neotest.Position[]
-        file_positions[test.file] = {
-          {
-            id = test.file,
-            type = "file",
-            path = test.file,
-            name = relative_path,
-            range = { 0, 0, 99999, 99999 }, -- TSNode:range
-          },
-        }
-      end
+  for suite_name, tests in pairs(suites) do
+    ---@type neotest.Position[]
+    local suite_positions = {}
+    for test_name, test in pairs(tests) do
+      assert(test.file == file_path)
 
       ---@type neotest.Position
       local position = {
         id = string.format("%s::%s::%s", executable, suite_name, test_name),
         type = "test",
         name = test_name,
-        path = test.file,
-        range = { test.line, 0, test.line, 999 },
+        path = file_path,
+        -- TODO: Use actual test end line
+        range = { test.line - 1, 0, test.line, math.huge },
       }
-      table.insert(file_positions[test.file], position)
+      table.insert(suite_positions, position)
     end
-  end
 
-  ---@type neotest.Position[]
-  --- Sorted positions to be converted to a tree
-  local flat_tree = {}
-  for _, positions in pairs(file_positions) do
-    table.sort(positions, function (a, b)
+    table.sort(suite_positions, function(a, b)
       return a.range[1] < b.range[1]
     end)
+    gtest_positions.suites[suite_name] = suite_positions
+  end
+
+  --- Sorted positions to be converted to a tree
+  local min_line = math.huge
+  local max_line = 0
+  ---@type neotest.Position[]
+  local flat_tree = { gtest_positions.file_position }
+  for suite, positions in pairs(gtest_positions.suites) do
+    local suite_min_line = positions[1].range[1]
+    local suite_max_line = positions[#positions].range[3]
+
+    if suite_min_line < min_line then
+      min_line = suite_min_line
+    end
+    if suite_max_line > max_line then
+      max_line = suite_max_line
+    end
+
+    ---@type neotest.Position
+    local suite_position = {
+      id = string.format("%s::%s", executable, suite),
+      type = "namespace",
+      name = suite,
+      path = file_path,
+      range = { suite_min_line, 0, suite_max_line, math.huge },
+    }
+    table.insert(flat_tree, suite_position)
     vim.list_extend(flat_tree, positions)
   end
-  print("POS " .. vim.inspect(flat_tree))
 
-  local tree = NeotestLib.positions.parse_tree(flat_tree, { nested_tests = true })
-  print("TREE: " .. vim.inspect(tree))
+  flat_tree[1].range[1] = min_line
+  flat_tree[1].range[3] = max_line
+
+  local tree = NeotestLib.positions.parse_tree(flat_tree, { nested_tests = true, require_namespaces = true })
   return tree
 end
 
