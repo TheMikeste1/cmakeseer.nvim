@@ -165,11 +165,73 @@ function M.discover_positions(file_path)
     suites = {},
   }
 
+  local file = io.open(file_path, "r")
+  if file == nil then
+    return nil
+  end
+
+  local lines = file:lines()
+  local current_line = 0
   for suite_name, tests in pairs(suites) do
     ---@type neotest.Position[]
     local suite_positions = {}
     for test_name, test in pairs(tests) do
       assert(test.file == file_path)
+
+      if test.line < current_line then
+        file:seek("set", 0)
+        lines = file:lines()
+      end
+
+      local line = ""
+      while current_line < test.line do
+        current_line = current_line + 1
+        line = lines()
+      end
+
+      local start_line = test.line
+      if not line:match("TEST[^(]*%(" .. suite_name .. ",[^)]*" .. test_name .. "%)") then
+        start_line = test.line - 1
+      end
+
+      -- local i_first_curly = line:find("{")
+      -- line = line:sub(i_first_curly + 1)
+      -- local unclosed_curlies = 1
+      -- local comment_start = false
+      --
+      -- while unclosed_curlies ~= 0 do
+      --   -- print(tostring(current_line) .. ": " .. line)
+      --   for c in line:gmatch(".") do
+      --     if comment_start and c == "/" then
+      --       break
+      --     end
+      --
+      --     comment_start = false
+      --     if c == "{" then
+      --       unclosed_curlies = unclosed_curlies + 1
+      --     elseif c == "}" then
+      --       unclosed_curlies = unclosed_curlies - 1
+      --       if unclosed_curlies == 0 then
+      --         goto loop_end
+      --       end
+      --     elseif c == "/" then
+      --       comment_start = true
+      --     end
+      --   end
+      --
+      --   line = lines()
+      --   if line == nil then
+      --     print("ERROR: Unmatched curly")
+      --     break
+      --   end
+      --   current_line = current_line + 1
+      --   ::loop_end::
+      -- end
+      --
+      -- local end_line = current_line
+      --
+      -- print("S: " .. tostring(start_line))
+      -- print("E: " .. tostring(end_line))
 
       ---@type neotest.Position
       local position = {
@@ -178,7 +240,7 @@ function M.discover_positions(file_path)
         name = test_name,
         path = file_path,
         -- TODO: Use actual test end line
-        range = { test.line - 1, 0, test.line, math.huge },
+        range = { start_line, 0, test.line, math.huge },
       }
       table.insert(suite_positions, position)
     end
@@ -188,6 +250,7 @@ function M.discover_positions(file_path)
     end)
     gtest_positions.suites[suite_name] = suite_positions
   end
+  file:close()
 
   --- Sorted positions to be converted to a tree
   local min_line = math.huge
