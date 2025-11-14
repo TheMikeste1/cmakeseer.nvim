@@ -12,11 +12,11 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@type table<string, neotest.Result>
 local g_test_results = {}
 
----@type table<string, string>
+---@type table<string, string> Test files to executables.
 local g_test_files = {}
----@type table<string, any>
+---@type table<string, any> Set of test directories.
 local g_test_dirs = {}
----@type table<string, table<string, table<string, cmakeseer.neotest.gtest.Test>>>
+---@type table<string, table<string, table<string, cmakeseer.neotest.gtest.Test>>> Executables to suites, suites to tests.
 local g_test_executables_suites = {}
 
 ---@private
@@ -256,22 +256,70 @@ function M.discover_positions(file_path)
   return tree
 end
 
+---@class cmakeseer.neotest.gtest.TestId
+---@field neotest_id string
+---@field file string
+---@field suite string?
+---@field test string?
+
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 function M.build_spec(args)
-  print("SPEC")
-  -- local id = args[1]
-  -- local id_parts = vim.fn.split(id, "::")
-  -- if #id_parts == 1 then
-  --   if M.__options.parallel_instances then
-  --     return __get_file_test_run_specs(id)
-  --   else
-  --     return __get_file_test_run_spec(id)
-  --   end
-  -- end
-  --
-  -- local test_name = table.concat(id_parts, "::", 2)
-  -- return __get_test_run_spec_by_id(id, test_name)
+  local raw_id = args[1]
+  local id_parts = vim.fn.split(raw_id, "::")
+  local executable = g_test_files[id_parts[1]]
+  if executable == nil then
+    vim.notify(string.format("No executable for test ID `%s`", raw_id), vim.log.levels.ERROR)
+    return nil
+  end
+
+  ---@type cmakeseer.neotest.gtest.TestId
+  local id = {
+    neotest_id = raw_id,
+    file = id_parts[1],
+    suite = id_parts[2],
+    test = id_parts[3],
+  }
+
+  local spec = nil
+  if #id_parts == 1 then
+    -- This is a file
+    local suites = {}
+    for _, suite_tests in pairs(g_test_executables_suites) do
+      for suite, _ in pairs(suite_tests) do
+        table.insert(suites, suite)
+      end
+    end
+    local suite_str = table.concat(suites, ".*:")
+    spec = {
+      command = { executable, string.format("--gtest_filter=%s.*", suite_str) },
+      context = {
+        executable = executable,
+        id = id,
+      },
+    }
+  elseif #id_parts == 2 then
+    -- This is a suite
+    spec = {
+      command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
+      context = {
+        executable = executable,
+        id = id,
+      },
+    }
+  elseif #id_parts == 3 then
+    -- This is an individual test
+    spec = {
+      command = { executable, string.format("--gtest_filter=%s.%s", id.suite, id.test) },
+      context = {
+        executable = executable,
+        id = id,
+      },
+    }
+  else
+    vim.notify(string.format("Unrecognized test ID: `%s`", raw_id), vim.log.levels.ERROR)
+  end
+  return spec
 end
 
 ---@async
