@@ -327,7 +327,14 @@ end
 ---@param result neotest.StrategyResult
 ---@param _ neotest.Tree
 ---@return table<string, neotest.Result>
-function M.results(spec, result, _) end
+function M.results(spec, result, _)
+  -- TODO: Run generate a file with the tests so we can extract the success/failure of a test
+  print("R: " .. vim.inspect(result))
+  print("OUT: " .. io.open(result.output):read("*a"))
+  if result.code == 0 then
+    return { [spec.context.id.neotest_id] = { status = "passed" } }
+  end
+end
 
 --- Sets up the adapter.
 ---@return neotest.Adapter adapter The adapter.
