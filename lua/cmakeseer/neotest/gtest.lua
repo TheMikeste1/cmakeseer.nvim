@@ -143,6 +143,24 @@ end
 ---@field file_position neotest.Position
 ---@field suites table<string, neotest.Position[]>
 
+---@private
+--- Treesitter query to extract GTest tests.
+local G_GTEST_QUERY = [[
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @test.type (#any-of? @test.type "TEST" "TEST_F" "TEST_P" "TYPED_TEST" "TYPED_TEST_P")
+    parameters: (parameter_list
+      (parameter_declaration
+        type: (type_identifier) @test.suite
+      )
+      (parameter_declaration
+        type: (type_identifier) @test.name
+      )
+    )
+  )
+) @test.definition
+]]
+
 ---Given a file path, parse all the tests within it.
 ---@async
 ---@param file_path string Absolute file path
@@ -150,99 +168,43 @@ end
 function M.discover_positions(file_path)
   local executable = g_test_files[file_path]
   assert(executable ~= nil)
-  local suites = g_test_executables_suites[executable]
 
-  local relative_path = vim.fn.fnamemodify(file_path, ":.")
+  -- queried_tests has the form { file_position, { test_position }, { test_position }, ... }
+  local queried_tests = require("neotest.lib").treesitter.parse_positions(file_path, G_GTEST_QUERY, nil):to_list() ---@diagnostic disable-line:param-type-mismatch
   ---@type cmakeseer.neotest.gtest.Position
   local gtest_positions = {
-    file_position = {
-      id = file_path,
-      type = "file",
-      path = file_path,
-      name = relative_path,
-      range = { 0, 0, 0, 0 }, -- TSNode:range
-    },
+    file_position = queried_tests[1],
     suites = {},
   }
+  table.remove(queried_tests, 1)
+  ---@cast queried_tests neotest.Position[][]
 
-  local file = io.open(file_path, "r")
-  if file == nil then
-    return nil
-  end
-
-  local lines = file:lines()
-  local current_line = 0
+  local suites = g_test_executables_suites[executable]
   for suite_name, tests in pairs(suites) do
     ---@type neotest.Position[]
     local suite_positions = {}
     for test_name, test in pairs(tests) do
       assert(test.file == file_path)
 
-      if test.line < current_line then
-        file:seek("set", 0)
-        lines = file:lines()
+      -- Find the test position from the query results for this test
+      local position = nil
+      for i, pos in ipairs(queried_tests) do
+        pos = pos[1]
+        if pos.name == test_name then
+          if pos.range[1] == test.line - 1 then
+            assert(pos.type == "test")
+            position = table.remove(queried_tests, i)[1]
+            break
+          end
+        end
       end
 
-      local line = ""
-      while current_line < test.line do
-        current_line = current_line + 1
-        line = lines()
+      if position == nil then
+        vim.notify(string.format("Failed to find position for GTest %s::%s::%s", file_path, suite_name, test_name))
+      else
+        position.suite = suite_name
+        table.insert(suite_positions, position)
       end
-
-      local start_line = test.line
-      if not line:match("TEST[^(]*%(" .. suite_name .. ",[^)]*" .. test_name .. "%)") then
-        start_line = test.line - 1
-      end
-
-      -- local i_first_curly = line:find("{")
-      -- line = line:sub(i_first_curly + 1)
-      -- local unclosed_curlies = 1
-      -- local comment_start = false
-      --
-      -- while unclosed_curlies ~= 0 do
-      --   -- print(tostring(current_line) .. ": " .. line)
-      --   for c in line:gmatch(".") do
-      --     if comment_start and c == "/" then
-      --       break
-      --     end
-      --
-      --     comment_start = false
-      --     if c == "{" then
-      --       unclosed_curlies = unclosed_curlies + 1
-      --     elseif c == "}" then
-      --       unclosed_curlies = unclosed_curlies - 1
-      --       if unclosed_curlies == 0 then
-      --         goto loop_end
-      --       end
-      --     elseif c == "/" then
-      --       comment_start = true
-      --     end
-      --   end
-      --
-      --   line = lines()
-      --   if line == nil then
-      --     print("ERROR: Unmatched curly")
-      --     break
-      --   end
-      --   current_line = current_line + 1
-      --   ::loop_end::
-      -- end
-      --
-      -- local end_line = current_line
-      --
-      -- print("S: " .. tostring(start_line))
-      -- print("E: " .. tostring(end_line))
-
-      ---@type neotest.Position
-      local position = {
-        id = string.format("%s::%s::%s", executable, suite_name, test_name),
-        type = "test",
-        name = test_name,
-        path = file_path,
-        -- TODO: Use actual test end line
-        range = { start_line, 0, test.line, math.huge },
-      }
-      table.insert(suite_positions, position)
     end
 
     table.sort(suite_positions, function(a, b)
@@ -250,23 +212,16 @@ function M.discover_positions(file_path)
     end)
     gtest_positions.suites[suite_name] = suite_positions
   end
-  file:close()
 
-  --- Sorted positions to be converted to a tree
-  local min_line = math.huge
-  local max_line = 0
-  ---@type neotest.Position[]
+  ---@type neotest.Position[] Create the list of positions from which we will build the tree
   local flat_tree = { gtest_positions.file_position }
+
+  -- Build the suite tests
   for suite, positions in pairs(gtest_positions.suites) do
     local suite_min_line = positions[1].range[1]
+    local suite_min_col = positions[1].range[2]
     local suite_max_line = positions[#positions].range[3]
-
-    if suite_min_line < min_line then
-      min_line = suite_min_line
-    end
-    if suite_max_line > max_line then
-      max_line = suite_max_line
-    end
+    local suite_max_col = positions[#positions].range[4]
 
     ---@type neotest.Position
     local suite_position = {
@@ -274,16 +229,30 @@ function M.discover_positions(file_path)
       type = "namespace",
       name = suite,
       path = file_path,
-      range = { suite_min_line, 0, suite_max_line, math.huge },
+      range = { suite_min_line, suite_min_col, suite_max_line, suite_max_col },
     }
     table.insert(flat_tree, suite_position)
     vim.list_extend(flat_tree, positions)
   end
 
-  flat_tree[1].range[1] = min_line
-  flat_tree[1].range[3] = max_line
+  local tree = NeotestLib.positions.parse_tree(flat_tree, {
+    nested_tests = false,
+    require_namespaces = true,
+    position_id = function(position, _)
+      if position.type == "file" then
+        return position.path
+      elseif position.type == "namespace" then
+        return string.format("%s::%s", position.path, position.name)
+      elseif position.type == "test" then
+        ---@diagnostic disable:undefined-field We smuggled in a `suite` field
+        assert(position.suite ~= nil)
+        return string.format("%s::%s::%s", position.path, position.suite, position.name)
+        ---@diagnostic enable:undefined-field
+      end
 
-  local tree = NeotestLib.positions.parse_tree(flat_tree, { nested_tests = true, require_namespaces = true })
+      error("Unreachable")
+    end,
+  })
   return tree
 end
 
