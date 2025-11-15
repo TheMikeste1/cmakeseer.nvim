@@ -4,9 +4,49 @@ local Cmakeseer = require("cmakeseer")
 local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@private
+---@class cmakeseer.neotest.gtest.Context
+---@field executable string
+---@field neotest_id string
+---@field id cmakeseer.neotest.gtest.TestId
+---@field output_file string
+
+---@private
 ---@class cmakeseer.neotest.gtest.Test
 ---@field file string
 ---@field line integer
+
+---@private
+---@class cmakeseer.neotest.gtest.TestCmd
+---@field cmd vim.SystemObj? The process running the command. Will be nil if the cache was used instead.
+---@field cache string
+
+---@private
+---@class cmakeseer.neotest.gtest.TestId
+---@field file string
+---@field suite string?
+---@field test string?
+
+---@private
+---@class cmakeseer.neotest.gtest.Position
+---@field file_position neotest.Position
+---@field suites table<string, neotest.Position[]>
+
+---@class cmakeseer.GTestAdapter : neotest.Adapter
+---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
+local M = {
+  name = "CMakeSeer GTest",
+  opts = {
+    --- Filter out targets when looking for tests.
+    ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+    ---@return boolean keep If the target should be kept.
+    target_filter = function(target)
+      return string.match(target.name, "[tT]est")
+    end,
+    cache_directory = function()
+      return vim.fs.joinpath(Cmakeseer.get_build_directory(), ".cache", "cmakeseer", "gtest")
+    end,
+  },
+}
 
 ---@type table<string, string> Test files to executables.
 local g_test_files = {}
@@ -15,54 +55,150 @@ local g_test_dirs = {}
 ---@type table<string, table<string, table<string, cmakeseer.neotest.gtest.Test>>> Executables to suites, suites to tests.
 local g_test_executables_suites = {}
 
----@private
----@class cmakeseer.neotest.gtest.TestCmd
----@field cmd vim.SystemObj
----@field cache string
+--- Compares the times of two stat times.
+---@param a { nsec: integer, sec: integer }
+---@param b { nsec: integer, sec: integer }
+---@return integer 1 if a is greater, -1 if a is lesser, 0 if equal
+local function compares_times(a, b)
+  if a.sec > b.sec then
+    return 1
+  end
+  if a.sec < b.sec then
+    return -1
+  end
 
----@private
-local function __find_test_executables()
-  g_test_files = {}
-  g_test_dirs = {}
-  g_test_executables_suites = {}
+  if a.nsec > b.nsec then
+    return 1
+  end
+  if a.nsec < b.nsec then
+    return -1
+  end
+  return 0
+end
 
-  local targets = vim.tbl_filter(function(value)
-    return value.type == TargetType.Executable and string.match(value.name, "[tT]est")
-  end, Cmakeseer.get_targets())
-
-  ---@type table<string, cmakeseer.neotest.gtest.TestCmd>
-  local executable_test_cmds = {}
+--- Generates all the test commands to check if an executable is a gtest executable.
+---@param targets cmakeseer.cmake.api.codemodel.Target[] The targets to check.
+---@return table<string, cmakeseer.neotest.gtest.TestCmd> test_cmds The executable paired with the commands to check each target.
+local function generate_executable_commands(targets)
+  local test_cmds = {}
   for _, target in ipairs(targets) do
+    assert(target.type == TargetType.Executable, "Only executable targets are supported")
     assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
     assert(#target.artifacts == 1, "Should only have one artifact for executable")
 
     local executable = vim.fs.joinpath(Cmakeseer.get_build_directory(), target.artifacts[1].path)
-    local cache = vim.fs.joinpath(
-      Cmakeseer.get_build_directory(),
-      string.format("cmakeseer_gtest_cache_%s.json", target.artifacts[1].path)
-    )
+    local cache = vim.fs.joinpath(M.opts.cache_directory(), string.format("%s.json", target.name))
+
+    local cache_stat = vim.loop.fs_stat(cache)
+    if cache_stat ~= nil then
+      -- Cache already exists; is it outdated?
+      local exe_stat = vim.loop.fs_stat(executable)
+      if exe_stat ~= nil and compares_times(cache_stat.mtime, exe_stat.mtime) == 1 then
+        -- Cache is not outdated; use it instead
+        test_cmds[executable] = { cache = cache }
+        goto continue
+      end
+    end
+
     local success, test_cmd = pcall(vim.system, {
       executable,
       "--gtest_list_tests",
       string.format("--gtest_output=json:%s", cache),
     }, { timeout = 10 })
     if not success then
+      vim.notify(string.format("Failed to check %s for gtests", executable), vim.log.levels.ERROR)
       goto continue
     end
 
-    executable_test_cmds[executable] = { cmd = test_cmd, cache = cache }
+    test_cmds[executable] = { cmd = test_cmd, cache = cache }
     ::continue::
   end
+  return test_cmds
+end
 
-  for executable, data in pairs(executable_test_cmds) do
-    data.cmd:wait(10)
-    if vim.fn.filereadable(data.cache) == 0 then
+--- Refreshes the set of test directories.
+local function refresh_test_directories()
+  g_test_dirs = {}
+  -- TODO: Almost all CWD calls actually probably need to be the project root instead. . .
+  local cwd = vim.fn.getcwd()
+  g_test_dirs[cwd] = true
+  for file, _ in pairs(g_test_files) do
+    local path = vim.fn.fnamemodify(file, ":h")
+    if path:sub(1, #cwd) ~= cwd then
+      vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
       goto continue
     end
 
+    while #path > #cwd do
+      g_test_dirs[path] = true
+      path = vim.fn.fnamemodify(path, ":h")
+    end
+    ::continue::
+  end
+end
+
+local function pass_status_group(group)
+  local ResultStatus = require("neotest.types").ResultStatus
+  if group.failures == 0 and group.errors == 0 then
+    return ResultStatus.passed
+  elseif group.tests == group.disabled then
+    return ResultStatus.skipped
+  end
+  return ResultStatus.failed
+end
+
+local function pass_status_test(test)
+  local ResultStatus = require("neotest.types").ResultStatus
+
+  if test.status == "NOTRUN" or test.result == "SKIPPED" then
+    return ResultStatus.skipped
+  end
+
+  if test.failures == nil then
+    return ResultStatus.passed
+  end
+  return ResultStatus.failed
+end
+
+--- Sets up the adapter.
+---@return neotest.Adapter adapter The adapter.
+function M.setup(opts)
+  M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
+  return M
+end
+
+--- Filter out targets when looking for tests.
+---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+---@return boolean does_depend If the target should be kept.
+function M.depends_on_gtest(target)
+  -- TODO: Check if target depends on GTest
+  return true
+end
+
+--- Refreshes the list of test executables.
+function M.refresh_test_executables()
+  ---@type cmakeseer.cmake.api.codemodel.Target[]
+  local targets = vim.tbl_filter(function(target)
+    return target.type == TargetType.Executable and M.opts.target_filter(target) and M.depends_on_gtest(target)
+  end, Cmakeseer.get_targets())
+
+  g_test_files = {}
+  g_test_executables_suites = {}
+  local test_cmds = generate_executable_commands(targets)
+  for executable, test_cmd in pairs(test_cmds) do
+    if test_cmd.cmd ~= nil then
+      -- Cache was not used
+      test_cmd.cmd:wait(10)
+    end
+
+    if vim.fn.filereadable(test_cmd.cache) == 0 then
+      goto continue
+    end
+
+    -- Parse the suites
     ---@type {string: {string: cmakeseer.neotest.gtest.Test}}
     local suites = {}
-    local test_data = vim.json.decode(io.open(data.cache, "r"):read("*a"))
+    local test_data = vim.json.decode(io.open(test_cmd.cache, "r"):read("*a"))
     for _, suite in ipairs(test_data.testsuites) do
       ---@type {string: cmakeseer.neotest.gtest.Test}
       local tests = {}
@@ -82,54 +218,9 @@ local function __find_test_executables()
     ::continue::
   end
 
-  -- TODO: Almost all CWD calls actually probably need to be the project root instead. . .
-  local cwd = vim.fn.getcwd()
-  g_test_dirs[cwd] = true
-  for file, _ in pairs(g_test_files) do
-    local path = vim.fn.fnamemodify(file, ":h")
-    if path:sub(1, #cwd) ~= cwd then
-      vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
-      goto continue
-    end
-
-    while #path > #cwd do
-      g_test_dirs[path] = true
-      path = vim.fn.fnamemodify(path, ":h")
-    end
-    ::continue::
-  end
+  -- Enumerate all the test directories
+  refresh_test_directories()
 end
-
----@private
-local function _pass_status_group(group)
-  local ResultStatus = require("neotest.types").ResultStatus
-  if group.failures == 0 and group.errors == 0 then
-    return ResultStatus.passed
-  elseif group.tests == group.disabled then
-    return ResultStatus.skipped
-  end
-  return ResultStatus.failed
-end
-
----@private
-local function _pass_status_test(test)
-  local ResultStatus = require("neotest.types").ResultStatus
-
-  if test.status == "NOTRUN" or test.result == "SKIPPED" then
-    return ResultStatus.skipped
-  end
-
-  if test.failures == nil then
-    return ResultStatus.passed
-  end
-  return ResultStatus.failed
-end
-
----@class cmakeseer.GTestAdapter : neotest.Adapter
----@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
-local M = {
-  name = "CMakeSeer GTest",
-}
 
 ---Find the project root directory given a current directory to work from.
 ---Should no root be found, the adapter can still be used in a non-project context if a test file matches.
@@ -137,18 +228,17 @@ local M = {
 ---@param cwd string @Directory to treat as cwd
 ---@return string | nil @Absolute root dir of test suite
 function M.root(cwd)
-  __find_test_executables()
+  M.refresh_test_executables()
   return cwd
 end
 
 ---Filter directories when searching for test files
 ---@async
----@param name string Name of directory
+---@param _ string Name of directory
 ---@param rel_path string Path to directory, relative to root
 ---@param project_root string Root directory of project
 ---@return boolean
-function M.filter_dir(name, rel_path, project_root)
-  _ = name
+function M.filter_dir(_, rel_path, project_root)
   local path = vim.fs.joinpath(project_root, rel_path)
   return g_test_dirs[path] ~= nil
 end
@@ -159,10 +249,6 @@ end
 function M.is_test_file(file_path)
   return g_test_files[file_path] ~= nil
 end
-
----@class cmakeseer.neotest.gtest.Position
----@field file_position neotest.Position
----@field suites table<string, neotest.Position[]>
 
 ---@private
 --- Treesitter query to extract GTest tests.
@@ -277,17 +363,6 @@ function M.discover_positions(file_path)
   return tree
 end
 
----@class cmakeseer.neotest.gtest.TestId
----@field file string
----@field suite string?
----@field test string?
-
----@class cmakeseer.neotest.gtest.Context
----@field executable string
----@field neotest_id string
----@field id cmakeseer.neotest.gtest.TestId
----@field output_file string
-
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 function M.build_spec(args)
@@ -371,10 +446,10 @@ function M.results(spec, result, _)
   local test_results = vim.json.decode(fin:read("*a"))
   fin:close()
 
-  local results = { [context.id.file] = { status = _pass_status_group(test_results) } }
+  local results = { [context.id.file] = { status = pass_status_group(test_results) } }
   for _, suite in ipairs(test_results.testsuites) do
     local suite_id = string.format("%s::%s", context.id.file, suite.name)
-    results[suite_id] = { status = _pass_status_group(suite) }
+    results[suite_id] = { status = pass_status_group(suite) }
 
     for _, test in ipairs(suite.testsuite) do
       local test_id = string.format("%s::%s::%s", test.file, suite.name, test.name)
@@ -399,17 +474,11 @@ function M.results(spec, result, _)
           line = line,
         }
       end
-      results[test_id] = { status = _pass_status_test(test), errors = errors }
+      results[test_id] = { status = pass_status_test(test), errors = errors }
     end
   end
 
   return results
-end
-
---- Sets up the adapter.
----@return neotest.Adapter adapter The adapter.
-function M.setup()
-  return M
 end
 
 return M
