@@ -1,4 +1,3 @@
-local NeotestTypes = require("neotest.types")
 local NeotestLib = require("neotest.lib")
 local Cmakeseer = require("cmakeseer")
 
@@ -8,9 +7,6 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@class cmakeseer.neotest.gtest.Test
 ---@field file string
 ---@field line integer
-
----@type table<string, neotest.Result>
-local g_test_results = {}
 
 ---@type table<string, string> Test files to executables.
 local g_test_files = {}
@@ -102,6 +98,31 @@ local function __find_test_executables()
     end
     ::continue::
   end
+end
+
+---@private
+local function _pass_status_group(group)
+  local ResultStatus = require("neotest.types").ResultStatus
+  if group.failures == 0 and group.errors == 0 then
+    return ResultStatus.passed
+  elseif group.tests == group.disabled then
+    return ResultStatus.skipped
+  end
+  return ResultStatus.failed
+end
+
+---@private
+local function _pass_status_test(test)
+  local ResultStatus = require("neotest.types").ResultStatus
+
+  if test.status == "NOTRUN" or test.result == "SKIPPED" then
+    return ResultStatus.skipped
+  end
+
+  if test.failures == nil then
+    return ResultStatus.passed
+  end
+  return ResultStatus.failed
 end
 
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
@@ -257,10 +278,15 @@ function M.discover_positions(file_path)
 end
 
 ---@class cmakeseer.neotest.gtest.TestId
----@field neotest_id string
 ---@field file string
 ---@field suite string?
 ---@field test string?
+
+---@class cmakeseer.neotest.gtest.Context
+---@field executable string
+---@field neotest_id string
+---@field id cmakeseer.neotest.gtest.TestId
+---@field output_file string
 
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
@@ -275,10 +301,18 @@ function M.build_spec(args)
 
   ---@type cmakeseer.neotest.gtest.TestId
   local id = {
-    neotest_id = raw_id,
     file = id_parts[1],
     suite = id_parts[2],
     test = id_parts[3],
+  }
+
+  local output_file = vim.fs.joinpath(Cmakeseer.get_build_directory(), "cmakeseer_gtest_cache.json")
+  ---@type cmakeseer.neotest.gtest.Context
+  local context = {
+    executable = executable,
+    neotest_id = raw_id,
+    id = id,
+    output_file = output_file,
   }
 
   local spec = nil
@@ -293,32 +327,26 @@ function M.build_spec(args)
     local suite_str = table.concat(suites, ".*:")
     spec = {
       command = { executable, string.format("--gtest_filter=%s.*", suite_str) },
-      context = {
-        executable = executable,
-        id = id,
-      },
     }
   elseif #id_parts == 2 then
     -- This is a suite
     spec = {
       command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
-      context = {
-        executable = executable,
-        id = id,
-      },
     }
   elseif #id_parts == 3 then
     -- This is an individual test
     spec = {
       command = { executable, string.format("--gtest_filter=%s.%s", id.suite, id.test) },
-      context = {
-        executable = executable,
-        id = id,
-      },
     }
   else
     vim.notify(string.format("Unrecognized test ID: `%s`", raw_id), vim.log.levels.ERROR)
+    return nil
   end
+
+  assert(spec ~= nil)
+  spec.context = context
+  table.insert(spec.command, string.format("--gtest_output=json:%s", output_file))
+
   return spec
 end
 
@@ -328,12 +356,54 @@ end
 ---@param _ neotest.Tree
 ---@return table<string, neotest.Result>
 function M.results(spec, result, _)
-  -- TODO: Run generate a file with the tests so we can extract the success/failure of a test
-  print("R: " .. vim.inspect(result))
-  print("OUT: " .. io.open(result.output):read("*a"))
-  if result.code == 0 then
-    return { [spec.context.id.neotest_id] = { status = "passed" } }
+  local ResultStatus = require("neotest.types").ResultStatus
+
+  _ = result
+
+  ---@type cmakeseer.neotest.gtest.Context
+  local context = spec.context
+  local fin = io.open(context.output_file, "r")
+  if fin == nil then
+    vim.notify("Unable to access GTest cache file", vim.log.levels.ERROR)
+    return { [context.neotest_id] = { status = ResultStatus.skipped } }
   end
+
+  local test_results = vim.json.decode(fin:read("*a"))
+  fin:close()
+
+  local results = { [context.id.file] = { status = _pass_status_group(test_results) } }
+  for _, suite in ipairs(test_results.testsuites) do
+    local suite_id = string.format("%s::%s", context.id.file, suite.name)
+    results[suite_id] = { status = _pass_status_group(suite) }
+
+    for _, test in ipairs(suite.testsuite) do
+      local test_id = string.format("%s::%s::%s", test.file, suite.name, test.name)
+      local errors = test.failures or {}
+      for i, error in ipairs(errors) do
+        local failure = error.failure
+        local failure_parts = vim.fn.split(failure, "\n")
+
+        -- Start by getting the line the error occurred on
+        local location = table.remove(failure_parts, 1)
+        local line = nil
+        if location ~= "unknown file" then
+          local _, line_str = unpack(vim.fn.split(location, ":"))
+          line = tonumber(line_str) - 1
+        end
+
+        -- Now we'll get the message
+        local msg = table.concat(failure_parts, "\n")
+        ---@type neotest.Error
+        errors[i] = {
+          message = msg,
+          line = line,
+        }
+      end
+      results[test_id] = { status = _pass_status_test(test), errors = errors }
+    end
+  end
+
+  return results
 end
 
 --- Sets up the adapter.
