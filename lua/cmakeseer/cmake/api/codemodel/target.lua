@@ -4,12 +4,17 @@ local CMakeApi = require("cmakeseer.cmake.api")
 ---@class cmakeseer.cmake.api.codemodel.Artifact An artifact produced by a target.
 ---@field path string The path to the artifact on disk. If relative, relative to the build directory.
 
+---@class cmakeseer.cmake.api.codemodel.Dependency A target's dependency.
+---@field id string Unique ID identifying the target.
+---@field backtrace number? Unsigned integer 0-based index into the backtraceGraph member's nodes array.
+
 ---@class cmakeseer.cmake.api.codemodel.Target A CMake target.
 ---@field name string The name of the target.
 ---@field id string The unique ID for the target.
 ---@field type cmakeseer.cmake.api.codemodel.TargetType The type of the target.
 ---@field nameOnDisk string? The name of the target on disk.
 ---@field artifacts cmakeseer.cmake.api.codemodel.Artifact[]? The artifacts produced by the target.
+---@field dependencies cmakeseer.cmake.api.codemodel.Dependency[] The target's dependencies.
 ---TODO: Add the rest
 
 local M = {

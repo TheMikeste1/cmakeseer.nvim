@@ -234,8 +234,12 @@ end
 ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
 ---@return boolean does_depend If the target should be kept.
 function M.depends_on_gtest(target)
-  -- TODO: Check if target depends on GTest
-  return true
+  for _, dependency in ipairs(target.dependencies) do
+    if dependency.id:match("^gtest") then
+      return true
+    end
+  end
+  return false
 end
 
 --- Refreshes the list of test executables.
