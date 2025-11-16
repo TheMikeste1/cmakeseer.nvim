@@ -39,8 +39,6 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@field file_position neotest.Position
 ---@field suites table<string, cmakeseer.neotest.gtest.SuitePosition>
 
----@type table<string, string> Test files to executables.
-local g_test_files = {}
 ---@type table<string, table<string>> Executables to test files.
 local g_executable_files = {}
 ---@type table<string, any> Set of test directories.
@@ -210,21 +208,6 @@ local function refresh_test_directories()
   end
 end
 
-local function pass_status_group(group)
-  local ResultStatus = require("neotest.types").ResultStatus
-  if group.failures > 0 or group.errors > 0 then
-    return ResultStatus.failed
-  end
-
-  if group.tests ~= group.disabled then
-    -- TODO: If a disabled test was run and it passes, we should also pass
-    return ResultStatus.passed
-  end
-
-  -- Unknown status or all tests are disabled
-  return ResultStatus.skipped
-end
-
 local function pass_status_test(test)
   local ResultStatus = require("neotest.types").ResultStatus
 
@@ -260,7 +243,6 @@ function M.refresh_test_executables()
     return target.type == TargetType.Executable and M.opts.target_filter(target) and M.depends_on_gtest(target)
   end, Cmakeseer.get_targets())
 
-  g_test_files = {}
   g_test_executables_suites = {}
   local test_cmds = generate_executable_commands(targets)
   for executable, test_cmd in pairs(test_cmds) do
@@ -290,7 +272,6 @@ function M.refresh_test_executables()
             line = test.line,
           }
 
-          g_test_files[test.file] = executable
           g_executable_files[executable] = g_executable_files[executable] or {}
           g_executable_files[executable][test.file] = true
         end
@@ -409,7 +390,7 @@ function M.build_spec(args)
     test = id_parts[3],
   }
 
-  local output_file = vim.fs.joinpath(Cmakeseer.get_build_directory(), "cmakeseer_gtest_cache.json")
+  local output_file = vim.fs.joinpath(M.opts.cache_directory(), "results.json")
   ---@type cmakeseer.neotest.gtest.Context
   local context = {
     executable = executable,
@@ -421,15 +402,8 @@ function M.build_spec(args)
   local spec = nil
   if #id_parts == 1 then
     -- This is a file
-    local suites = {}
-    for _, suite_tests in pairs(g_test_executables_suites) do
-      for suite, _ in pairs(suite_tests) do
-        table.insert(suites, suite)
-      end
-    end
-    local suite_str = table.concat(suites, ".*:")
     spec = {
-      command = { executable, string.format("--gtest_filter=%s.*", suite_str) },
+      command = { executable },
     }
   elseif #id_parts == 2 then
     -- This is a suite
@@ -478,13 +452,14 @@ function M.results(spec, result, _)
   local test_results = vim.json.decode(fin:read("*a"))
   fin:close()
 
-  local results = { [context.id.file] = { status = pass_status_group(test_results) } }
+  local file_status = ResultStatus.passed
+  local results = {}
   for _, suite in ipairs(test_results.testsuites) do
+    local suite_status = ResultStatus.passed
     local suite_id = string.format("%s::%s", context.id.file, suite.name)
-    results[suite_id] = { status = pass_status_group(suite) }
 
     for _, test in ipairs(suite.testsuite) do
-      local test_id = string.format("%s::%s::%s", test.file, suite.name, test.name)
+      local test_id = string.format("%s::%s::%s", context.id.file, suite.name, test.name)
       local errors = test.failures or {}
       for i, error in ipairs(errors) do
         local failure = error.failure
@@ -506,10 +481,21 @@ function M.results(spec, result, _)
           line = line,
         }
       end
-      results[test_id] = { status = pass_status_test(test), errors = errors }
+
+      local test_status = pass_status_test(test)
+      results[test_id] = { status = test_status, errors = #errors >= 1 and errors or nil }
+      if test_status == ResultStatus.failed then
+        suite_status = ResultStatus.failed
+      end
+    end
+
+    results[suite_id] = { status = suite_status }
+    if suite_status == ResultStatus.failed then
+      file_status = ResultStatus.failed
     end
   end
 
+  results[context.id.file] = { status = file_status }
   return results
 end
 
