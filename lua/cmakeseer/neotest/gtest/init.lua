@@ -108,6 +108,8 @@ local function build_structure(executable, queried_tests)
   return structure
 end
 
+-- TODO: Have the plugin subscribe to build events
+
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
 local M = {
