@@ -1,4 +1,3 @@
-local NeotestLib = require("neotest.lib")
 local Cmakeseer = require("cmakeseer")
 local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
@@ -38,7 +37,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@private
 ---@class cmakeseer.neotest.gtest.Positions
 ---@field file_position neotest.Position
----@field suites cmakeseer.neotest.gtest.SuitePosition[]
+---@field suites table<string, cmakeseer.neotest.gtest.SuitePosition>
 
 ---@type table<string, string> Test files to executables.
 local g_test_files = {}
@@ -73,8 +72,21 @@ local function build_structure(executable, queried_tests)
   local suites = g_test_executables_suites[executable]
   assert(suites ~= nil)
 
+  local suite_positions = {}
+  for _, suite_position in pairs(queried_tests.suites) do
+    table.insert(suite_positions, suite_position)
+  end
+
+  table.sort(suite_positions, function(a, b)
+    return a.suite.name < b.suite.name
+  end)
+
   local structure = { queried_tests.file_position }
-  for _, suite_position in ipairs(queried_tests.suites) do
+  for _, suite_position in ipairs(suite_positions) do
+    table.sort(suite_position.tests, function(a, b)
+      return a.name < b.name
+    end)
+
     -- Before we add the suite, we'll want to check if it's a parameterized test
     local suite_id = suite_position.suite.name
     local suite_data = suites[suite_id]
@@ -355,15 +367,20 @@ function M.discover_positions(file_path)
   }
 
   local executable_files = g_executable_files[file_path]
-  for  file, _ in pairs(executable_files) do
+  for file, _ in pairs(executable_files) do
     local queried_tests = M.treesitter.query_tests(file)
     if type(queried_tests) == "string" then
       vim.notify("Failed to find positions in " .. file, vim.log.levels.ERROR)
       goto continue
     end
 
-    vim.list_extend(executable_tests.suites, queried_tests.suites)
-
+    for suite_name, positions in pairs(queried_tests.suites) do
+      if executable_tests.suites[suite_name] == nil then
+        executable_tests.suites[suite_name] = positions
+      else
+        vim.list_extend(executable_tests.suites[suite_name].tests, positions.tests)
+      end
+    end
     ::continue::
   end
 
@@ -379,7 +396,7 @@ end
 function M.build_spec(args)
   local raw_id = args[1]
   local id_parts = vim.fn.split(raw_id, "::")
-  local executable = g_test_files[id_parts[1]]
+  local executable = id_parts[1]
   if executable == nil then
     vim.notify(string.format("No executable for test ID `%s`", raw_id), vim.log.levels.ERROR)
     return nil

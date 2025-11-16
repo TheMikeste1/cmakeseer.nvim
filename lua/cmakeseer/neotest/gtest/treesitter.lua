@@ -1,6 +1,3 @@
-local neotest_lib = require("neotest.lib")
-local logger = require("neotest.logging")
-
 ---@private
 --- Treesitter query to extract GTest tests.
 local GTEST_QUERY = [[
@@ -20,16 +17,6 @@ local GTEST_QUERY = [[
 ]]
 
 local M = {}
-
----@async
-function M.async_query_tests(filepath)
-  local result, err = neotest_lib.subprocess.call("require('cmakeseer.gtest').treesitter.query_tests", { filepath })
-  if err then
-    logger.error("CMakeseer failed to query tests from " .. filepath)
-  end
-
-  return result
-end
 
 --- Queries for tests in a file.
 ---@param filepath string The path to the file.
@@ -103,7 +90,7 @@ function M.query_tests(filepath)
     local suite_max_col = positions[#positions].range[4]
 
     ---@type cmakeseer.neotest.gtest.SuitePosition
-    table.insert(all_positions.suites, {
+    all_positions.suites[suite] = {
       suite = {
         id = nil,
         type = "namespace",
@@ -112,13 +99,9 @@ function M.query_tests(filepath)
         range = { suite_min_line, suite_min_col, suite_max_line, suite_max_col },
       },
       tests = positions,
-    })
+    }
     ::continue::
   end
-
-  table.sort(all_positions.suites, function(a, b)
-    return a.suite.range[1] < b.suite.range[1]
-  end)
 
   return all_positions
 end
