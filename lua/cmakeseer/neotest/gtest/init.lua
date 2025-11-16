@@ -47,6 +47,59 @@ local g_test_dirs = {}
 ---@type table<string, table<string, cmakeseer.neotest.gtest.Suite>> Executables to suites, suites to tests.
 local g_test_executables_suites = {}
 
+--- Builds the tree for a suite of GTests.
+---@param suite_position cmakeseer.neotest.gtest.SuitePosition The suite position.
+---@param file_path string The path to the file containing the tests.
+---@return any[] suite_tree The tree of suite tests.
+local function build_suite_tree(suite_position, file_path)
+  suite_position.suite.id = string.format("%s::%s", file_path, suite_position.suite.name)
+  local suite_tree = {
+    suite_position.suite,
+  }
+  for _, test in ipairs(suite_position.tests) do
+    test.id = string.format("%s::%s", suite_position.suite.id, test.name)
+    table.insert(suite_tree, { test })
+  end
+  return suite_tree
+end
+
+--- Builds the structure tree for GTests.
+---@param file_path string The path to the file containing the tests.
+---@param queried_tests cmakeseer.neotest.gtest.Positions The queried tests.
+---@return any[] structure The recursive tree structure representing the tests.
+local function build_structure(file_path, queried_tests)
+  local executable = g_test_files[file_path]
+  if executable == nil then
+    return {}
+  end
+  local suites = g_test_executables_suites[executable]
+  assert(suites ~= nil)
+
+  local structure = { queried_tests.file_position }
+  for _, suite_position in ipairs(queried_tests.suites) do
+    -- Before we add the suite, we'll want to check if it's a parameterized test
+    local suite_id = suite_position.suite.name
+    local suite_data = suites[suite_id]
+    if suite_data == nil or suite_data.suite.sub_ids == nil then
+      -- Suite hasn't been compiled in yet or there are not sub IDs
+      local suite_tree = build_suite_tree(suite_position, file_path)
+      table.insert(structure, suite_tree)
+      goto continue
+    end
+
+    -- We need to duplicate the suite and tests for each sub ID
+    for _, sub_id in ipairs(suite_data.suite.sub_ids) do
+      local new_suite_positions = vim.deepcopy(suite_position, true)
+      new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
+      local suite_tree = build_suite_tree(new_suite_positions, file_path)
+      table.insert(structure, suite_tree)
+    end
+
+    ::continue::
+  end
+  return structure
+end
+
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
 local M = {
@@ -284,63 +337,21 @@ function M.is_test_file(file_path)
   return g_test_files[file_path] ~= nil
 end
 
----Given a file path, parse all the tests within it.
+---Given a filepath, parse all the tests within it.
 ---@async
 ---@param file_path string Absolute file path
 ---@return neotest.Tree | nil
 function M.discover_positions(file_path)
-  local executable = g_test_files[file_path]
-  assert(executable ~= nil)
-  local suites = g_test_executables_suites[executable]
-
-  local gtest_positions = M.treesitter.query_tests(file_path)
-  if type(gtest_positions) == "string" then
+  local queried_tests = M.treesitter.query_tests(file_path)
+  if type(queried_tests) == "string" then
     vim.notify("Failed to find positions in " .. file_path, vim.log.levels.ERROR)
     return nil
   end
 
-  -- Flatten tree
-  ---@type neotest.Position[] Create the list of positions from which we will build the tree
-  local flat_tree = { gtest_positions.file_position }
-  for _, suite_positions in ipairs(gtest_positions.suites) do
-    -- Before we add the suite, we'll want to check if it's a parameterized test
-    local suite_id = suite_positions.suite.name
-    local suite_data = suites[suite_id]
-    if suite_data == nil or suite_data.suite.sub_ids == nil then
-      -- Suite hasn't been compiled in yet or there are not sub IDs
-      table.insert(flat_tree, suite_positions.suite)
-      vim.list_extend(flat_tree, suite_positions.tests)
-      goto continue
-    end
-
-    -- We need to duplicate the suite and tests for each sub ID
-    for _, sub_id in ipairs(suite_data.suite.sub_ids) do
-      local new_suite_positions = vim.deepcopy(suite_positions, true)
-      new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
-      table.insert(flat_tree, new_suite_positions.suite)
-      -- vim.list_extend(sub_tests, new_suite_positions.tests)
-      vim.list_extend(flat_tree, new_suite_positions.tests)
-    end
-
-    ::continue::
-  end
-
-  local tree = NeotestLib.positions.parse_tree(flat_tree, {
-    nested_tests = false,
-    require_namespaces = true,
-    -- position_id = function(position, parents)
-    --   if position.type == "file" then
-    --     return position.path
-    --   elseif position.type == "namespace" then
-    --     return string.format("%s::%s", position.path, position.name)
-    --   elseif position.type == "test" then
-    --     assert(#parents == 1) -- The only parent should be the suite, and we can only be in one suite
-    --     return string.format("%s::%s::%s", position.path, parents[1].name, position.name)
-    --   end
-    --
-    --   error("Unreachable")
-    -- end,
-  })
+  local structure = build_structure(file_path, queried_tests)
+  local tree = require("neotest.types.tree").from_list(structure, function(pos)
+    return pos.id
+  end)
   return tree
 end
 

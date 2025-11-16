@@ -5,6 +5,7 @@ local M = {}
 ---@return boolean obj_is_array If the object is an array and not empty.
 ---@sa https://stackoverflow.com/a/52697380
 function M.is_array(obj)
+  vim.notify_once("cmakeseer.utils.is_array is deprecated. Use vim.islist instead", vim.log.levels.INFO)
   if type(obj) ~= "table" then
     return false
   end
