@@ -42,6 +42,8 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@type table<string, string> Test files to executables.
 local g_test_files = {}
+---@type table<string, table<string>> Executables to test files.
+local g_executable_files = {}
 ---@type table<string, any> Set of test directories.
 local g_test_dirs = {}
 ---@type table<string, table<string, cmakeseer.neotest.gtest.Suite>> Executables to suites, suites to tests.
@@ -64,14 +66,10 @@ local function build_suite_tree(suite_position, file_path)
 end
 
 --- Builds the structure tree for GTests.
----@param file_path string The path to the file containing the tests.
+---@param executable string The path to the executable containing the tests.
 ---@param queried_tests cmakeseer.neotest.gtest.Positions The queried tests.
 ---@return any[] structure The recursive tree structure representing the tests.
-local function build_structure(file_path, queried_tests)
-  local executable = g_test_files[file_path]
-  if executable == nil then
-    return {}
-  end
+local function build_structure(executable, queried_tests)
   local suites = g_test_executables_suites[executable]
   assert(suites ~= nil)
 
@@ -82,7 +80,7 @@ local function build_structure(file_path, queried_tests)
     local suite_data = suites[suite_id]
     if suite_data == nil or suite_data.suite.sub_ids == nil then
       -- Suite hasn't been compiled in yet or there are not sub IDs
-      local suite_tree = build_suite_tree(suite_position, file_path)
+      local suite_tree = build_suite_tree(suite_position, executable)
       table.insert(structure, suite_tree)
       goto continue
     end
@@ -91,7 +89,7 @@ local function build_structure(file_path, queried_tests)
     for _, sub_id in ipairs(suite_data.suite.sub_ids) do
       local new_suite_positions = vim.deepcopy(suite_position, true)
       new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
-      local suite_tree = build_suite_tree(new_suite_positions, file_path)
+      local suite_tree = build_suite_tree(new_suite_positions, executable)
       table.insert(structure, suite_tree)
     end
 
@@ -185,7 +183,7 @@ local function refresh_test_directories()
   -- TODO: Almost all CWD calls actually probably need to be the project root instead. . .
   local cwd = vim.fn.getcwd()
   g_test_dirs[cwd] = true
-  for file, _ in pairs(g_test_files) do
+  for file, _ in pairs(g_test_executables_suites) do
     local path = vim.fn.fnamemodify(file, ":h")
     if path:sub(1, #cwd) ~= cwd then
       vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
@@ -281,6 +279,8 @@ function M.refresh_test_executables()
           }
 
           g_test_files[test.file] = executable
+          g_executable_files[executable] = g_executable_files[executable] or {}
+          g_executable_files[executable][test.file] = true
         end
 
         ---@type cmakeseer.neotest.gtest.Suite
@@ -334,7 +334,7 @@ end
 ---@param file_path string
 ---@return boolean
 function M.is_test_file(file_path)
-  return g_test_files[file_path] ~= nil
+  return g_test_executables_suites[file_path] ~= nil
 end
 
 ---Given a filepath, parse all the tests within it.
@@ -342,13 +342,32 @@ end
 ---@param file_path string Absolute file path
 ---@return neotest.Tree | nil
 function M.discover_positions(file_path)
-  local queried_tests = M.treesitter.query_tests(file_path)
-  if type(queried_tests) == "string" then
-    vim.notify("Failed to find positions in " .. file_path, vim.log.levels.ERROR)
-    return nil
+  ---@type cmakeseer.neotest.gtest.Positions
+  local executable_tests = {
+    file_position = {
+      id = file_path,
+      type = "file",
+      path = file_path,
+      name = vim.fs.basename(file_path),
+      range = { 0, 0, 0, 0 },
+    },
+    suites = {},
+  }
+
+  local executable_files = g_executable_files[file_path]
+  for  file, _ in pairs(executable_files) do
+    local queried_tests = M.treesitter.query_tests(file)
+    if type(queried_tests) == "string" then
+      vim.notify("Failed to find positions in " .. file, vim.log.levels.ERROR)
+      goto continue
+    end
+
+    vim.list_extend(executable_tests.suites, queried_tests.suites)
+
+    ::continue::
   end
 
-  local structure = build_structure(file_path, queried_tests)
+  local structure = build_structure(file_path, executable_tests)
   local tree = require("neotest.types.tree").from_list(structure, function(pos)
     return pos.id
   end)
