@@ -1,6 +1,5 @@
 local NeotestLib = require("neotest.lib")
 local Cmakeseer = require("cmakeseer")
-
 local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@private
@@ -16,6 +15,11 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@field line integer
 
 ---@private
+---@class cmakeseer.neotest.gtest.Suite
+---@field suite { id: string, sub_ids: string[]? }
+---@field tests cmakeseer.neotest.gtest.Test[]
+
+---@private
 ---@class cmakeseer.neotest.gtest.TestCmd
 ---@field cmd vim.SystemObj? The process running the command. Will be nil if the cache was used instead.
 ---@field cache string
@@ -27,9 +31,21 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@field test string?
 
 ---@private
----@class cmakeseer.neotest.gtest.Position
+---@class cmakeseer.neotest.gtest.SuitePosition
+---@field suite neotest.Position
+---@field tests neotest.Position[]
+
+---@private
+---@class cmakeseer.neotest.gtest.Positions
 ---@field file_position neotest.Position
----@field suites table<string, neotest.Position[]>
+---@field suites cmakeseer.neotest.gtest.SuitePosition[]
+
+---@type table<string, string> Test files to executables.
+local g_test_files = {}
+---@type table<string, any> Set of test directories.
+local g_test_dirs = {}
+---@type table<string, table<string, cmakeseer.neotest.gtest.Suite>> Executables to suites, suites to tests.
+local g_test_executables_suites = {}
 
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
@@ -46,14 +62,8 @@ local M = {
       return vim.fs.joinpath(Cmakeseer.get_build_directory(), ".cache", "cmakeseer", "gtest")
     end,
   },
+  treesitter = require("cmakeseer.neotest.gtest.treesitter"),
 }
-
----@type table<string, string> Test files to executables.
-local g_test_files = {}
----@type table<string, any> Set of test directories.
-local g_test_dirs = {}
----@type table<string, table<string, table<string, cmakeseer.neotest.gtest.Test>>> Executables to suites, suites to tests.
-local g_test_executables_suites = {}
 
 --- Compares the times of two stat times.
 ---@param a { nsec: integer, sec: integer }
@@ -139,12 +149,17 @@ end
 
 local function pass_status_group(group)
   local ResultStatus = require("neotest.types").ResultStatus
-  if group.failures == 0 and group.errors == 0 then
-    return ResultStatus.passed
-  elseif group.tests == group.disabled then
-    return ResultStatus.skipped
+  if group.failures > 0 or group.errors > 0 then
+    return ResultStatus.failed
   end
-  return ResultStatus.failed
+
+  if group.tests ~= group.disabled then
+    -- TODO: If a disabled test was run and it passes, we should also pass
+    return ResultStatus.passed
+  end
+
+  -- Unknown status or all tests are disabled
+  return ResultStatus.skipped
 end
 
 local function pass_status_test(test)
@@ -196,22 +211,41 @@ function M.refresh_test_executables()
     end
 
     -- Parse the suites
-    ---@type {string: {string: cmakeseer.neotest.gtest.Test}}
+    ---@type table<string, cmakeseer.neotest.gtest.Suite>
     local suites = {}
     local test_data = vim.json.decode(io.open(test_cmd.cache, "r"):read("*a"))
     for _, suite in ipairs(test_data.testsuites) do
-      ---@type {string: cmakeseer.neotest.gtest.Test}
-      local tests = {}
-      for _, test in ipairs(suite.testsuite) do
-        tests[test.name] = {
-          file = test.file,
-          line = test.line,
+      local suite_name_parts = vim.fn.split(suite.name, "/")
+      local suite_id = table.remove(suite_name_parts, 1)
+      local suite_sub_id = #suite_name_parts > 0 and table.concat(suite_name_parts, "/") or nil
+
+      if suites[suite_id] == nil then
+        local tests = {}
+        for _, test in ipairs(suite.testsuite) do
+          tests[test.name] = {
+            file = test.file,
+            line = test.line,
+          }
+
+          g_test_files[test.file] = executable
+        end
+
+        ---@type cmakeseer.neotest.gtest.Suite
+        local suite_data = {
+          suite = {
+            id = suite_id,
+            sub_ids = suite_sub_id and { suite_sub_id } or nil,
+          },
+          tests = tests,
         }
-
-        g_test_files[test.file] = executable
+        suites[suite_id] = suite_data
+      elseif suite_sub_id ~= nil then
+        if suites[suite_id].suite.sub_ids ~= nil then
+          table.insert(suites[suite_id].suite.sub_ids, suite_sub_id)
+        else
+          vim.notify("Duplicate suite ID without sub ID: " .. suite_id, vim.log.levels.ERROR)
+        end
       end
-
-      suites[suite.name] = tests
     end
 
     g_test_executables_suites[executable] = suites
@@ -250,24 +284,6 @@ function M.is_test_file(file_path)
   return g_test_files[file_path] ~= nil
 end
 
----@private
---- Treesitter query to extract GTest tests.
-local G_GTEST_QUERY = [[
-(function_definition
-  declarator: (function_declarator
-    declarator: (identifier) @test.type (#any-of? @test.type "TEST" "TEST_F" "TEST_P" "TYPED_TEST" "TYPED_TEST_P")
-    parameters: (parameter_list
-      (parameter_declaration
-        type: (type_identifier) @test.suite
-      )
-      (parameter_declaration
-        type: (type_identifier) @test.name
-      )
-    )
-  )
-) @test.definition
-]]
-
 ---Given a file path, parse all the tests within it.
 ---@async
 ---@param file_path string Absolute file path
@@ -275,90 +291,55 @@ local G_GTEST_QUERY = [[
 function M.discover_positions(file_path)
   local executable = g_test_files[file_path]
   assert(executable ~= nil)
-
-  -- queried_tests has the form { file_position, { test_position }, { test_position }, ... }
-  local queried_tests = require("neotest.lib").treesitter.parse_positions(file_path, G_GTEST_QUERY, nil):to_list() ---@diagnostic disable-line:param-type-mismatch
-  ---@type cmakeseer.neotest.gtest.Position
-  local gtest_positions = {
-    file_position = queried_tests[1],
-    suites = {},
-  }
-  table.remove(queried_tests, 1)
-  ---@cast queried_tests neotest.Position[][]
-
   local suites = g_test_executables_suites[executable]
-  for suite_name, tests in pairs(suites) do
-    ---@type neotest.Position[]
-    local suite_positions = {}
-    for test_name, test in pairs(tests) do
-      assert(test.file == file_path)
 
-      -- Find the test position from the query results for this test
-      local position = nil
-      for i, pos in ipairs(queried_tests) do
-        pos = pos[1]
-        if pos.name == test_name then
-          if pos.range[1] == test.line - 1 then
-            assert(pos.type == "test")
-            position = table.remove(queried_tests, i)[1]
-            break
-          end
-        end
-      end
-
-      if position == nil then
-        vim.notify(string.format("Failed to find position for GTest %s::%s::%s", file_path, suite_name, test_name))
-      else
-        position.suite = suite_name
-        table.insert(suite_positions, position)
-      end
-    end
-
-    table.sort(suite_positions, function(a, b)
-      return a.range[1] < b.range[1]
-    end)
-    gtest_positions.suites[suite_name] = suite_positions
+  local gtest_positions = M.treesitter.query_tests(file_path)
+  if type(gtest_positions) == "string" then
+    vim.notify("Failed to find positions in " .. file_path, vim.log.levels.ERROR)
+    return nil
   end
 
+  -- Flatten tree
   ---@type neotest.Position[] Create the list of positions from which we will build the tree
   local flat_tree = { gtest_positions.file_position }
+  for _, suite_positions in ipairs(gtest_positions.suites) do
+    -- Before we add the suite, we'll want to check if it's a parameterized test
+    local suite_id = suite_positions.suite.name
+    local suite_data = suites[suite_id]
+    if suite_data == nil or suite_data.suite.sub_ids == nil then
+      -- Suite hasn't been compiled in yet or there are not sub IDs
+      table.insert(flat_tree, suite_positions.suite)
+      vim.list_extend(flat_tree, suite_positions.tests)
+      goto continue
+    end
 
-  -- Build the suite tests
-  for suite, positions in pairs(gtest_positions.suites) do
-    local suite_min_line = positions[1].range[1]
-    local suite_min_col = positions[1].range[2]
-    local suite_max_line = positions[#positions].range[3]
-    local suite_max_col = positions[#positions].range[4]
+    -- We need to duplicate the suite and tests for each sub ID
+    for _, sub_id in ipairs(suite_data.suite.sub_ids) do
+      local new_suite_positions = vim.deepcopy(suite_positions, true)
+      new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
+      table.insert(flat_tree, new_suite_positions.suite)
+      -- vim.list_extend(sub_tests, new_suite_positions.tests)
+      vim.list_extend(flat_tree, new_suite_positions.tests)
+    end
 
-    ---@type neotest.Position
-    local suite_position = {
-      id = string.format("%s::%s", executable, suite),
-      type = "namespace",
-      name = suite,
-      path = file_path,
-      range = { suite_min_line, suite_min_col, suite_max_line, suite_max_col },
-    }
-    table.insert(flat_tree, suite_position)
-    vim.list_extend(flat_tree, positions)
+    ::continue::
   end
 
   local tree = NeotestLib.positions.parse_tree(flat_tree, {
     nested_tests = false,
     require_namespaces = true,
-    position_id = function(position, _)
-      if position.type == "file" then
-        return position.path
-      elseif position.type == "namespace" then
-        return string.format("%s::%s", position.path, position.name)
-      elseif position.type == "test" then
-        ---@diagnostic disable:undefined-field We smuggled in a `suite` field
-        assert(position.suite ~= nil)
-        return string.format("%s::%s::%s", position.path, position.suite, position.name)
-        ---@diagnostic enable:undefined-field
-      end
-
-      error("Unreachable")
-    end,
+    -- position_id = function(position, parents)
+    --   if position.type == "file" then
+    --     return position.path
+    --   elseif position.type == "namespace" then
+    --     return string.format("%s::%s", position.path, position.name)
+    --   elseif position.type == "test" then
+    --     assert(#parents == 1) -- The only parent should be the suite, and we can only be in one suite
+    --     return string.format("%s::%s::%s", position.path, parents[1].name, position.name)
+    --   end
+    --
+    --   error("Unreachable")
+    -- end,
   })
   return tree
 end
@@ -411,7 +392,11 @@ function M.build_spec(args)
   elseif #id_parts == 3 then
     -- This is an individual test
     spec = {
-      command = { executable, string.format("--gtest_filter=%s.%s", id.suite, id.test) },
+      command = {
+        executable,
+        "--gtest_also_run_disabled_tests",
+        string.format("--gtest_filter=%s.%s", id.suite, id.test),
+      },
     }
   else
     vim.notify(string.format("Unrecognized test ID: `%s`", raw_id), vim.log.levels.ERROR)
