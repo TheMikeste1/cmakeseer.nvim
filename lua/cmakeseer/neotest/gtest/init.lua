@@ -173,6 +173,11 @@ local function generate_executable_commands(targets)
       end
     end
 
+    -- Does the executable exist?
+    if vim.fn.filereadable(executable) == 0 then
+      goto continue
+    end
+
     local success, test_cmd = pcall(vim.system, {
       executable,
       "--gtest_list_tests",
