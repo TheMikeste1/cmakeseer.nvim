@@ -375,6 +375,7 @@ function M.discover_positions(file_path)
       goto continue
     end
 
+    -- TODO: Support parameterized test suites, i.e. INSTANTIATE_TEST_SUITE_P, since these won't currenly be picked up correctly from our query
     for suite_name, positions in pairs(queried_tests.suites) do
       if executable_tests.suites[suite_name] == nil then
         executable_tests.suites[suite_name] = positions
