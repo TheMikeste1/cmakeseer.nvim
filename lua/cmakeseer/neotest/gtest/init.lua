@@ -278,7 +278,20 @@ function M.refresh_test_executables()
     -- Parse the suites
     ---@type table<string, cmakeseer.neotest.gtest.Suite>
     local suites = {}
-    local test_data = vim.json.decode(io.open(test_cmd.cache, "r"):read("*a"))
+    local contents = io.open(test_cmd.cache, "r")
+    local success, test_data = pcall(vim.json.decode, contents)
+    if not success then
+      vim.notify(
+        string.format(
+          "Failed to read output for executable %s; cannot detect if it is a gtest. Error: %s",
+          executable,
+          test_data
+        )
+      )
+      goto continue
+    end
+    assert(type(test_data) == "table")
+
     for _, suite in ipairs(test_data.testsuites) do
       local suite_name_parts = vim.fn.split(suite.name, "/")
       local suite_id = table.remove(suite_name_parts, 1)
