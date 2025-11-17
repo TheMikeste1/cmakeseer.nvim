@@ -1,26 +1,11 @@
 local M = {}
 
---- Checks if some object is an array.
----@param obj any The object to check.
----@return boolean obj_is_array If the object is an array and not empty.
----@sa https://stackoverflow.com/a/52697380
-function M.is_array(obj)
-  vim.notify_once("cmakeseer.utils.is_array is deprecated. Use vim.islist instead", vim.log.levels.INFO)
-  if type(obj) ~= "table" then
-    return false
-  end
-
-  -- Not perfect, but hopefully it'll work for our needs.
-  -- This will fail if an object has an integer field of 1.
-  return obj[1] ~= nil
-end
-
 --- Checks if some object is an object.
 ---@param obj any The object to check.
 ---@return boolean obj_is_object If the object is an object or empty.
 ---@sa https://stackoverflow.com/a/52697380
 function M.is_object(obj)
-  return type(obj) == "table" and not M.is_array(obj)
+  return type(obj) == "table" and not vim.isarray(obj)
 end
 
 --- Merges two arrays into one, leaving duplicates.

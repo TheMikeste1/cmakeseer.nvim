@@ -190,15 +190,15 @@ local function is_valid_configuration(obj)
     return false
   end
 
-  if not Utils.is_array(obj.directories) then
+  if not vim.isarray(obj.directories) then
     return false
   end
 
-  if not Utils.is_array(obj.projects) then
+  if not vim.isarray(obj.projects) then
     return false
   end
 
-  if not Utils.is_array(obj.targets) then
+  if not vim.isarray(obj.targets) then
     return false
   end
 
@@ -237,7 +237,7 @@ function M.is_valid(obj)
     return false
   end
 
-  if not Utils.is_array(obj.configurations) then
+  if not vim.isarray(obj.configurations) then
     return false
   end
 

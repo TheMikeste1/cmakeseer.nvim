@@ -63,7 +63,7 @@ local function get_responses_from_index_file(index_file_path)
   end
 
   local responses = client_data["query.json"].responses
-  assert(Utils.is_array(responses) or #responses == 0)
+  assert(vim.isarray(responses) or #responses == 0)
   return responses
 end
 

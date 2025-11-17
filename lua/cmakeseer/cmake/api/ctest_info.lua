@@ -56,7 +56,7 @@ local M = {}
 ---@param obj table<string, any> The object to check.
 ---@return boolean is_ctest_info If the object is a CTestInfo.
 function M.is_valid(obj)
-  if not Utils.is_array(obj.tests) then
+  if not vim.isarray(obj.tests) then
     return false
   end
 
