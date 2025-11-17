@@ -271,7 +271,15 @@ end
 function M.setup(opts)
   opts = Options.cleanup(opts)
   M.__options = vim.tbl_deep_extend("force", M.__options, opts)
+  if type(M.__options.callbacks.preconfigure) ~= "table" then
+    M.__options.callbacks.preconfigure = { M.__options.callbacks.preconfigure }
+  end
+  if type(M.__options.callbacks.postconfigure) ~= "table" then
+    M.__options.callbacks.postconfigure = { M.__options.callbacks.postconfigure }
+  end
+
   M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
+
   Settings.setup(M.__options)
 
   if pcall(require, "neoconf") then

@@ -118,8 +118,8 @@ end
 
 --- Runs the user's preconfigure callback.
 function M.run_user_preconfigure()
-  if Cmakeseer.callbacks().preconfigure ~= nil then
-    local success, maybe_error = pcall(Cmakeseer.callbacks().preconfigure)
+  for _, callback in ipairs(Cmakeseer.callbacks().preconfigure) do
+    local success, maybe_error = pcall(callback)
     if not success then
       vim.notify(
         string.format("User preconfigure callback failed with error: %s", vim.inspect(maybe_error)),
@@ -131,8 +131,8 @@ end
 
 --- Runs the user's postconfigure callback.
 function M.run_user_postconfigure()
-  if Cmakeseer.callbacks().postconfigure ~= nil then
-    local success, maybe_error = pcall(Cmakeseer.callbacks().postconfigure)
+  for _, callback in ipairs(Cmakeseer.callbacks().postconfigure) do
+    local success, maybe_error = pcall(callback)
     if not success then
       vim.notify(
         string.format("User postconfigure callback failed with error: %s", vim.inspect(maybe_error)),

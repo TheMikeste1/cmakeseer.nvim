@@ -2,8 +2,8 @@ local Kit = require("cmakeseer.kit")
 local Utils = require("cmakeseer.utils")
 
 --- @class cmakeseer.cmake.api.Callbacks
---- @field preconfigure fun()? Ran before CMake configures the project.
---- @field postconfigure fun()? Ran after CMake successfully configures the project.
+--- @field preconfigure fun()[] Ran before CMake configures the project.
+--- @field postconfigure fun()[] Ran after CMake successfully configures the project.
 
 --- @class cmakeseer.cmake.api.Options
 --- @field cmake_command string The command used to run CMake. Defaults to `cmake`.
@@ -36,8 +36,8 @@ function M.default()
     kits = {},
     persist_file = nil,
     callbacks = {
-      preconfigure = nil,
-      postconfigure = nil,
+      preconfigure = {},
+      postconfigure = {},
     },
   }
 end
