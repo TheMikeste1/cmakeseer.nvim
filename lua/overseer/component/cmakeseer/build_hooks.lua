@@ -6,7 +6,6 @@ local Callbacks = require("cmakeseer.callbacks")
 ---@return nil|boolean should_run False if the task should NOT be ran.
 ---@diagnostic disable-next-line: unused-local
 local function on_pre_start(component, task)
-  vim.notify("Running prebuild hooks")
   vim.notify("Running prebuild hooks", vim.log.levels.TRACE)
   Callbacks.run_user_prebuild()
 end
