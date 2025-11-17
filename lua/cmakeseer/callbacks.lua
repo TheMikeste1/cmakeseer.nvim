@@ -142,4 +142,30 @@ function M.run_user_postconfigure()
   end
 end
 
+--- Runs the user's prebuild callback.
+function M.run_user_prebuild()
+  for _, callback in ipairs(Cmakeseer.callbacks().prebuild) do
+    local success, maybe_error = pcall(callback)
+    if not success then
+      vim.notify(
+        string.format("User prebuild callback failed with error: %s", vim.inspect(maybe_error)),
+        vim.log.levels.ERROR
+      )
+    end
+  end
+end
+
+--- Runs the user's postbuild callback.
+function M.run_user_postbuild()
+  for _, callback in ipairs(Cmakeseer.callbacks().postbuild) do
+    local success, maybe_error = pcall(callback)
+    if not success then
+      vim.notify(
+        string.format("User postbuild callback failed with error: %s", vim.inspect(maybe_error)),
+        vim.log.levels.ERROR
+      )
+    end
+  end
+end
+
 return M

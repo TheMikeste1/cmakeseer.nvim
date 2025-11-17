@@ -277,6 +277,12 @@ function M.setup(opts)
   if type(M.__options.callbacks.postconfigure) ~= "table" then
     M.__options.callbacks.postconfigure = { M.__options.callbacks.postconfigure }
   end
+  if type(M.__options.callbacks.prebuild) ~= "table" then
+    M.__options.callbacks.prebuild = { M.__options.callbacks.prebuild }
+  end
+  if type(M.__options.callbacks.postbuild) ~= "table" then
+    M.__options.callbacks.postbuild = { M.__options.callbacks.postbuild }
+  end
 
   M.__options.default_cmake_settings = M.__options.default_cmake_settings or {}
 

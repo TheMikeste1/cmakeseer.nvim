@@ -4,6 +4,8 @@ local Utils = require("cmakeseer.utils")
 --- @class cmakeseer.cmake.api.Callbacks
 --- @field preconfigure fun()[] Ran before CMake configures the project.
 --- @field postconfigure fun()[] Ran after CMake successfully configures the project.
+--- @field prebuild fun()[] Ran before CMake builds the project.
+--- @field postbuild fun()[] Ran after CMake successfully builds the project.
 
 --- @class cmakeseer.cmake.api.Options
 --- @field cmake_command string The command used to run CMake. Defaults to `cmake`.
@@ -38,6 +40,8 @@ function M.default()
     callbacks = {
       preconfigure = {},
       postconfigure = {},
+      prebuild = {},
+      postbuild = {},
     },
   }
 end
