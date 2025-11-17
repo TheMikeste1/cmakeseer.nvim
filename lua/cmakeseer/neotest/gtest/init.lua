@@ -109,17 +109,17 @@ local function build_structure(executable, queried_tests)
 end
 
 -- TODO: Have the plugin subscribe to build events
-
+local M
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
-local M = {
+M = {
   name = "CMakeSeer GTest",
   opts = {
     --- Filter out targets when looking for tests.
     ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
     ---@return boolean keep If the target should be kept.
     target_filter = function(target)
-      return string.match(target.name, "[tT]est")
+      return string.match(target.name, "[tT]est") and not M.is_gtest_test(target)
     end,
     cache_directory = function()
       return vim.fs.joinpath(Cmakeseer.get_build_directory(), ".cache", "cmakeseer", "gtest")
@@ -232,12 +232,13 @@ end
 ---@return neotest.Adapter adapter The adapter.
 function M.setup(opts)
   M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
+  -- TODO: Add a post-build callback to refresh tests
   return M
 end
 
---- Filter out targets when looking for tests.
+--- Determines if a target relies on GTest.
 ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
----@return boolean does_depend If the target should be kept.
+---@return boolean does_depend If the target depends on GTest.
 function M.depends_on_gtest(target)
   for _, dependency in ipairs(target.dependencies) do
     if dependency.id:match("^gtest") then
@@ -245,6 +246,14 @@ function M.depends_on_gtest(target)
     end
   end
   return false
+end
+
+--- Determines if a target is a test from GTest, as in a test for the GTest library.
+---@see depends_on_gtest
+---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+---@return boolean is_gtest_test If the target is a GTest test.
+function M.is_gtest_test(target)
+  return target.name:match("_gtest$")
 end
 
 --- Refreshes the list of test executables.
