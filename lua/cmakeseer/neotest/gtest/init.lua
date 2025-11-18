@@ -32,7 +32,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@private
 ---@class cmakeseer.neotest.gtest.Positions
 ---@field file_position neotest.Position
----@field suites table<string, cmakeseer.neotest.gtest.SuitePosition>
+---@field suites table<string, TreesitterTest[]>
 
 ---@class cmakeseer.neotest.gtest.ExecutableTests
 ---@field path string The path to the executable
@@ -99,7 +99,7 @@ end
 
 --- Builds the structure tree for GTests.
 ---@param executable string The path to the executable containing the tests.
----@param queried_tests cmakeseer.neotest.gtest.Positions The queried tests.
+---@param queried_tests table<string, TreesitterTest[]> The queried tests for the entire executable.
 ---@return any[] structure The recursive tree structure representing the tests.
 local function build_structure(executable, queried_tests)
   local suites = g_test_executables_suites[executable]
@@ -500,7 +500,13 @@ local function parse_executable_suites(test_data)
 
       suites[suite_id] = suite_entry
     end
-    assert(suite_type == suite_type_from_suite(suite_entry))
+    if suite_type ~= suite_type_from_suite(suite_entry) then
+      vim.notify(
+        "Suite type for " .. suite_entry.name .. " did not have the same test type for all tests. Skipping.",
+        vim.log.levels.WARN
+      )
+      goto continue
+    end
 
     if suite_type == "Suite" then
       parse_normal_suite(suite.testsuite, suite_entry, executable_files)
@@ -602,42 +608,31 @@ end
 ---@param executable_path string Absolute file path to the executable.
 ---@return neotest.Tree | nil
 function M.discover_positions(executable_path)
-  --  - Executable
-  --    - Prefix/Suite/Postfix; Might separate these later
-  --      - Test/Postfix
-
-  ---@type cmakeseer.neotest.gtest.Positions
-  local executable_tests = {
-    file_position = {
-      id = executable_path,
-      type = "file",
-      path = executable_path,
-      name = vim.fs.basename(executable_path),
-      range = { 0, 0, 0, 0 },
-    },
-    suites = {},
-  }
-
+  ---@type table<string, TreesitterTest[]>
+  local suite_tests = {}
   local executable_files = g_executable_files[executable_path]
   for file, _ in pairs(executable_files) do
     local queried_tests = M.treesitter.query_tests(file)
     if type(queried_tests) == "string" then
-      vim.notify("Failed to find positions in " .. file, vim.log.levels.ERROR)
+      vim.notify(string.format("Failed to find positions in %s: %s", file, queried_tests), vim.log.levels.ERROR)
       goto continue
     end
 
-    -- TODO: Support parameterized test suites, i.e. INSTANTIATE_TEST_SUITE_P, since these won't currenly be picked up correctly from our query
-    for suite_name, positions in pairs(queried_tests.suites) do
-      if executable_tests.suites[suite_name] == nil then
-        executable_tests.suites[suite_name] = positions
+    for suite, tests in pairs(queried_tests) do
+      if suite_tests[suite] ~= nil then
+        vim.list_extend(suite_tests[suite], tests)
       else
-        vim.list_extend(executable_tests.suites[suite_name].tests, positions.tests)
+        suite_tests[suite] = tests
       end
     end
+
     ::continue::
   end
 
-  local structure = build_structure(executable_path, executable_tests)
+  --  - Executable
+  --    - Prefix/Suite/Postfix; Might separate these later
+  --      - Test/Postfix
+  local structure = build_structure(executable_path, suite_tests)
   local tree = require("neotest.types.tree").from_list(structure, function(pos)
     return pos.id
   end)
