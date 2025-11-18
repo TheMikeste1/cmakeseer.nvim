@@ -19,11 +19,6 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@field tests cmakeseer.neotest.gtest.Test[]
 
 ---@private
----@class cmakeseer.neotest.gtest.TestCmd
----@field cmd vim.SystemObj? The process running the command. Will be nil if the cache was used instead.
----@field cache string
-
----@private
 ---@class cmakeseer.neotest.gtest.TestId
 ---@field file string
 ---@field suite string?
@@ -38,6 +33,36 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 ---@class cmakeseer.neotest.gtest.Positions
 ---@field file_position neotest.Position
 ---@field suites table<string, cmakeseer.neotest.gtest.SuitePosition>
+
+---@class cmakeseer.neotest.gtest.ExecutableTests
+---@field path string The path to the executable
+---@field suites table<string,cmakeseer.neotest.gtest.SuiteTests> The suites contained in an executable.
+
+---@class cmakeseer.neotest.gtest.SuiteName
+---@field name string The core name of the suite.
+---@field prefixes string[] The prefixes used by the suite.
+---@field postfixes string[] The postfixes used by the suite.
+
+---@class cmakeseer.neotest.gtest.SuiteTests
+---@field names cmakeseer.neotest.gtest.SuiteName The names of the suite, including its prefixes and postfixes.
+---@field tests table<string, cmakeseer.neotest.gtest.Test> The tests that are part of this suite.
+
+---@class cmakeseer.neotest.gtest.TestName
+---@field name string The core name of the test
+---@field postfixes string[] The postfixes used by the test.
+
+---@class cmakeseer.neotest.gtest.Test
+---@field names cmakeseer.neotest.gtest.TestName The names of this test, including its postfixes.
+---@field path string The path to the file containing the test.
+---@field range [integer, integer, integer, integer] The range of the test, recorded in 0-indexed [top-line, top-column, bottom-line, bottom-column].
+
+-- Executables to suites IDs
+-- Suite ID to full name
+-- Suite to tests
+--  - Could be ID or full name; ID might be easiest
+-- Cache test directories for easy lookup
+-- Cach executables to test files for treesitter queries
+--  - Or do we want to run TS while checking the executables?
 
 ---@type table<string, table<string>> Executables to test files.
 local g_executable_files = {}
@@ -159,9 +184,9 @@ local function compares_times(a, b)
   return 0
 end
 
---- Generates all the test commands to check if an executable is a gtest executable.
+--- Generates all the test commands to check if an executable is a GTest executable.
 ---@param targets cmakeseer.cmake.api.codemodel.Target[] The targets to check.
----@return table<string, cmakeseer.neotest.gtest.TestCmd> test_cmds The executable paired with the commands to check each target.
+---@return table<string, {cmd: vim.SystemObj?, cache: string}> test_cmds The executable paired with the commands to check each target.
 local function generate_executable_commands(targets)
   local test_cmds = {}
   for _, target in ipairs(targets) do
@@ -266,6 +291,42 @@ function M.is_gtest_test(target)
   return target.name:match("_gtest$")
 end
 
+--- Parses the name of a GTest suite into its component parts.
+---@param suite table<string, any> The GTest suite to parse.
+---@return string? prefix, string? name, string? postfix Maybe the prefix, name, and postfix, in that order. The name will only be nil if there was an error parsing.
+local function parse_gtest_suite_name(suite)
+  -- The parts might be
+  --  a. suite
+  --  b. suite/postfix
+  --  c. prefix/suite
+  --  d. prefix/suite/postfix
+  local suite_name_parts = vim.fn.split(suite.name, "/")
+
+  local prefix = nil
+  local suite_id = nil
+  local postfix = nil
+
+  if #suite_name_parts == 1 then
+    suite_id = suite_name_parts[1]
+  elseif #suite_name_parts == 2 then
+    if #suite.testsuite > 0 then -- If there are no tests, we don't really care about the suite
+      -- Parameterized tests (tests with a prefix) will have a value_param as part of the tests in their testsuite
+      if suite.testsuite[1].value_param ~= nil then
+        prefix = suite_name_parts[1]
+        suite_id = suite_name_parts[2]
+      else
+        suite_id = suite_name_parts[1]
+        postfix = suite_name_parts[2]
+      end
+    end
+  elseif suite_name_parts == 3 then
+    prefix = suite_name_parts[1]
+    suite_id = suite_name_parts[2]
+    postfix = suite_name_parts[3]
+  end
+  return prefix, suite_id, postfix
+end
+
 --- Refreshes the list of test executables.
 function M.refresh_test_executables()
   ---@type cmakeseer.cmake.api.codemodel.Target[]
@@ -286,6 +347,17 @@ function M.refresh_test_executables()
     end
 
     -- Parse the suites
+    ---@type table<string, table<string>>
+    local suite_files = {}
+
+    ---@class TT
+    ---@field names cmakeseer.neotest.gtest.SuiteName The names of the suite, including its prefixes and postfixes.
+    ---@field test_files string[] The files containing tests
+    ---@field tests {name:string, value_param: string?}
+
+    ---@type table<string, TT>
+    local suite_tests = {}
+
     ---@type table<string, cmakeseer.neotest.gtest.Suite>
     local suites = {}
     local file = io.open(test_cmd.cache, "r")
@@ -293,6 +365,7 @@ function M.refresh_test_executables()
       goto continue
     end
     local contents = file:read("*a")
+    file:close()
     local success, test_data = pcall(vim.json.decode, contents)
     if not success then
       vim.notify(
@@ -307,36 +380,15 @@ function M.refresh_test_executables()
     assert(type(test_data) == "table")
 
     for _, suite in ipairs(test_data.testsuites) do
-      local suite_name_parts = vim.fn.split(suite.name, "/")
+      local prefix, suite_id, postfix = parse_gtest_suite_name(suite)
+      if suite_id == nil then
+        goto continue
+      end
 
-      -- The parts might be
-      --  a. suite
-      --  b. suite/postfix
-      --  c. prefix/suite
-      --  d. prefix/suite/postfix
-
-      local prefix
-      local suite_id
-      local postfix
-
-      if #suite_name_parts == 1 then
-        suite_id = suite_name_parts[1]
-      elseif #suite_name_parts == 2 then
-        -- Parameterized tests (tests with a prefix) will have a value_param as part of the tests in their testsuite
-        if #suite.testsuite == 0 then
-          goto continue
-        end
-        if suite.testsuite[1].value_param ~= nil then
-          prefix = suite_name_parts[1]
-          suite_id = suite_name_parts[2]
-        else
-          suite_id = suite_name_parts[1]
-          postfix = suite_name_parts[2]
-        end
-      elseif suite_name_parts == 3 then
-        prefix = suite_name_parts[1]
-        suite_id = suite_name_parts[2]
-        postfix = suite_name_parts[3]
+      -- Add files from the suite into the cache
+      suite_files[suite_id] = suite_files[suite_id] or {}
+      for _, test in ipairs(test_data.testsuites.testsuite) do
+        suite_files[suite_id][test.file] = true
       end
 
       if suites[suite_id] == nil then
@@ -419,22 +471,26 @@ end
 
 ---Given a filepath, parse all the tests within it.
 ---@async
----@param file_path string Absolute file path
+---@param executable_path string Absolute file path to the executable.
 ---@return neotest.Tree | nil
-function M.discover_positions(file_path)
+function M.discover_positions(executable_path)
+  --  - Executable
+  --    - Prefix/Suite/Postfix; Might separate these later
+  --      - Test/Postfix
+
   ---@type cmakeseer.neotest.gtest.Positions
   local executable_tests = {
     file_position = {
-      id = file_path,
+      id = executable_path,
       type = "file",
-      path = file_path,
-      name = vim.fs.basename(file_path),
+      path = executable_path,
+      name = vim.fs.basename(executable_path),
       range = { 0, 0, 0, 0 },
     },
     suites = {},
   }
 
-  local executable_files = g_executable_files[file_path]
+  local executable_files = g_executable_files[executable_path]
   for file, _ in pairs(executable_files) do
     local queried_tests = M.treesitter.query_tests(file)
     if type(queried_tests) == "string" then
@@ -453,7 +509,7 @@ function M.discover_positions(file_path)
     ::continue::
   end
 
-  local structure = build_structure(file_path, executable_tests)
+  local structure = build_structure(executable_path, executable_tests)
   local tree = require("neotest.types.tree").from_list(structure, function(pos)
     return pos.id
   end)
