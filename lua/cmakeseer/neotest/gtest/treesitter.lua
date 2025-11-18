@@ -1,6 +1,14 @@
 ---@private
 --- Treesitter query to extract GTest tests.
 local GTEST_QUERY = [[
+(call_expression
+  (identifier) @p_suite.type (#any-of? @p_suite.type "INSTANTIATE_TEST_SUITE_P" "INSTANTIATE_TYPED_TEST_SUITE_P")
+  (argument_list
+    (identifier) @p_suite.prefix
+    (identifier) @p_suite.name
+  )
+)
+
 (function_definition
   declarator: (function_declarator
     declarator: (identifier) @test.type (#any-of? @test.type "TEST" "TEST_F" "TEST_P" "TYPED_TEST" "TYPED_TEST_P")
@@ -35,31 +43,52 @@ function M.query_tests(filepath)
   local contents = file:read("*a")
   file:close()
 
+  local suite_prefixes = {}
   ---@type table <string, neotest.Position[]>
   local suite_test_positions = {}
   local lang_tree = vim.treesitter.get_string_parser(contents, lang, { injections = { [lang] = "" } })
   local root = lang_tree:parse()[1]:root()
-  for _, match, _, _ in query:iter_matches(root, contents, nil, nil, { all = false }) do
+  for _, matches, _, _ in query:iter_matches(root, contents, nil, nil, { all = false }) do
     local captured_nodes = {}
     for i, capture in ipairs(query.captures) do
-      captured_nodes[capture] = match[i]
+      local capture_parts = vim.split(capture, "%.")
+      assert(#capture_parts == 2, "Each capture should have exactly two parts")
+      local type = capture_parts[1]
+      local field = capture_parts[2]
+      local match = matches[i]
+      if match ~= nil then
+        captured_nodes[type] = captured_nodes[type] or {}
+        captured_nodes[type][field] = match
+      end
     end
 
-    ---@type string
-    local name = vim.treesitter.get_node_text(captured_nodes["test.name"], contents)
-    local definition = captured_nodes["test.definition"]
-    local suite = vim.treesitter.get_node_text(captured_nodes["test.suite"], contents)
-    ---@type neotest.Position
-    local pos = {
-      id = nil,
-      type = "test",
-      path = filepath,
-      name = name,
-      range = { definition:range() },
-    }
+    assert(captured_nodes["test"] or captured_nodes["p_suite"], "Neither test nor p_suite was found")
+    assert(not (captured_nodes["test"] and captured_nodes["p_suite"]), "p_suite and test found. They must be exclusive")
 
-    suite_test_positions[suite] = suite_test_positions[suite] or {}
-    table.insert(suite_test_positions[suite], pos)
+    if captured_nodes["test"] ~= nil then
+      local test = captured_nodes["test"]
+      ---@type string
+      local name = vim.treesitter.get_node_text(test["name"], contents)
+      local suite = vim.treesitter.get_node_text(test["suite"], contents)
+      local definition = test["definition"]
+      ---@type neotest.Position
+      local pos = {
+        id = nil,
+        type = "test",
+        path = filepath,
+        name = name,
+        range = { definition:range() },
+      }
+
+      suite_test_positions[suite] = suite_test_positions[suite] or {}
+      table.insert(suite_test_positions[suite], pos)
+    elseif captured_nodes["suite"] ~= nil then
+      local suite = captured_nodes["suite"]
+      local name = vim.treesitter.get_node_text(suite["name"], contents)
+      local prefix = vim.treesitter.get_node_text(suite["prefix"], contents)
+      suite_prefixes[name] = suite_prefixes[name] or {}
+      table.insert(suite_prefixes[name], prefix)
+    end
   end
 
   ---@type cmakeseer.neotest.gtest.Positions
@@ -92,11 +121,14 @@ function M.query_tests(filepath)
     ---@type cmakeseer.neotest.gtest.SuitePosition
     all_positions.suites[suite] = {
       suite = {
-        id = nil,
-        type = "namespace",
-        name = suite,
-        path = filepath,
-        range = { suite_min_line, suite_min_col, suite_max_line, suite_max_col },
+        prefixes = suite_prefixes[suite] or {},
+        position = {
+          id = nil,
+          type = "namespace",
+          name = suite,
+          path = filepath,
+          range = { suite_min_line, suite_min_col, suite_max_line, suite_max_col },
+        },
       },
       tests = positions,
     }

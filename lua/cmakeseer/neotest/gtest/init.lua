@@ -15,7 +15,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@private
 ---@class cmakeseer.neotest.gtest.Suite
----@field suite { id: string, sub_ids: string[]? }
+---@field suite { id: string, prefixes: string[]?, postfixes: string[]? }
 ---@field tests cmakeseer.neotest.gtest.Test[]
 
 ---@private
@@ -31,7 +31,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@private
 ---@class cmakeseer.neotest.gtest.SuitePosition
----@field suite neotest.Position
+---@field suite {prefixes: string[], position: neotest.Position}
 ---@field tests neotest.Position[]
 
 ---@private
@@ -51,13 +51,23 @@ local g_test_executables_suites = {}
 ---@param file_path string The path to the file containing the tests.
 ---@return any[] suite_tree The tree of suite tests.
 local function build_suite_tree(suite_position, file_path)
-  suite_position.suite.id = string.format("%s::%s", file_path, suite_position.suite.name)
+  suite_position.suite.position.id = string.format("%s::%s", file_path, suite_position.suite.position.name)
   local suite_tree = {
-    suite_position.suite,
+    suite_position.suite.position,
   }
-  for _, test in ipairs(suite_position.tests) do
-    test.id = string.format("%s::%s", suite_position.suite.id, test.name)
-    table.insert(suite_tree, { test })
+
+  if #suite_position.suite.prefixes == 0 then
+    for _, test in ipairs(suite_position.tests) do
+      test.id = string.format("%s::%s", suite_position.suite.position.id, test.name)
+      table.insert(suite_tree, { test })
+    end
+  else
+    for _, prefix in ipairs(suite_position.suite.prefixes) do
+      for _, test in ipairs(suite_position.tests) do
+        test.id = string.format("%s/%s::%s", prefix, suite_position.suite.position.id, test.name)
+        table.insert(suite_tree, { test })
+      end
+    end
   end
   return suite_tree
 end
@@ -88,7 +98,7 @@ local function build_structure(executable, queried_tests)
     -- Before we add the suite, we'll want to check if it's a parameterized test
     local suite_id = suite_position.suite.name
     local suite_data = suites[suite_id]
-    if suite_data == nil or suite_data.suite.sub_ids == nil then
+    if suite_data == nil or suite_data.suite.postfixes == nil then
       -- Suite hasn't been compiled in yet or there are not sub IDs
       local suite_tree = build_suite_tree(suite_position, executable)
       table.insert(structure, suite_tree)
@@ -96,7 +106,7 @@ local function build_structure(executable, queried_tests)
     end
 
     -- We need to duplicate the suite and tests for each sub ID
-    for _, sub_id in ipairs(suite_data.suite.sub_ids) do
+    for _, sub_id in ipairs(suite_data.suite.postfixes) do
       local new_suite_positions = vim.deepcopy(suite_position, true)
       new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
       local suite_tree = build_suite_tree(new_suite_positions, executable)
@@ -278,7 +288,11 @@ function M.refresh_test_executables()
     -- Parse the suites
     ---@type table<string, cmakeseer.neotest.gtest.Suite>
     local suites = {}
-    local contents = io.open(test_cmd.cache, "r")
+    local file = io.open(test_cmd.cache, "r")
+    if file == nil then
+      goto continue
+    end
+    local contents = file:read("*a")
     local success, test_data = pcall(vim.json.decode, contents)
     if not success then
       vim.notify(
@@ -294,8 +308,36 @@ function M.refresh_test_executables()
 
     for _, suite in ipairs(test_data.testsuites) do
       local suite_name_parts = vim.fn.split(suite.name, "/")
-      local suite_id = table.remove(suite_name_parts, 1)
-      local suite_sub_id = #suite_name_parts > 0 and table.concat(suite_name_parts, "/") or nil
+
+      -- The parts might be
+      --  a. suite
+      --  b. suite/postfix
+      --  c. prefix/suite
+      --  d. prefix/suite/postfix
+
+      local prefix
+      local suite_id
+      local postfix
+
+      if #suite_name_parts == 1 then
+        suite_id = suite_name_parts[1]
+      elseif #suite_name_parts == 2 then
+        -- Parameterized tests (tests with a prefix) will have a value_param as part of the tests in their testsuite
+        if #suite.testsuite == 0 then
+          goto continue
+        end
+        if suite.testsuite[1].value_param ~= nil then
+          prefix = suite_name_parts[1]
+          suite_id = suite_name_parts[2]
+        else
+          suite_id = suite_name_parts[1]
+          postfix = suite_name_parts[2]
+        end
+      elseif suite_name_parts == 3 then
+        prefix = suite_name_parts[1]
+        suite_id = suite_name_parts[2]
+        postfix = suite_name_parts[3]
+      end
 
       if suites[suite_id] == nil then
         local tests = {}
@@ -313,18 +355,30 @@ function M.refresh_test_executables()
         local suite_data = {
           suite = {
             id = suite_id,
-            sub_ids = suite_sub_id and { suite_sub_id } or nil,
+            prefixes = prefix and { prefix } or nil,
+            postfixes = postfix and { postfix } or nil,
           },
           tests = tests,
         }
         suites[suite_id] = suite_data
-      elseif suite_sub_id ~= nil then
-        if suites[suite_id].suite.sub_ids ~= nil then
-          table.insert(suites[suite_id].suite.sub_ids, suite_sub_id)
-        else
-          vim.notify("Duplicate suite ID without sub ID: " .. suite_id, vim.log.levels.ERROR)
+      else
+        if prefix ~= nil then
+          if suites[suite_id].suite.prefixes ~= nil then
+            table.insert(suites[suite_id].suite.prefixes, prefix)
+          else
+            vim.notify("Duplicate suite ID without prefix: " .. suite_id, vim.log.levels.ERROR)
+          end
+        end
+
+        if postfix ~= nil then
+          if suites[suite_id].suite.postfixes ~= nil then
+            table.insert(suites[suite_id].suite.postfixes, postfix)
+          else
+            vim.notify("Duplicate suite ID without postfix: " .. suite_id, vim.log.levels.ERROR)
+          end
         end
       end
+      ::continue::
     end
 
     g_test_executables_suites[executable] = suites
