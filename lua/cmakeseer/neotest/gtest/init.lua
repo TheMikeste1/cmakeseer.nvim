@@ -99,10 +99,12 @@ local function parse_gtest_suite_name(suite)
         postfix = suite_name_parts[2]
       end
     end
-  elseif suite_name_parts == 3 then
+  elseif #suite_name_parts == 3 then
     prefix = suite_name_parts[1]
     suite_id = suite_name_parts[2]
     postfix = suite_name_parts[3]
+  else
+    vim.notify(string.format("Failed to parse suite name: %s; parts : %s", suite.name, vim.inspect(suite_name_parts)))
   end
   return prefix, suite_id, postfix
 end
