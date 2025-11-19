@@ -203,7 +203,7 @@ end
 ---@param suite table The suite to check.
 ---@return nil | "Suite" | "ParameterizedSuite" |  "TypedSuite" |  "ParameterizedTypedSuite" suite_type The type of the suite. nil if it is not a suite.
 local function suite_type_from_suite(suite)
-  if suite.name == nil then
+  if suite == nil or suite.name == nil then
     return nil
   end
 
@@ -486,7 +486,7 @@ local function build_parameterized_typed_suite_structure(executable, suite_defin
     local suite_position = {
       id = suite_id,
       type = "namespace",
-      name = suite_definition.name,
+      name = string.format("%s/%s", prefix, suite_definition.name),
       path = suite_positions[1][1].path,
       range = suite_positions[1][1].range,
     }
@@ -914,18 +914,75 @@ function M.build_spec(args)
     }
   elseif #id_parts == 2 then
     -- This is a suite
-    spec = {
-      command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
-    }
+    local suites = g_test_executables_suites[id.file]
+
+    local suite_name = id.suite
+    local suite_parts = vim.split(suite_name, "/")
+    if #suite_parts >= 2 then
+      suite_name = suite_parts[2]
+    end
+
+    ---@type Suite
+    local suite = suites[suite_name]
+    if suite == nil then
+      -- TODO: Better suite name detection
+      -- This happens when a ParameterizedSuite's parameter is selected
+      suite = suites[suite_parts[1]]
+    end
+
+    if suite == nil then
+      vim.notify("Cannot find test for " .. id.suite)
+      return nil
+    end
+
+    local suite_type = suite_type_from_suite(suite)
+    if
+      suite_type == "Suite"
+      or suite_type == "ParameterizedSuite"
+      or (suite_type == "TypedSuite" and #suite_parts == 2)
+      or (suite_type == "ParameterizedTypedSuite" and #suite_parts == 3)
+    then
+      spec = {
+        command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
+      }
+    else
+      print("ST: " .. suite_type .. "; SP: " .. vim.inspect(suite_parts))
+      spec = {
+        command = { executable, string.format("--gtest_filter=%s/*.*", id.suite) },
+      }
+    end
   elseif #id_parts == 3 then
     -- This is an individual test
-    spec = {
-      command = {
-        executable,
-        "--gtest_also_run_disabled_tests",
-        string.format("--gtest_filter=%s.%s", id.suite, id.test),
-      },
-    }
+    local suites = g_test_executables_suites[id.file]
+
+    local suite_name = id.suite
+    local suite_parts = vim.split(suite_name, "/")
+    if #suite_parts >= 2 then
+      suite_name = suite_parts[2]
+    end
+    ---@type Suite
+    local suite = suites[suite_name]
+    local suite_type = suite_type_from_suite(suite)
+
+    local test_parts = vim.split(id.test, "/")
+    if suite_type == "ParameterizedSuite" and #test_parts == 1 then
+      -- We're a ParameterizedSuite and we don't have a specific parameter we're testing for; we'll need to do all
+      spec = {
+        command = {
+          executable,
+          "--gtest_also_run_disabled_tests",
+          string.format("--gtest_filter=%s.%s/*", id.suite, id.test),
+        },
+      }
+    else
+      spec = {
+        command = {
+          executable,
+          "--gtest_also_run_disabled_tests",
+          string.format("--gtest_filter=%s.%s", id.suite, id.test),
+        },
+      }
+    end
   else
     vim.notify(string.format("Unrecognized test ID: `%s`", raw_id), vim.log.levels.ERROR)
     return nil
