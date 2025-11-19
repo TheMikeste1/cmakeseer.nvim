@@ -114,8 +114,7 @@ end
 ---@field tests table<string> A set of the tests in the suite.
 
 ---@class ParameterizedSuite: Suite A suite with parameterized arguments. They have a prefix, but the postfix is added to the individual tests instead.
----@field prefix string The prefix for the test.
----@field value_parameters string[] Value parameter IDs to values. The postfix of each test can identify the parameter.
+---@field value_parameters table<string, string[]> Prefixes to value parameter IDs to values. The postfix of each test can identify the parameter used for each prefix.
 
 ---@class TypedSuite: Suite A suite with using a known set of types. They have a postfix, but no prefix.
 ---@field type_parameters string[] Type parameter IDs to types. The postfix can identify the parameter.
@@ -138,7 +137,9 @@ end
 ---@param testsuite table<string, any> The GTest testsuite associated with the suite.
 ---@param suite_entry ParameterizedSuite The entry to fill with data from this suite.
 ---@param files table<string> The set of files to populate with files from this suite.
-local function parse_parameterized_suite(testsuite, suite_entry, files)
+local function parse_parameterized_suite(testsuite, suite_entry, files, prefix)
+  suite_entry.value_parameters[prefix] = suite_entry.value_parameters[prefix] or {}
+  local params = suite_entry.value_parameters[prefix]
   for _, test in ipairs(testsuite) do
     files[test.file] = true
 
@@ -148,13 +149,10 @@ local function parse_parameterized_suite(testsuite, suite_entry, files)
     local index = tonumber(test_parts[2])
     assert(index ~= nil, "Index should be a number")
     index = index + 1
-    if suite_entry.value_parameters[index] == nil then
-      suite_entry.value_parameters[index] = test.value_param
+    if params[index] == nil then
+      params[index] = test.value_param
     end
-    assert(
-      suite_entry.value_parameters[index] == test.value_param,
-      "Not all tests had the same value_param at the same index"
-    )
+    assert(params[index] == test.value_param, "Not all tests had the same value_param at the same index")
   end
 end
 
@@ -294,14 +292,18 @@ local function parse_executable_suites(test_data)
     end
 
     if suite_type == "Suite" then
+      -- print("S: " .. vim.inspect(suite))
       parse_normal_suite(suite.testsuite, suite_entry, executable_files)
     elseif suite_type == "ParameterizedSuite" then
+      -- print("PS: " .. vim.inspect(suite))
       ---@cast suite_entry ParameterizedSuite
-      parse_parameterized_suite(suite.testsuite, suite_entry, executable_files)
+      parse_parameterized_suite(suite.testsuite, suite_entry, executable_files, prefix)
     elseif suite_type == "TypedSuite" then
+      -- print("TS: " .. vim.inspect(suite))
       ---@cast suite_entry TypedSuite
       parse_typed_suite(suite.testsuite, suite_entry, executable_files, postfix)
     elseif suite_type == "ParameterizedTypedSuite" then
+      -- print("PTS: " .. vim.inspect(suite))
       ---@cast suite_entry ParameterizedTypedSuite
       parse_parameterized_typed_suite(suite.testsuite, suite_entry, executable_files, prefix, postfix)
     end
@@ -387,55 +389,59 @@ end
 ---@param tests TreesitterTest[] The treesitter tests for the suite.
 ---@return SuiteStructure[] positions The positions for the suite and its tests.
 local function build_parameterized_suite_structure(executable, suite_definition, tests)
-  local suite_name = string.format("%s/%s", suite_definition.prefix, suite_definition.name)
-  local suite_id = string.format("%s::%s", executable, suite_name)
-  local positions = {}
-  for _, test in ipairs(tests) do
-    local test_is_recogized = suite_definition.tests[test.name] ~= nil
-    if not test_is_recogized then
-      goto continue
+  local suite_structures = {}
+  for prefix, params in pairs(suite_definition.value_parameters) do
+    local suite_name = string.format("%s/%s", prefix, suite_definition.name)
+    local suite_id = string.format("%s::%s", executable, suite_name)
+    local positions = {}
+    for _, test in ipairs(tests) do
+      local test_is_recogized = suite_definition.tests[test.name] ~= nil
+      if not test_is_recogized then
+        goto continue
+      end
+
+      local test_id = string.format("%s::%s", suite_id, test.name)
+      local test_positions = {
+        {
+          id = test_id,
+          type = "dir",
+          name = test.name,
+          path = test.filepath,
+          range = test.range,
+        },
+      }
+
+      for i, param in ipairs(params) do
+        ---@type neotest.Position
+        local position = {
+          id = string.format("%s/%d", test_id, i - 1),
+          type = "file",
+          name = param,
+          path = test.filepath,
+          range = test.range,
+        }
+        table.insert(test_positions, { position })
+      end
+
+      table.insert(positions, test_positions)
+      ::continue::
     end
 
-    local test_id = string.format("%s::%s", suite_id, test.name)
-    local test_positions = {
-      {
-        id = test_id,
-        type = "dir",
-        name = test.name,
-        path = test.filepath,
-        range = test.range,
-      },
+    ---@type neotest.Position
+    local suite_position = {
+      id = suite_id,
+      type = "namespace",
+      name = suite_name,
+      path = positions[1][1].path,
+      range = positions[1][1].range,
     }
 
-    for i, param in ipairs(suite_definition.value_parameters) do
-      ---@type neotest.Position
-      local position = {
-        id = string.format("%s/%d", test_id, i - 1),
-        type = "file",
-        name = param,
-        path = test.filepath,
-        range = test.range,
-      }
-      table.insert(test_positions, { position })
-    end
-
-    table.insert(positions, test_positions)
-    ::continue::
+    table.insert(suite_structures, {
+      suite = suite_position,
+      tests = positions,
+    })
   end
-
-  ---@type neotest.Position
-  local suite_position = {
-    id = suite_id,
-    type = "namespace",
-    name = suite_name,
-    path = positions[1][1].path,
-    range = positions[1][1].range,
-  }
-
-  return { {
-    suite = suite_position,
-    tests = positions,
-  } }
+  return suite_structures
 end
 
 --- Builds the structure for a typed test suite.
@@ -946,7 +952,6 @@ function M.build_spec(args)
         command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
       }
     else
-      print("ST: " .. suite_type .. "; SP: " .. vim.inspect(suite_parts))
       spec = {
         command = { executable, string.format("--gtest_filter=%s/*.*", id.suite) },
       }
