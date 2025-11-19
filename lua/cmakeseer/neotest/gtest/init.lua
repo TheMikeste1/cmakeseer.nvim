@@ -71,6 +71,244 @@ local g_test_dirs = {}
 ---@type table<string, table<string, Suite>> Executables to suite names to Suites.
 local g_test_executables_suites = {}
 
+--- Parses the name of a GTest suite into its component parts.
+---@param suite table<string, any> The GTest suite to parse.
+---@return string? prefix, string? name, string? postfix Maybe the prefix, name, and postfix, in that order. The name will only be nil if there was an error parsing.
+local function parse_gtest_suite_name(suite)
+  -- The parts might be
+  --  a. suite
+  --  b. suite/postfix
+  --  c. prefix/suite
+  --  d. prefix/suite/postfix
+  local suite_name_parts = vim.fn.split(suite.name, "/")
+
+  local prefix = nil
+  local suite_id = nil
+  local postfix = nil
+
+  if #suite_name_parts == 1 then
+    suite_id = suite_name_parts[1]
+  elseif #suite_name_parts == 2 then
+    if #suite.testsuite > 0 then -- If there are no tests, we don't really care about the suite
+      -- Parameterized tests (tests with a prefix) will have a value_param as part of the tests in their testsuite
+      if suite.testsuite[1].value_param ~= nil then
+        prefix = suite_name_parts[1]
+        suite_id = suite_name_parts[2]
+      else
+        suite_id = suite_name_parts[1]
+        postfix = suite_name_parts[2]
+      end
+    end
+  elseif suite_name_parts == 3 then
+    prefix = suite_name_parts[1]
+    suite_id = suite_name_parts[2]
+    postfix = suite_name_parts[3]
+  end
+  return prefix, suite_id, postfix
+end
+
+---@class Suite A suite with no additional parameters or values. They have no prefix nor postfix.
+---@field name string The name of the suite.
+---@field tests table<string> A set of the tests in the suite.
+
+---@class ParameterizedSuite: Suite A suite with parameterized arguments. They have a prefix, but the postfix is added to the individual tests instead.
+---@field prefix string The prefix for the test.
+---@field value_parameters string[] Value parameter IDs to values. The postfix of each test can identify the parameter.
+
+---@class TypedSuite: Suite A suite with using a known set of types. They have a postfix, but no prefix.
+---@field type_parameters string[] Type parameter IDs to types. The postfix can identify the parameter.
+
+---@class ParameterizedTypedSuite: Suite A suite with parameterized types. The have a prefix and a postfix.
+---@field parameterized_type_parameters table<string, string[]> Prefixes to postfixes to type parameters.
+
+--- Parses a normal Suite.
+---@param testsuite table<string, any> The GTest testsuite associated with the suite.
+---@param suite_entry Suite The entry to fill with data from this suite.
+---@param files table<string> The set of files to populate with files from this suite.
+local function parse_normal_suite(testsuite, suite_entry, files)
+  for _, test in ipairs(testsuite) do
+    files[test.file] = true
+    suite_entry.tests[test.name] = true
+  end
+end
+
+--- Parses a ParameterizedSuite.
+---@param testsuite table<string, any> The GTest testsuite associated with the suite.
+---@param suite_entry ParameterizedSuite The entry to fill with data from this suite.
+---@param files table<string> The set of files to populate with files from this suite.
+local function parse_parameterized_suite(testsuite, suite_entry, files)
+  for _, test in ipairs(testsuite) do
+    files[test.file] = true
+
+    local test_parts = vim.split(test.name, "/")
+    assert(#test_parts == 2, "ParameterizedSuite test names should consist of a name and an index, e.g. `SomeTest/0`")
+    suite_entry.tests[test_parts[1]] = true
+    local index = tonumber(test_parts[2])
+    assert(index ~= nil, "Index should be a number")
+    index = index + 1
+    if suite_entry.value_parameters[index] == nil then
+      suite_entry.value_parameters[index] = test.value_param
+    end
+    assert(
+      suite_entry.value_parameters[index] == test.value_param,
+      "Not all tests had the same value_param at the same index"
+    )
+  end
+end
+
+--- Parses a TypedSuite.
+---@param testsuite table<string, any> The GTest testsuite associated with the suite.
+---@param suite_entry TypedSuite The entry to fill with data from this suite.
+---@param files table<string> The set of files to populate with files from this suite.
+local function parse_typed_suite(testsuite, suite_entry, files, postfix)
+  for _, test in ipairs(testsuite) do
+    files[test.file] = true
+    suite_entry.tests[test.name] = true
+    local index = tonumber(postfix)
+    assert(index ~= nil, "Index should be a number")
+    index = index + 1
+    if suite_entry.type_parameters[index] == nil then
+      suite_entry.type_parameters[index] = test.type_param
+    end
+    assert(
+      suite_entry.type_parameters[index] == test.type_param,
+      "All tests in a suite with the same index should have the same type_param"
+    )
+  end
+end
+
+--- Parses a ParameterizedTypedSuite.
+---@param testsuite table<string, any> The GTest testsuite associated with the suite.
+---@param suite_entry ParameterizedTypedSuite The entry to fill with data from this suite.
+---@param files table<string> The set of files to populate with files from this suite.
+local function parse_parameterized_typed_suite(testsuite, suite_entry, files, prefix, postfix)
+  suite_entry.parameterized_type_parameters[prefix] = suite_entry.parameterized_type_parameters[prefix] or {}
+  local params = suite_entry.parameterized_type_parameters[prefix]
+  for _, test in ipairs(testsuite) do
+    files[test.file] = true
+    suite_entry.tests[test.name] = true
+    local index = tonumber(postfix)
+    assert(index ~= nil, "Index should be a number")
+    index = index + 1
+    if params[index] == nil then
+      params[index] = test.type_param
+    end
+    assert(params[index] == test.type_param, "All tests in a suite with the same key should have the same type_param")
+  end
+end
+
+--- Determines the type for a suite.
+---@param suite table The suite to check.
+---@return nil | "Suite" | "ParameterizedSuite" |  "TypedSuite" |  "ParameterizedTypedSuite" suite_type The type of the suite. nil if it is not a suite.
+local function suite_type_from_suite(suite)
+  if suite.name == nil then
+    return nil
+  end
+
+  if suite.value_parameters ~= nil then
+    return "ParameterizedSuite"
+  end
+
+  if suite.type_parameters ~= nil then
+    return "TypedSuite"
+  end
+
+  if suite.parameterized_type_parameters ~= nil then
+    return "ParameterizedTypedSuite"
+  end
+
+  return "Suite"
+end
+
+--- Identifies a suite type just from its ID parts.
+---@param prefix string? The prefix of the suite.
+---@param postfix string? The postfix of the suite.
+---@return nil | "Suite" | "ParameterizedSuite" |  "TypedSuite" |  "ParameterizedTypedSuite" suite_type The type of the suite. nil if it is not a suite.
+local function suite_type_from_id_parts(prefix, postfix)
+  if prefix == nil and postfix == nil then
+    return "Suite"
+  end
+  if prefix ~= nil and postfix == nil then
+    return "ParameterizedSuite"
+  end
+  if prefix == nil and postfix ~= nil then
+    return "TypedSuite"
+  end
+  if prefix ~= nil and postfix ~= nil then
+    return "ParameterizedTypedSuite"
+  end
+  return nil
+end
+
+--- Parses suites for an executable out of an executable's GTest data.
+---@param test_data table The GTest data for the test.
+---@return table<string, Suite> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
+local function parse_executable_suites(test_data)
+  ---@type table<string, Suite> Suite IDs to Suite.
+  local suites = {}
+  ---@type table<string> Files used by suites
+  local executable_files = {}
+  for _, suite in ipairs(test_data.testsuites) do
+    local prefix, suite_id, postfix = parse_gtest_suite_name(suite)
+    if suite_id == nil then
+      goto continue
+    end
+
+    local suite_type = suite_type_from_id_parts(prefix, postfix)
+    if suite_type == nil then
+      vim.notify("Could not identify suite type for " .. suite, vim.log.levels.ERROR)
+      goto continue
+    end
+
+    local suite_entry = suites[suite_id]
+    if suite_entry == nil then
+      -- Doesn't exist; create a new one
+      suite_entry = {
+        name = suite_id,
+        tests = {},
+      }
+
+      if suite_type == "ParameterizedSuite" then
+        ---@cast suite_entry ParameterizedSuite
+        assert(prefix ~= nil)
+        suite_entry.prefix = prefix
+        suite_entry.value_parameters = {}
+      elseif suite_type == "TypedSuite" then
+        ---@cast suite_entry TypedSuite
+        suite_entry.type_parameters = {}
+      elseif suite_type == "ParameterizedTypedSuite" then
+        ---@cast suite_entry ParameterizedTypedSuite
+        suite_entry.parameterized_type_parameters = {}
+      end
+
+      suites[suite_id] = suite_entry
+    end
+    if suite_type ~= suite_type_from_suite(suite_entry) then
+      vim.notify(
+        "Suite type for " .. suite_entry.name .. " did not have the same test type for all tests. Skipping.",
+        vim.log.levels.WARN
+      )
+      goto continue
+    end
+
+    if suite_type == "Suite" then
+      parse_normal_suite(suite.testsuite, suite_entry, executable_files)
+    elseif suite_type == "ParameterizedSuite" then
+      ---@cast suite_entry ParameterizedSuite
+      parse_parameterized_suite(suite.testsuite, suite_entry, executable_files)
+    elseif suite_type == "TypedSuite" then
+      ---@cast suite_entry TypedSuite
+      parse_typed_suite(suite.testsuite, suite_entry, executable_files, postfix)
+    elseif suite_type == "ParameterizedTypedSuite" then
+      ---@cast suite_entry ParameterizedTypedSuite
+      parse_parameterized_typed_suite(suite.testsuite, suite_entry, executable_files, prefix, postfix)
+    end
+    ::continue::
+  end
+
+  return suites, executable_files
+end
+
 --- Builds the tree for a suite of GTests.
 ---@param suite_position cmakeseer.neotest.gtest.SuitePosition The suite position.
 ---@param file_path string The path to the file containing the tests.
@@ -97,6 +335,224 @@ local function build_suite_tree(suite_position, file_path)
   return suite_tree
 end
 
+---@class SuiteStructure
+---@field suite neotest.Position
+---@field tests any[]
+
+--- Builds the structure for a normal test suite.
+---@param executable string The path to the executable containing suites.
+---@param suite_definition Suite The definition for the Suite.
+---@param tests TreesitterTest[] The treesitter tests for the suite.
+---@return SuiteStructure[] positions The positions for the suite and its tests.
+local function build_normal_suite_structure(executable, suite_definition, tests)
+  local suite_id = string.format("%s::%s", executable, suite_definition.name)
+  local positions = {}
+  for _, test in ipairs(tests) do
+    local test_is_recogized = suite_definition.tests[test.name] ~= nil
+    if not test_is_recogized then
+      goto continue
+    end
+
+    local position = {
+      id = string.format("%s::%s", suite_id, test.name),
+      type = "test",
+      name = test.name,
+      path = test.filepath,
+      range = test.range,
+    }
+    table.insert(positions, { position })
+    ::continue::
+  end
+
+  ---@type neotest.Position
+  local suite_position = {
+    id = suite_id,
+    type = "namespace",
+    name = suite_definition.name,
+    path = positions[1][1].path,
+    range = positions[1][1].range,
+  }
+
+  return { {
+    suite = suite_position,
+    tests = positions,
+  } }
+end
+
+--- Builds the structure for a parameterized test suite.
+---@param executable string The path to the executable containing suites.
+---@param suite_definition ParameterizedSuite The definition for the suite.
+---@param tests TreesitterTest[] The treesitter tests for the suite.
+---@return SuiteStructure[] positions The positions for the suite and its tests.
+local function build_parameterized_suite_structure(executable, suite_definition, tests)
+  local suite_name = string.format("%s/%s", suite_definition.prefix, suite_definition.name)
+  local suite_id = string.format("%s::%s", executable, suite_name)
+  local positions = {}
+  for _, test in ipairs(tests) do
+    local test_is_recogized = suite_definition.tests[test.name] ~= nil
+    if not test_is_recogized then
+      goto continue
+    end
+
+    local test_id = string.format("%s::%s", suite_id, test.name)
+    local test_positions = {
+      {
+        id = test_id,
+        type = "dir",
+        name = test.name,
+        path = test.filepath,
+        range = test.range,
+      },
+    }
+
+    for i, param in ipairs(suite_definition.value_parameters) do
+      ---@type neotest.Position
+      local position = {
+        id = string.format("%s/%d", test_id, i - 1),
+        type = "file",
+        name = param,
+        path = test.filepath,
+        range = test.range,
+      }
+      table.insert(test_positions, { position })
+    end
+
+    table.insert(positions, test_positions)
+    ::continue::
+  end
+
+  ---@type neotest.Position
+  local suite_position = {
+    id = suite_id,
+    type = "namespace",
+    name = suite_name,
+    path = positions[1][1].path,
+    range = positions[1][1].range,
+  }
+
+  return { {
+    suite = suite_position,
+    tests = positions,
+  } }
+end
+
+--- Builds the structure for a typed test suite.
+---@param executable string The path to the executable containing suites.
+---@param suite_definition ParameterizedTypedSuite The definition for the suite.
+---@param tests TreesitterTest[] The treesitter tests for the suite.
+---@return SuiteStructure[] positions The positions for the suite and its tests.
+local function build_parameterized_typed_suite_structure(executable, suite_definition, tests)
+  local suite_structures = {}
+  for prefix, type_parameters in pairs(suite_definition.parameterized_type_parameters) do
+    local suite_id = string.format("%s::%s/%s", executable, prefix, suite_definition.name)
+    local suite_positions = {}
+    for i, type_param in ipairs(type_parameters) do
+      local postfix_id = string.format("%s/%d", suite_id, i - 1)
+      local positions = {}
+      for _, test in ipairs(tests) do
+        local test_is_recogized = suite_definition.tests[test.name] ~= nil
+        if not test_is_recogized then
+          goto continue
+        end
+
+        local test_id = string.format("%s::%s", postfix_id, test.name)
+        local position = {
+          id = test_id,
+          type = "test",
+          name = test.name,
+          path = test.filepath,
+          range = test.range,
+        }
+
+        table.insert(positions, { position })
+        ::continue::
+      end
+
+      local postfix_position = {
+        id = postfix_id,
+        type = "dir",
+        name = type_param,
+        path = positions[1][1].path,
+        range = positions[1][1].range,
+      }
+
+      table.insert(positions, 1, postfix_position)
+      table.insert(suite_positions, positions)
+    end
+
+    ---@type neotest.Position
+    local suite_position = {
+      id = suite_id,
+      type = "namespace",
+      name = suite_definition.name,
+      path = suite_positions[1][1].path,
+      range = suite_positions[1][1].range,
+    }
+    table.insert(suite_structures, {
+      suite = suite_position,
+      tests = suite_positions,
+    })
+  end
+
+  return suite_structures
+end
+
+--- Builds the structure for a parameterized typed test suite.
+---@param executable string The path to the executable containing suites.
+---@param suite_definition TypedSuite The definition for the suite.
+---@param tests TreesitterTest[] The treesitter tests for the suite.
+---@return SuiteStructure[] positions The positions for the suite and its tests.
+local function build_typed_suite_structure(executable, suite_definition, tests)
+  local suite_id = string.format("%s::%s", executable, suite_definition.name)
+  local all_positions = {}
+  for i, type_param in ipairs(suite_definition.type_parameters) do
+    local postfix_id = string.format("%s/%d", suite_id, i - 1)
+    local positions = {}
+    for _, test in ipairs(tests) do
+      local test_is_recogized = suite_definition.tests[test.name] ~= nil
+      if not test_is_recogized then
+        goto continue
+      end
+
+      local test_id = string.format("%s::%s", postfix_id, test.name)
+      local position = {
+        id = test_id,
+        type = "test",
+        name = test.name,
+        path = test.filepath,
+        range = test.range,
+      }
+
+      table.insert(positions, { position })
+      ::continue::
+    end
+
+    local postfix_position = {
+      id = postfix_id,
+      type = "dir",
+      name = type_param,
+      path = positions[1][1].path,
+      range = positions[1][1].range,
+    }
+
+    table.insert(positions, 1, postfix_position)
+    table.insert(all_positions, positions)
+  end
+  ---@type neotest.Position
+  local suite_position = {
+    id = suite_id,
+    type = "namespace",
+    name = suite_definition.name,
+    path = all_positions[1][1].path,
+    range = all_positions[1][1].range,
+  }
+
+  return { {
+    suite = suite_position,
+    tests = all_positions,
+  } }
+end
+
 --- Builds the structure tree for GTests.
 ---@param executable string The path to the executable containing the tests.
 ---@param queried_tests table<string, TreesitterTest[]> The queried tests for the entire executable.
@@ -105,41 +561,58 @@ local function build_structure(executable, queried_tests)
   local suites = g_test_executables_suites[executable]
   assert(suites ~= nil)
 
-  local suite_positions = {}
-  for _, suite_position in pairs(queried_tests.suites) do
-    table.insert(suite_positions, suite_position)
-  end
+  local structure = {
+    ---@type neotest.Position
+    {
+      id = executable,
+      type = "file",
+      name = vim.fn.fnamemodify(executable, ":t:r"),
+      path = executable,
+      range = { 0, 0, 0, 0 },
+    },
+  }
 
-  table.sort(suite_positions, function(a, b)
-    return a.suite.name < b.suite.name
-  end)
-
-  local structure = { queried_tests.file_position }
-  for _, suite_position in ipairs(suite_positions) do
-    table.sort(suite_position.tests, function(a, b)
-      return a.name < b.name
-    end)
-
-    -- Before we add the suite, we'll want to check if it's a parameterized test
-    local suite_id = suite_position.suite.name
-    local suite_data = suites[suite_id]
-    if suite_data == nil or suite_data.suite.postfixes == nil then
-      -- Suite hasn't been compiled in yet or there are not sub IDs
-      local suite_tree = build_suite_tree(suite_position, executable)
-      table.insert(structure, suite_tree)
+  local all_suite_positions = {}
+  for suite_name, tests in pairs(queried_tests) do
+    local suite_definition = suites[suite_name]
+    if suite_definition == nil then
+      -- We don't know about this suite yet
+      -- We could probably do something with it though. . .
       goto continue
     end
 
-    -- We need to duplicate the suite and tests for each sub ID
-    for _, sub_id in ipairs(suite_data.suite.postfixes) do
-      local new_suite_positions = vim.deepcopy(suite_position, true)
-      new_suite_positions.suite.name = string.format("%s/%s", new_suite_positions.suite.name, sub_id)
-      local suite_tree = build_suite_tree(new_suite_positions, executable)
-      table.insert(structure, suite_tree)
+    local suite_type = suite_type_from_suite(suite_definition)
+    local suite_positions = {}
+    if suite_type == "Suite" then
+      suite_positions = build_normal_suite_structure(executable, suite_definition, tests)
+    elseif suite_type == "ParameterizedSuite" then
+      ---@cast suite_definition ParameterizedSuite
+      suite_positions = build_parameterized_suite_structure(executable, suite_definition, tests)
+    elseif suite_type == "TypedSuite" then
+      ---@cast suite_definition TypedSuite
+      suite_positions = build_typed_suite_structure(executable, suite_definition, tests)
+    elseif suite_type == "ParameterizedTypedSuite" then
+      ---@cast suite_definition ParameterizedTypedSuite
+      suite_positions = build_parameterized_typed_suite_structure(executable, suite_definition, tests)
+    else
+      vim.notify_once("Unrecognized suite type for suite " .. suite_name, vim.log.levels.DEBUG)
+      goto continue
     end
 
+    vim.list_extend(all_suite_positions, suite_positions)
     ::continue::
   end
+
+  table.sort(all_suite_positions, function(a, b)
+    return a.suite.name < b.suite.name
+  end)
+
+  for _, positions in ipairs(all_suite_positions) do
+    local position = positions.tests
+    table.insert(position, 1, positions.suite)
+    table.insert(structure, position)
+  end
+
   return structure
 end
 
@@ -289,241 +762,6 @@ end
 ---@return boolean is_gtest_test If the target is a GTest test.
 function M.is_gtest_test(target)
   return target.name:match("_gtest$")
-end
-
---- Parses the name of a GTest suite into its component parts.
----@param suite table<string, any> The GTest suite to parse.
----@return string? prefix, string? name, string? postfix Maybe the prefix, name, and postfix, in that order. The name will only be nil if there was an error parsing.
-local function parse_gtest_suite_name(suite)
-  -- The parts might be
-  --  a. suite
-  --  b. suite/postfix
-  --  c. prefix/suite
-  --  d. prefix/suite/postfix
-  local suite_name_parts = vim.fn.split(suite.name, "/")
-
-  local prefix = nil
-  local suite_id = nil
-  local postfix = nil
-
-  if #suite_name_parts == 1 then
-    suite_id = suite_name_parts[1]
-  elseif #suite_name_parts == 2 then
-    if #suite.testsuite > 0 then -- If there are no tests, we don't really care about the suite
-      -- Parameterized tests (tests with a prefix) will have a value_param as part of the tests in their testsuite
-      if suite.testsuite[1].value_param ~= nil then
-        prefix = suite_name_parts[1]
-        suite_id = suite_name_parts[2]
-      else
-        suite_id = suite_name_parts[1]
-        postfix = suite_name_parts[2]
-      end
-    end
-  elseif suite_name_parts == 3 then
-    prefix = suite_name_parts[1]
-    suite_id = suite_name_parts[2]
-    postfix = suite_name_parts[3]
-  end
-  return prefix, suite_id, postfix
-end
-
----@class Suite A suite with no additional parameters or values. They have no prefix nor postfix.
----@field name string The name of the suite.
----@field tests table<string> A set of the tests in the suite.
-
----@class ParameterizedSuite: Suite A suite with parameterized arguments. They have a prefix, but the postfix is added to the individual tests instead.
----@field value_parameters string[] Value parameter IDs to values. The postfix of each test can identify the parameter.
-
----@class TypedSuite: Suite A suite with using a known set of types. They have a postfix, but no prefix.
----@field type_parameters string[] Type parameter IDs to types. The postfix can identify the parameter.
-
----@class ParameterizedTypedSuite: Suite A suite with parameterized types. The have a prefix and a postfix.
----@field parameterized_type_parameters table<ParameterizedTestSuiteParamKey, string> Type parameter IDs to types. Both the prefix and postfix are required to identify the parameter.
-
----@class ParameterizedTestSuiteParamKey Identifies a specific type parameter for a ParameterizedTypedSuite.
----@field prefix string
----@field postfix string
-
---- Parses a normal Suite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry Suite The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-local function parse_normal_suite(testsuite, suite_entry, files)
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-  end
-end
-
---- Parses a ParameterizedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry ParameterizedSuite The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-local function parse_parameterized_suite(testsuite, suite_entry, files)
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-
-    local test_parts = vim.split(test.name, "/")
-    assert(#test_parts == 2, "ParameterizedSuite test names should consist of a name and an index, e.g. `SomeTest/0`")
-    suite_entry.tests[test_parts[1]] = true
-    local index = tonumber(test_parts[2])
-    assert(index ~= nil, "Index should be a number")
-    if suite_entry.value_parameters[index] == nil then
-      suite_entry.value_parameters[index] = test.value_param
-    end
-    assert(
-      suite_entry.value_parameters[index] == test.value_param,
-      "Not all tests had the same value_param at the same index"
-    )
-  end
-end
-
---- Parses a TypedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry TypedSuite The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-local function parse_typed_suite(testsuite, suite_entry, files, postfix)
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-    if suite_entry.type_parameters[postfix] == nil then
-      suite_entry.type_parameters[postfix] = test.type_param
-    end
-    assert(
-      suite_entry.type_parameters[postfix] == test.type_param,
-      "All tests in a suite with the same index should have the same type_param"
-    )
-  end
-end
-
---- Parses a ParameterizedTypedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry ParameterizedTypedSuite The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-local function parse_parameterized_typed_suite(testsuite, suite_entry, files, prefix, postfix)
-  ---@type ParameterizedTestSuiteParamKey
-  local key = { prefix = prefix, postfix = postfix }
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-    if suite_entry.parameterized_type_parameters[key] == nil then
-      suite_entry.parameterized_type_parameters[key] = test.type_param
-    end
-    assert(
-      suite_entry.parameterized_type_parameters[key] == test.type_param,
-      "All tests in a suite with the same key should have the same type_param"
-    )
-  end
-end
-
---- Determines the type for a suite.
----@param suite table The suite to check.
----@return nil | "Suite" | "ParameterizedSuite" |  "TypedSuite" |  "ParameterizedTypedSuite" suite_type The type of the suite. nil if it is not a suite.
-local function suite_type_from_suite(suite)
-  if suite.name == nil then
-    return nil
-  end
-
-  if suite.value_parameters ~= nil then
-    return "ParameterizedSuite"
-  end
-
-  if suite.type_parameters ~= nil then
-    return "TypedSuite"
-  end
-
-  if suite.parameterized_type_parameters ~= nil then
-    return "ParameterizedTypedSuite"
-  end
-
-  return "Suite"
-end
-
---- Identifies a suite type just from its ID parts.
----@param prefix string? The prefix of the suite.
----@param postfix string? The postfix of the suite.
----@return nil | "Suite" | "ParameterizedSuite" |  "TypedSuite" |  "ParameterizedTypedSuite" suite_type The type of the suite. nil if it is not a suite.
-local function suite_type_from_id_parts(prefix, postfix)
-  if prefix == nil and postfix == nil then
-    return "Suite"
-  end
-  if prefix ~= nil and postfix == nil then
-    return "ParameterizedSuite"
-  end
-  if prefix == nil and postfix ~= nil then
-    return "TypedSuite"
-  end
-  if prefix ~= nil and postfix ~= nil then
-    return "ParameterizedTypedSuite"
-  end
-  return nil
-end
-
---- Parses suites for an executable out of an executable's GTest data.
----@param test_data table The GTest data for the test.
----@return table<string, Suite> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
-local function parse_executable_suites(test_data)
-  ---@type table<string, Suite> Suite IDs to Suite.
-  local suites = {}
-  ---@type table<string> Files used by suites
-  local executable_files = {}
-  for _, suite in ipairs(test_data.testsuites) do
-    local prefix, suite_id, postfix = parse_gtest_suite_name(suite)
-    if suite_id == nil then
-      goto continue
-    end
-
-    local suite_type = suite_type_from_id_parts(prefix, postfix)
-    if suite_type == nil then
-      vim.notify("Could not identify suite type for " .. suite, vim.log.levels.ERROR)
-      goto continue
-    end
-
-    local suite_entry = suites[suite_id]
-    if suite_entry == nil then
-      -- Doesn't exist; create a new one
-      suite_entry = {
-        name = suite_id,
-        tests = {},
-      }
-
-      if suite_type == "ParameterizedSuite" then
-        ---@cast suite_entry ParameterizedSuite
-        suite_entry.value_parameters = {}
-      elseif suite_type == "TypedSuite" then
-        ---@cast suite_entry TypedSuite
-        suite_entry.type_parameters = {}
-      elseif suite_type == "ParameterizedTypedSuite" then
-        ---@cast suite_entry ParameterizedTypedSuite
-        suite_entry.parameterized_type_parameters = {}
-      end
-
-      suites[suite_id] = suite_entry
-    end
-    if suite_type ~= suite_type_from_suite(suite_entry) then
-      vim.notify(
-        "Suite type for " .. suite_entry.name .. " did not have the same test type for all tests. Skipping.",
-        vim.log.levels.WARN
-      )
-      goto continue
-    end
-
-    if suite_type == "Suite" then
-      parse_normal_suite(suite.testsuite, suite_entry, executable_files)
-    elseif suite_type == "ParameterizedSuite" then
-      ---@cast suite_entry ParameterizedSuite
-      parse_parameterized_suite(suite.testsuite, suite_entry, executable_files)
-    elseif suite_type == "TypedSuite" then
-      ---@cast suite_entry TypedSuite
-      parse_typed_suite(suite.testsuite, suite_entry, executable_files, postfix)
-    elseif suite_type == "ParameterizedTypedSuite" then
-      ---@cast suite_entry ParameterizedTypedSuite
-      parse_parameterized_typed_suite(suite.testsuite, suite_entry, executable_files, prefix, postfix)
-    end
-    ::continue::
-  end
-
-  return suites, executable_files
 end
 
 --- Refreshes the list of test executables.
