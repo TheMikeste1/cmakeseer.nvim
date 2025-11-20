@@ -1,5 +1,7 @@
 local Cmakeseer = require("cmakeseer")
 
+-- TODO: Add tags to all templates
+
 local function builder()
   --- @type overseer.TaskDefinition
   local task = {
@@ -21,7 +23,7 @@ local function builder()
     table.insert(task.components, #task.components - 1, {
       "dependencies",
       task_names = {
-        require("overseer.template.cmakeseer.cmake_configure").name,
+        require("overseer.cmakeseer.template.cmake_configure").name,
       },
     })
   end

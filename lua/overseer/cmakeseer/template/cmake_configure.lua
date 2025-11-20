@@ -1,5 +1,4 @@
---- @module "overseer.template"
-
+local overseer = require("overseer")
 local Cmakeseer = require("cmakeseer")
 
 --- @return overseer.TaskDefinition
@@ -23,5 +22,6 @@ end
 return {
   name = "CMake Configure",
   desc = "Configure the current CMake projects",
+  tags = { overseer.TAG.BUILD },
   builder = builder,
 }

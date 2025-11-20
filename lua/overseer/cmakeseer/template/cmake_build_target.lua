@@ -1,5 +1,5 @@
 local Cmakeseer = require("cmakeseer")
-local CmakeseerOverseerBuild = require("overseer.template.cmakeseer.cmake_build")
+local CmakeseerOverseerBuild = require("overseer.cmakeseer.template.cmake_build")
 
 --- @return overseer.TaskDefinition
 local function builder(params)

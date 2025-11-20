@@ -1,7 +1,7 @@
 ---@module "overseer.template"
 
 local Cmakeseer = require("cmakeseer")
-local CmakeseerOverseerBuild = require("overseer.template.cmakeseer.cmake_build")
+local CmakeseerOverseerBuild = require("overseer.cmakeseer.template.cmake_build")
 local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 local M = {}

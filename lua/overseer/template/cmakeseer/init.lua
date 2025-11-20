@@ -16,29 +16,31 @@ return {
   name = "CMakeSeer",
   module = "cmakeseer",
   generator = function(search, cb)
+    if vim.fn.filereadable(vim.fs.joinpath(search.dir, "CMakeLists.txt")) == 0 and not Cmakeseer.is_cmake_project() then
+      return
+    end
+
     local templates = {
-      -- TODO: Add cmake_build_target for each target (maybe provide an option)
-      -- Also provide one for the currently selected target.
-      require("overseer.template.cmakeseer.cmake_build"),
-      require("overseer.template.cmakeseer.cmake_build_target"),
-      require("overseer.template.cmakeseer.cmake_clean"),
-      require("overseer.template.cmakeseer.cmake_clean_rebuild"),
-      require("overseer.template.cmakeseer.cmake_configure"),
-      require("overseer.template.cmakeseer.cmake_configure_fresh"),
-      require("overseer.template.cmakeseer.cmake_install"),
+      -- TODO: Allow users to select a target and provide a template for that target
+      require("overseer.cmakeseer.template.cmake_build"),
+      require("overseer.cmakeseer.template.cmake_configure"),
     }
 
-    local target_templates = generate_build_targets()
-    templates = Utils.merge_arrays(templates, target_templates)
+    if Cmakeseer.project_is_configured() then
+      vim.list_extend(templates, {
+        require("overseer.cmakeseer.template.cmake_build_target"),
+        require("overseer.cmakeseer.template.cmake_clean"),
+        require("overseer.cmakeseer.template.cmake_clean_rebuild"),
+        require("overseer.cmakeseer.template.cmake_configure_fresh"),
+        require("overseer.cmakeseer.template.cmake_install"),
+      })
+      local target_templates = generate_build_targets()
+      templates = vim.list_extend(templates, target_templates)
+    end
 
     cb(templates)
   end,
-  condition = {
-    callback = function(search)
-      return vim.fn.filereadable(vim.fs.joinpath(search.dir, "CMakeLists.txt")) ~= 0 or Cmakeseer.is_cmake_project()
-    end,
-  },
-  cache_key = function(opts)
+  cache_key = function(_)
     return vim.fs.joinpath(Cmakeseer.get_build_directory(), "CMakeCache.txt")
   end,
 }

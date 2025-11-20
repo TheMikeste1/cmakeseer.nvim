@@ -14,6 +14,7 @@ end
 ---@param b T[] The second array.
 ---@return T[] merged_array The merged array.
 function M.merge_arrays(a, b)
+  vim.notify_once("cmakeseer.utils.merge_arrays is deprecated. Use vim.list_extend instead")
   if a == nil then
     return b
   end
