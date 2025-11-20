@@ -1,3 +1,4 @@
+---@module "overseer"
 local Cmakeseer = require("cmakeseer")
 
 -- TODO: Add tags to all templates
@@ -10,6 +11,7 @@ local function builder()
     args = Cmakeseer.get_build_args(),
     components = {
       "cmakeseer.configure_hooks",
+      "cmakeseer.build_hooks",
       {
         "unique",
         restart_interrupts = false,
