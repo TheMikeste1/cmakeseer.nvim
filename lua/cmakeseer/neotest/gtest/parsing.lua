@@ -1,3 +1,5 @@
+local Suite = require("cmakeseer.neotest.gtest.suite")
+
 --- Parses the name of a GTest suite into its component parts.
 ---@param suite table<string, any> The GTest suite to parse.
 ---@return string? prefix, string? name, string? postfix Maybe the prefix, name, and postfix, in that order. The name will only be nil if there was an error parsing.
@@ -117,8 +119,6 @@ end
 ---@param test_data table The GTest data for the test.
 ---@return table<string, cmakeseer.neotest.gtest.suite.Basic> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
 function M.parse_executable_suites(test_data)
-  local Suite = require("cmakeseer.neotest.gtest.suite")
-
   ---@type table<string, cmakeseer.neotest.gtest.suite.Basic> Suite IDs to Suite.
   local suites = {}
   ---@type table<string> Files used by suites
@@ -138,42 +138,37 @@ function M.parse_executable_suites(test_data)
     local suite_entry = suites[suite_id]
     if suite_entry == nil then
       -- Doesn't exist; create a new one
-      suite_entry = {
-        name = suite_id,
-        tests = {},
-      }
-
-      if suite_type == "ParameterizedSuite" then
-        ---@cast suite_entry cmakeseer.neotest.gtest.suite.Parameterized
-        suite_entry.value_parameters = {}
-      elseif suite_type == "TypedSuite" then
-        ---@cast suite_entry cmakeseer.neotest.gtest.suite.Typed
-        suite_entry.type_parameters = {}
-      elseif suite_type == "ParameterizedTypedSuite" then
-        ---@cast suite_entry cmakeseer.neotest.gtest.suite.ParameterizedTyped
-        suite_entry.parameterized_type_parameters = {}
+      if suite_type == Suite.Type.Basic then
+        suite_entry = Suite.Basic:new({ name = suite_id })
+      elseif suite_type == Suite.Type.Parameterized then
+        suite_entry = Suite.Parameterized:new({ name = suite_id })
+      elseif suite_type == Suite.Type.Typed then
+        suite_entry = Suite.Typed:new({ name = suite_id })
+      elseif suite_type == Suite.Type.ParameterizedTyped then
+        suite_entry = Suite.ParameterizedTyped:new({ name = suite_id })
       end
 
+      assert(suite_entry ~= nil)
       suites[suite_id] = suite_entry
     end
 
     if suite_type ~= Suite.type_from_suite(suite_entry) then
-      vim.notify(
+      vim.notify_once(
         "Suite type for " .. suite_entry.name .. " did not have the same test type for all tests. Skipping.",
         vim.log.levels.WARN
       )
       goto continue
     end
 
-    if suite_type == "Suite" then
-      M.parse_basic_suite(suite.testsuite, suite_entry, executable_files)
-    elseif suite_type == "ParameterizedSuite" then
+    if suite_type == Suite.Type.Basic then
+      M.parse_basic_suite              (suite.testsuite, suite_entry, executable_files)
+    elseif suite_type == Suite.Type.Parameterized then
       ---@cast suite_entry cmakeseer.neotest.gtest.suite.Parameterized
-      M.parse_parameterized_suite(suite.testsuite, suite_entry, executable_files, prefix)
-    elseif suite_type == "TypedSuite" then
+      M.parse_parameterized_suite      (suite.testsuite, suite_entry, executable_files, prefix)
+    elseif suite_type == Suite.Type.Typed then
       ---@cast suite_entry cmakeseer.neotest.gtest.suite.Typed
-      M.parse_typed_suite(suite.testsuite, suite_entry, executable_files, postfix)
-    elseif suite_type == "ParameterizedTypedSuite" then
+      M.parse_typed_suite              (suite.testsuite, suite_entry, executable_files, postfix)
+    elseif suite_type == Suite.Type.ParameterizedTyped then
       ---@cast suite_entry cmakeseer.neotest.gtest.suite.ParameterizedTyped
       M.parse_parameterized_typed_suite(suite.testsuite, suite_entry, executable_files, prefix, postfix)
     end
