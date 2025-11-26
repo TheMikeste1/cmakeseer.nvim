@@ -243,6 +243,7 @@ end
 --- Builds the structure tree for GTests.
 ---@param executable string The path to the executable containing the tests.
 ---@param queried_tests table<string, cmakeseer.neotest.gtest.treesitter.CapturedTest[]> The queried tests for the entire executable.
+---@param suites table<string, table<cmakeseer.neotest.gtest.suite.Type, cmakeseer.neotest.gtest.suite.Basic>> The known GTest suites.
 ---@return any[] structure The recursive tree structure representing the tests.
 function M.build(executable, queried_tests, suites)
   --  - Executable
@@ -261,32 +262,66 @@ function M.build(executable, queried_tests, suites)
 
   local all_suite_positions = {}
   for suite_name, tests in pairs(queried_tests) do
-    local suite_definition = suites[suite_name]
-    if suite_definition == nil then
+    local suite_definitions = suites[suite_name]
+    if suite_definitions == nil then
       -- We don't know about this suite yet
       -- We could probably do something with it though. . .
       goto continue
     end
 
-    local suite_type = Suite.type_from_suite(suite_definition)
-    local suite_positions = {}
-    if suite_type == Suite.Type.Basic then
-      suite_positions = build_basic_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == Suite.Type.Parameterized then
-      ---@cast suite_definition cmakeseer.neotest.gtest.suite.Parameterized
-      suite_positions = build_parameterized_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == Suite.Type.Typed then
-      ---@cast suite_definition cmakeseer.neotest.gtest.suite.Typed
-      suite_positions = build_typed_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == Suite.Type.ParameterizedTyped then
-      ---@cast suite_definition cmakeseer.neotest.gtest.suite.ParameterizedTyped
-      suite_positions = build_parameterized_typed_suite_structure(executable, suite_definition, tests)
-    else
-      vim.notify_once("Unrecognized suite type for suite " .. suite_name, vim.log.levels.DEBUG)
-      goto continue
+    local tests_by_type = {
+      [Suite.Type.Basic] = {},
+      [Suite.Type.Parameterized] = {},
+      [Suite.Type.ParameterizedTyped] = {},
+      [Suite.Type.Typed] = {},
+    }
+    for _, test in ipairs(tests) do
+      if test.type == "TEST" or test.type == "TEST_F" then
+        table.insert(tests_by_type[Suite.Type.Basic], test)
+      elseif test.type == "TEST_P" then
+        table.insert(tests_by_type[Suite.Type.Parameterized], test)
+      elseif test.type == "TYPED_TEST_P" then
+        table.insert(tests_by_type[Suite.Type.ParameterizedTyped], test)
+      elseif test.type == "TYPED_TEST" then
+        table.insert(tests_by_type[Suite.Type.Typed], test)
+      else
+        vim.notify(
+          string.format(
+            "Unrecognized test type %s for test %s::%s at %s:%d",
+            test.type,
+            test.suite,
+            test.name,
+            test.filepath,
+            test.range[1]
+          ),
+          vim.log.levels.WARN
+        )
+      end
     end
 
-    vim.list_extend(all_suite_positions, suite_positions)
+    for suite_type, suite_definition in pairs(suite_definitions) do
+      local suite_tests = tests_by_type[suite_type]
+      local suite_positions = {}
+      if suite_type == Suite.Type.Basic then
+        suite_positions = build_basic_suite_structure(executable, suite_definition, suite_tests)
+      elseif suite_type == Suite.Type.Parameterized then
+        ---@cast suite_definition cmakeseer.neotest.gtest.suite.Parameterized
+        suite_positions = build_parameterized_suite_structure(executable, suite_definition, suite_tests)
+      elseif suite_type == Suite.Type.Typed then
+        ---@cast suite_definition cmakeseer.neotest.gtest.suite.Typed
+        suite_positions = build_typed_suite_structure(executable, suite_definition, suite_tests)
+      elseif suite_type == Suite.Type.ParameterizedTyped then
+        ---@cast suite_definition cmakeseer.neotest.gtest.suite.ParameterizedTyped
+        suite_positions = build_parameterized_typed_suite_structure(executable, suite_definition, suite_tests)
+      else
+        vim.notify_once("Unrecognized suite type for suite " .. suite_name, vim.log.levels.DEBUG)
+        goto continue
+      end
+
+      vim.list_extend(all_suite_positions, suite_positions)
+      ::continue::
+    end
+
     ::continue::
   end
 

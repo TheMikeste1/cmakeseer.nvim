@@ -44,7 +44,7 @@ local M = {}
 ---@param test_data table The GTest data for the test.
 ---@return table<string, cmakeseer.neotest.gtest.suite.Basic> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
 function M.parse_executable_suites(test_data)
-  ---@type table<string, cmakeseer.neotest.gtest.suite.Basic> Suite IDs to Suite.
+  ---@type table<string, table<cmakeseer.neotest.gtest.suite.Type, cmakeseer.neotest.gtest.suite.Basic> > Suite IDs to Suite.
   local suites = {}
   ---@type table<string> Files used by suites
   local executable_files = {}
@@ -60,7 +60,8 @@ function M.parse_executable_suites(test_data)
       goto continue
     end
 
-    local suite_entry = suites[suite_id]
+    suites[suite_id] = suites[suite_id] or {}
+    local suite_entry = suites[suite_id][suite_type]
     if suite_entry == nil then
       -- Doesn't exist; create a new one
       if suite_type == Suite.Type.Basic then
@@ -74,15 +75,7 @@ function M.parse_executable_suites(test_data)
       end
 
       assert(suite_entry ~= nil)
-      suites[suite_id] = suite_entry
-    end
-
-    if suite_type ~= Suite.type_from_suite(suite_entry) then
-      vim.notify_once(
-        "Suite type for " .. suite_entry.name .. " did not have the same test type for all tests. Skipping.",
-        vim.log.levels.WARN
-      )
-      goto continue
+      suites[suite_id][suite_type] = suite_entry
     end
 
     suite_entry:parse_add_gtests(suite.testsuite, executable_files, prefix, postfix)

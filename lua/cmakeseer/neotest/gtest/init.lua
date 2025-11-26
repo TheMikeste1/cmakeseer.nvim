@@ -18,7 +18,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 local g_executable_files = {}
 ---@type table<string> Set of test directories.
 local g_test_dirs = {}
----@type table<string, table<string, cmakeseer.neotest.gtest.suite.Basic>> Executables to suite names to Suites.
+---@type table<string, table<string, table<cmakeseer.neotest.gtest.suite.Type, cmakeseer.neotest.gtest.suite.Basic>>> Executables to suite names to Suites.
 local g_test_executables_suites = {}
 
 -- TODO: Have the plugin subscribe to build events
@@ -113,8 +113,8 @@ local function refresh_test_directories()
   -- TODO: Almost all CWD calls actually probably need to be the project root instead. . .
   local cwd = vim.fn.getcwd()
   g_test_dirs[cwd] = true
-  for file, _ in pairs(g_test_executables_suites) do
-    local path = vim.fn.fnamemodify(file, ":h")
+  for executable, _ in pairs(g_test_executables_suites) do
+    local path = vim.fn.fnamemodify(executable, ":h")
     if path:sub(1, #cwd) ~= cwd then
       vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
       goto continue
