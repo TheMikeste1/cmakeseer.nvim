@@ -273,7 +273,6 @@ function M.discover_positions(executable_path)
   end
 
   local suites = g_test_executables_suites[executable_path]
-  assert(suites ~= nil)
   if suites == nil then
     vim.notify_once("No suites detected for " .. executable_path, vim.log.levels.WARN)
     return nil
@@ -313,7 +312,6 @@ function M.build_spec(args)
     id = id,
     output_file = output_file,
   }
-
   local spec = nil
   if #id_parts == 1 then
     -- This is a file
@@ -345,10 +343,10 @@ function M.build_spec(args)
 
     local suite_type = Suite.type_from_suite(suite)
     if
-      suite_type == "Suite"
-      or suite_type == "ParameterizedSuite"
-      or (suite_type == "TypedSuite" and #suite_parts == 2)
-      or (suite_type == "ParameterizedTypedSuite" and #suite_parts == 3)
+      suite_type == Suite.Type.Basic
+      or suite_type == Suite.Type.Parameterized
+      or (suite_type == Suite.Type.Typed and #suite_parts == 2)
+      or (suite_type == Suite.Type.ParameterizedTyped and #suite_parts == 3)
     then
       spec = {
         command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
@@ -372,7 +370,7 @@ function M.build_spec(args)
     local suite_type = Suite.type_from_suite(suite)
 
     local test_parts = vim.split(id.test, "/")
-    if suite_type == "ParameterizedSuite" and #test_parts == 1 then
+    if suite_type == Suite.Type.Parameterized and #test_parts == 1 then
       -- We're a ParameterizedSuite and we don't have a specific parameter we're testing for; we'll need to do all
       spec = {
         command = {

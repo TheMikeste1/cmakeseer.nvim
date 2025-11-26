@@ -210,6 +210,21 @@ local function build_typed_suite_structure(executable, suite_definition, tests)
     table.insert(positions, 1, postfix_position)
     table.insert(all_positions, positions)
   end
+
+  if #all_positions == 0 then
+    vim.notify(string.format("No tests found for %s", suite_id), vim.log.levels.WARN)
+    return {
+      suite = {
+        id = suite_id,
+        type = "namespace",
+        name = suite_definition.name,
+        path = executable,
+        range = { 0, 0, 0, 0 },
+      },
+      tests = {},
+    }
+  end
+
   ---@type neotest.Position
   local suite_position = {
     id = suite_id,
@@ -255,15 +270,15 @@ function M.build(executable, queried_tests, suites)
 
     local suite_type = Suite.type_from_suite(suite_definition)
     local suite_positions = {}
-    if suite_type == "Suite" then
+    if suite_type == Suite.Type.Basic then
       suite_positions = build_basic_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == "ParameterizedSuite" then
+    elseif suite_type == Suite.Type.Parameterized then
       ---@cast suite_definition cmakeseer.neotest.gtest.suite.Parameterized
       suite_positions = build_parameterized_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == "TypedSuite" then
+    elseif suite_type == Suite.Type.Typed then
       ---@cast suite_definition cmakeseer.neotest.gtest.suite.Typed
       suite_positions = build_typed_suite_structure(executable, suite_definition, tests)
-    elseif suite_type == "ParameterizedTypedSuite" then
+    elseif suite_type == Suite.Type.ParameterizedTyped then
       ---@cast suite_definition cmakeseer.neotest.gtest.suite.ParameterizedTyped
       suite_positions = build_parameterized_typed_suite_structure(executable, suite_definition, tests)
     else

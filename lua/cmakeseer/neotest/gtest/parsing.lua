@@ -40,81 +40,6 @@ end
 
 local M = {}
 
---- Parses a basic Suite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry cmakeseer.neotest.gtest.suite.Basic The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-function M.parse_basic_suite(testsuite, suite_entry, files)
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-  end
-end
-
---- Parses a ParameterizedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry cmakeseer.neotest.gtest.suite.Parameterized The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-function M.parse_parameterized_suite(testsuite, suite_entry, files, prefix)
-  suite_entry.value_parameters[prefix] = suite_entry.value_parameters[prefix] or {}
-  local params = suite_entry.value_parameters[prefix]
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-
-    local test_parts = vim.split(test.name, "/")
-    assert(#test_parts == 2, "ParameterizedSuite test names should consist of a name and an index, e.g. `SomeTest/0`")
-    suite_entry.tests[test_parts[1]] = true
-    local index = tonumber(test_parts[2])
-    assert(index ~= nil, "Index should be a number")
-    index = index + 1
-    if params[index] == nil then
-      params[index] = test.value_param
-    end
-    assert(params[index] == test.value_param, "Not all tests had the same value_param at the same index")
-  end
-end
-
---- Parses a TypedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry cmakeseer.neotest.gtest.suite.Typed The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-function M.parse_typed_suite(testsuite, suite_entry, files, postfix)
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-    local index = tonumber(postfix)
-    assert(index ~= nil, "Index should be a number")
-    index = index + 1
-    if suite_entry.type_parameters[index] == nil then
-      suite_entry.type_parameters[index] = test.type_param
-    end
-    assert(
-      suite_entry.type_parameters[index] == test.type_param,
-      "All tests in a suite with the same index should have the same type_param"
-    )
-  end
-end
-
---- Parses a ParameterizedTypedSuite.
----@param testsuite table<string, any> The GTest testsuite associated with the suite.
----@param suite_entry cmakeseer.neotest.gtest.suite.ParameterizedTyped The entry to fill with data from this suite.
----@param files table<string> The set of files to populate with files from this suite.
-function M.parse_parameterized_typed_suite(testsuite, suite_entry, files, prefix, postfix)
-  suite_entry.parameterized_type_parameters[prefix] = suite_entry.parameterized_type_parameters[prefix] or {}
-  local params = suite_entry.parameterized_type_parameters[prefix]
-  for _, test in ipairs(testsuite) do
-    files[test.file] = true
-    suite_entry.tests[test.name] = true
-    local index = tonumber(postfix)
-    assert(index ~= nil, "Index should be a number")
-    index = index + 1
-    if params[index] == nil then
-      params[index] = test.type_param
-    end
-    assert(params[index] == test.type_param, "All tests in a suite with the same key should have the same type_param")
-  end
-end
-
 --- Parses suites for an executable out of an executable's GTest data.
 ---@param test_data table The GTest data for the test.
 ---@return table<string, cmakeseer.neotest.gtest.suite.Basic> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
@@ -160,18 +85,7 @@ function M.parse_executable_suites(test_data)
       goto continue
     end
 
-    if suite_type == Suite.Type.Basic then
-      M.parse_basic_suite              (suite.testsuite, suite_entry, executable_files)
-    elseif suite_type == Suite.Type.Parameterized then
-      ---@cast suite_entry cmakeseer.neotest.gtest.suite.Parameterized
-      M.parse_parameterized_suite      (suite.testsuite, suite_entry, executable_files, prefix)
-    elseif suite_type == Suite.Type.Typed then
-      ---@cast suite_entry cmakeseer.neotest.gtest.suite.Typed
-      M.parse_typed_suite              (suite.testsuite, suite_entry, executable_files, postfix)
-    elseif suite_type == Suite.Type.ParameterizedTyped then
-      ---@cast suite_entry cmakeseer.neotest.gtest.suite.ParameterizedTyped
-      M.parse_parameterized_typed_suite(suite.testsuite, suite_entry, executable_files, prefix, postfix)
-    end
+    suite_entry:parse_add_gtests(suite.testsuite, executable_files, prefix, postfix)
     ::continue::
   end
 
