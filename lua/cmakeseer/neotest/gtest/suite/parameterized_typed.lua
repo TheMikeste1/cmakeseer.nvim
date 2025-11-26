@@ -11,7 +11,7 @@ local ParameterizedTyped = Basic:new({
 function ParameterizedTyped:new(o)
   ---@class cmakeseer.neotest.gtest.suite.ParameterizedTyped
   o = Basic.new(self, o)
-  o.type_parameters = o.type_parameters or {}
+  o.parameterized_type_parameters = o.parameterized_type_parameters or {}
   return o
 end
 
@@ -27,7 +27,7 @@ function ParameterizedTyped:parse_add_gtests(testsuite, files, prefix, postfix)
 
   local index = tonumber(postfix)
   if index == nil then
-    vim.notify("Typed suite parse called with invalid postfix: " .. vim.inspect(postfix), vim.log.levels.ERROR)
+    vim.notify("ParameterizedTyped suite parse called with invalid postfix: " .. vim.inspect(postfix), vim.log.levels.ERROR)
     return
   end
 
