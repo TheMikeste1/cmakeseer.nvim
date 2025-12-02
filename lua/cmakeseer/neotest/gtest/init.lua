@@ -292,6 +292,7 @@ end
 function M.build_spec(args)
   local Suite = require("cmakeseer.neotest.gtest.suite")
 
+  -- TODO: Support DAP and other strategies. Check the `strategy` field of `args`.
   local raw_id = args[1]
   local id_parts = vim.fn.split(raw_id, "::")
   local executable = id_parts[1]
