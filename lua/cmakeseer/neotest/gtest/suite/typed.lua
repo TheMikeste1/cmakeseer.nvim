@@ -2,9 +2,7 @@ local Basic = require("cmakeseer.neotest.gtest.suite.basic")
 
 ---@class cmakeseer.neotest.gtest.suite.Typed: cmakeseer.neotest.gtest.suite.Basic A suite with using a known set of types. They have a postfix, but no prefix.
 ---@field type_parameters string[] Type parameter IDs to types. The postfix can identify the parameter.
-local Typed = Basic:new({
-  type_parameters = {},
-})
+local Typed = Basic:new()
 
 ---@param o nil|table Optional table containing initial states.
 ---@return cmakeseer.neotest.gtest.suite.Typed instance A new Typed instance.

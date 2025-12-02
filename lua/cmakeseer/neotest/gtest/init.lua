@@ -201,11 +201,14 @@ function M.refresh_test_executables()
           "Failed to read output for executable %s; cannot detect if it is a gtest. Error: %s",
           executable,
           test_data
-        )
+        ),
+        vim.log.levels.WARN
       )
+      vim.notify(string.format("Deleting cache for %s", executable))
+      vim.fs.rm(test_cmd.cache, { force = true })
       goto continue
     end
-    assert(type(test_data) == "table")
+    assert(type(test_data) == "table", "test_data was not a table")
 
     -- Parse the suites
     local suites, executable_files = require("cmakeseer.neotest.gtest.parsing").parse_executable_suites(test_data)
