@@ -95,7 +95,7 @@ local function generate_executable_commands(targets)
       executable,
       "--gtest_list_tests",
       string.format("--gtest_output=json:%s", cache),
-    }, { timeout = 10 })
+    }, { timeout = 100 })
     if not success then
       vim.notify(string.format("Failed to check %s for gtests", executable), vim.log.levels.ERROR)
       goto continue
@@ -181,7 +181,7 @@ function M.refresh_test_executables()
   for executable, test_cmd in pairs(test_cmds) do
     if test_cmd.cmd ~= nil then
       -- Cache was not used
-      test_cmd.cmd:wait(10)
+      test_cmd.cmd:wait(100)
     end
 
     if vim.fn.filereadable(test_cmd.cache) == 0 then
