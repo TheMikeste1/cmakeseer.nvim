@@ -8,32 +8,6 @@ function M.is_object(obj)
   return type(obj) == "table" and not vim.isarray(obj)
 end
 
---- Merges two arrays into one, leaving duplicates.
----@generic T
----@param a T[] The first array.
----@param b T[] The second array.
----@return T[] merged_array The merged array.
-function M.merge_arrays(a, b)
-  vim.notify_once("cmakeseer.utils.merge_arrays is deprecated. Use vim.list_extend instead")
-  if a == nil then
-    return b
-  end
-  if b == nil then
-    return a
-  end
-
-  local merged_array = {}
-  for _, v in ipairs(a) do
-    table.insert(merged_array, v)
-  end
-
-  for _, v in ipairs(b) do
-    table.insert(merged_array, v)
-  end
-
-  return merged_array
-end
-
 ---@generic T
 ---@param array T[] The array from which to remove duplicates.
 ---@return T[] array The array without duplicates.

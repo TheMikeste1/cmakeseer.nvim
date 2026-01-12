@@ -95,10 +95,10 @@ function M.get_configure_args()
 
   local configure_settings = Settings.get_settings().configureSettings
   local definitions = CmakeUtils.create_definition_strings(configure_settings)
-  args = Utils.merge_arrays(args, definitions)
+  vim.list_extend(args, definitions)
 
   local additional_args = Settings.get_settings().configureArgs
-  args = Utils.merge_arrays(args, additional_args)
+  vim.list_extend(args, additional_args)
   return args
 end
 
@@ -116,9 +116,9 @@ end
 ---@return cmakeseer.Kit[] kits All kits known by CMakeseer.
 function M.get_all_kits()
   local kits = M.__options.kits
-  kits = Utils.merge_arrays(kits, M.__scanned_kits)
+  vim.list_extend(kits, M.__scanned_kits)
   local file_kits = Kit.load_all_kits(M.__options.kit_paths)
-  kits = Utils.merge_arrays(kits, file_kits)
+  vim.list_extend(kits, file_kits)
   kits = Kit.remove_duplicate_kits(kits)
   return kits
 end
@@ -211,7 +211,7 @@ function M.scan_for_kits()
 
   for _, path in ipairs(paths) do
     local new_kits = Kit.scan_for_kits(path)
-    kits = Utils.merge_arrays(kits, new_kits)
+    vim.list_extend(kits, new_kits)
   end
 
   kits = Kit.remove_duplicate_kits(kits)

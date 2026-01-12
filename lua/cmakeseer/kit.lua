@@ -137,7 +137,7 @@ function M.load_all_kits(kit_paths)
   local kits = {}
   for _, file_path in ipairs(kit_paths) do
     local kits_from_file = read_cmakekit_files(file_path)
-    kits = Utils.merge_arrays(kits, kits_from_file)
+    vim.list_extend(kits, kits_from_file)
   end
   return kits
 end
