@@ -1,0 +1,52 @@
+.PHONY: download-dependencies llscheck luacheck stylua test coverage-html clean all coverage-text
+
+# Git will error if the repository already exists. We ignore the error.
+# NOTE: We still print out that we did the clone to the user so that they know.
+#
+ifeq ($(OS),Windows_NT)
+    IGNORE_EXISTING =
+else
+    IGNORE_EXISTING = 2> /dev/null || true
+endif
+
+CONFIGURATION = .luarc.json
+
+download-dependencies:
+	git clone git@github.com:Bilal2453/luvit-meta.git .dependencies/luvit-meta $(IGNORE_EXISTING)
+	git clone git@github.com:ColinKennedy/mega.cmdparse.git .dependencies/mega.cmdparse $(IGNORE_EXISTING)
+	git clone git@github.com:ColinKennedy/mega.logging.git .dependencies/mega.logging $(IGNORE_EXISTING)
+	git clone git@github.com:LuaCATS/busted.git .dependencies/busted $(IGNORE_EXISTING)
+	git clone git@github.com:LuaCATS/luassert.git .dependencies/luassert $(IGNORE_EXISTING)
+	git clone git@github.com:lunarmodules/luacov.git .dependencies/luacov $(IGNORE_EXISTING)
+	git clone git@github.com:luacov/luacov-multiple.git .dependencies/luacov-multiple $(IGNORE_EXISTING)
+
+
+llscheck: download-dependencies
+	VIMRUNTIME="`nvim --clean --headless --cmd 'lua io.write(os.getenv("VIMRUNTIME"))' --cmd 'quit'`" llscheck --configpath $(CONFIGURATION) .
+
+luacheck:
+	luacheck lua plugin scripts spec
+
+check-stylua:
+	stylua lua plugin scripts spec doc --color always --check
+
+stylua:
+	stylua lua plugin scripts spec doc
+
+test: download-dependencies
+	busted .
+
+coverage: download-dependencies
+	nvim -u NONE -U NONE -N -i NONE --headless -c "luafile scripts/luacov.lua" -c "quit"
+	luacov
+
+coverage-text: coverage
+	cat luacov.report.out
+
+coverage-html: coverage
+	luacov --reporter multiple.html
+
+clean:
+	rm -rf .dependencies luacov.stats.out luacov.report.out luacov_html/
+
+all: test llscheck luacheck check-stylua

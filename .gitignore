@@ -39,4 +39,9 @@ luac.out
 *.x86_64
 *.hex
 
-.luarc.json
+# .luarc.json
+
+# Test dependencies
+.dependencies/
+luacov_html/
+luacov.report.out.index
