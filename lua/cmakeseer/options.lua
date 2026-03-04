@@ -27,6 +27,7 @@ function M.default()
     build_directory = "./build",
     default_cmake_settings = {
       configureSettings = {},
+      configureArgs = {},
       kit_name = nil,
     },
     should_scan_path = true,

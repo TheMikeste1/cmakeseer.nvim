@@ -13,6 +13,7 @@ local _settings = nil
 --- @param opts cmakeseer.cmake.api.Options
 function M.setup(opts)
   assert(opts.default_cmake_settings)
+  -- TODO: Validate the default settings are valid
   _default_settings = opts.default_cmake_settings
   _settings = M.get_default_settings()
 end
