@@ -1,6 +1,8 @@
-local Cmakeseer = require("cmakeseer")
+---@module "overseer"
+
 local CmakeseerOverseerConfigure = require("overseer.cmakeseer.template.cmake_configure")
 
+--- @param params table The parameters to the builder.
 --- @return overseer.TaskDefinition
 local function builder(params)
   local config = CmakeseerOverseerConfigure.builder(params)
@@ -15,6 +17,8 @@ return vim.tbl_deep_extend("force", CmakeseerOverseerConfigure, {
   desc = "Freshly configure the current CMake project, deleting the current cache",
   builder = builder,
   condition = {
-    callback = Cmakeseer.project_is_configured,
+    callback = function()
+      return require("cmakeseer").project_is_configured()
+    end,
   },
 })

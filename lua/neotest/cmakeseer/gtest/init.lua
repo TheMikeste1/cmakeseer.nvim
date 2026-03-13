@@ -1,15 +1,15 @@
-local Cmakeseer = require("cmakeseer")
+local CMakeSeer = require("cmakeseer")
 local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
 ---@private
----@class cmakeseer.neotest.gtest.Context
+---@class neotest.cmakeseer.gtest.Context
 ---@field executable string
 ---@field neotest_id string
----@field id cmakeseer.neotest.gtest.TestId
+---@field id neotest.cmakeseer.gtest.TestId
 ---@field output_file string
 
 ---@private
----@class cmakeseer.neotest.gtest.TestId
+---@class neotest.cmakeseer.gtest.TestId
 ---@field executable string
 ---@field suite string?
 ---@field test string?
@@ -18,7 +18,7 @@ local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 local g_executable_files = {}
 ---@type table<string> Set of test directories.
 local g_test_dirs = {}
----@type table<string, table<string, table<cmakeseer.neotest.gtest.suite.Type, cmakeseer.neotest.gtest.suite.Basic>>> Executables to suite names to Suites.
+---@type table<string, table<string, table<neotest.cmakeseer.gtest.suite.Type, neotest.cmakeseer.gtest.suite.Basic>>> Executables to suite names to Suites.
 local g_test_executables_suites = {}
 
 -- TODO: Have the plugin subscribe to build events
@@ -35,10 +35,10 @@ M = {
       return string.match(target.name, "[tT]est") and not M.is_gtest_test(target)
     end,
     cache_directory = function()
-      return vim.fs.joinpath(Cmakeseer.get_build_directory(), ".cache", "cmakeseer", "gtest")
+      return vim.fs.joinpath(CMakeSeer.get_build_directory(), ".cache", "cmakeseer", "gtest")
     end,
   },
-  treesitter = require("cmakeseer.neotest.gtest.treesitter"),
+  treesitter = require("neotest.cmakeseer.gtest.treesitter"),
 }
 
 --- Compares the times of two stat times.
@@ -72,9 +72,10 @@ local function generate_executable_commands(targets)
     assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
     assert(#target.artifacts == 1, "Should only have one artifact for executable")
 
-    local executable = vim.fs.joinpath(Cmakeseer.get_build_directory(), target.artifacts[1].path)
+    local executable = vim.fs.joinpath(CMakeSeer.get_build_directory(), target.artifacts[1].path)
     local cache = vim.fs.joinpath(M.opts.cache_directory(), string.format("%s.json", target.name))
 
+    local skip = false
     local cache_stat = vim.loop.fs_stat(cache)
     if cache_stat ~= nil then
       -- Cache already exists; is it outdated?
@@ -82,27 +83,25 @@ local function generate_executable_commands(targets)
       if exe_stat ~= nil and compares_times(cache_stat.mtime, exe_stat.mtime) == 1 then
         -- Cache is not outdated; use it instead
         test_cmds[executable] = { cache = cache }
-        goto continue
+        skip = true
       end
     end
 
-    -- Does the executable exist?
-    if vim.fn.filereadable(executable) == 0 then
-      goto continue
+    if not skip then
+      -- Does the executable exist?
+      if vim.fn.filereadable(executable) ~= 0 then
+        local success, test_cmd = pcall(vim.system, {
+          executable,
+          "--gtest_list_tests",
+          string.format("--gtest_output=json:%s", cache),
+        }, { timeout = 100 })
+        if not success then
+          vim.notify(string.format("Failed to check %s for gtests", executable), vim.log.levels.ERROR)
+        else
+          test_cmds[executable] = { cmd = test_cmd, cache = cache }
+        end
+      end
     end
-
-    local success, test_cmd = pcall(vim.system, {
-      executable,
-      "--gtest_list_tests",
-      string.format("--gtest_output=json:%s", cache),
-    }, { timeout = 100 })
-    if not success then
-      vim.notify(string.format("Failed to check %s for gtests", executable), vim.log.levels.ERROR)
-      goto continue
-    end
-
-    test_cmds[executable] = { cmd = test_cmd, cache = cache }
-    ::continue::
   end
   return test_cmds
 end
@@ -115,16 +114,14 @@ local function refresh_test_directories()
   g_test_dirs[cwd] = true
   for executable, _ in pairs(g_test_executables_suites) do
     local path = vim.fn.fnamemodify(executable, ":h")
-    if path:sub(1, #cwd) ~= cwd then
+    if path:sub(1, #cwd) == cwd then
+      while #path > #cwd do
+        g_test_dirs[path] = true
+        path = vim.fn.fnamemodify(path, ":h")
+      end
+    else
       vim.notify(string.format("Path `%s` is not in cwd; skipping tests", path), vim.log.levels.WARN)
-      goto continue
     end
-
-    while #path > #cwd do
-      g_test_dirs[path] = true
-      path = vim.fn.fnamemodify(path, ":h")
-    end
-    ::continue::
   end
 end
 
@@ -142,6 +139,7 @@ local function pass_status_test(test)
 end
 
 --- Sets up the adapter.
+---@param opts table
 ---@return neotest.Adapter adapter The adapter.
 function M.setup(opts)
   M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
@@ -166,7 +164,7 @@ end
 ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
 ---@return boolean is_gtest_test If the target is a GTest test.
 function M.is_gtest_test(target)
-  return target.name:match("_gtest$")
+  return target.name:match("_gtest$") ~= nil
 end
 
 --- Refreshes the list of test executables.
@@ -174,7 +172,7 @@ function M.refresh_test_executables()
   ---@type cmakeseer.cmake.api.codemodel.Target[]
   local targets = vim.tbl_filter(function(target)
     return target.type == TargetType.Executable and M.opts.target_filter(target) and M.depends_on_gtest(target)
-  end, Cmakeseer.get_targets())
+  end, CMakeSeer.state.get_targets())
 
   g_test_executables_suites = {}
   local test_cmds = generate_executable_commands(targets)
@@ -184,37 +182,26 @@ function M.refresh_test_executables()
       test_cmd.cmd:wait(100)
     end
 
-    if vim.fn.filereadable(test_cmd.cache) == 0 then
-      goto continue
-    end
+    if vim.fn.filereadable(test_cmd.cache) ~= 0 then
+      local file = io.open(test_cmd.cache, "r")
+      if file ~= nil then
+        local contents = file:read("*a")
+        file:close()
+        local success, test_data = pcall(vim.json.decode, contents)
+        if not success then
+          vim.notify(string.format("Failed to read output for executable %s; cannot detect if it is a gtest. Error: %s", executable, test_data), vim.log.levels.WARN)
+          vim.notify(string.format("Deleting cache for %s", executable))
+          vim.fs.rm(test_cmd.cache, { force = true })
+        else
+          assert(type(test_data) == "table", "test_data was not a table")
 
-    local file = io.open(test_cmd.cache, "r")
-    if file == nil then
-      goto continue
+          -- Parse the suites
+          local suites, executable_files = require("neotest.cmakeseer.gtest.parsing").parse_executable_suites(test_data)
+          g_test_executables_suites[executable] = suites
+          g_executable_files[executable] = executable_files
+        end
+      end
     end
-    local contents = file:read("*a")
-    file:close()
-    local success, test_data = pcall(vim.json.decode, contents)
-    if not success then
-      vim.notify(
-        string.format(
-          "Failed to read output for executable %s; cannot detect if it is a gtest. Error: %s",
-          executable,
-          test_data
-        ),
-        vim.log.levels.WARN
-      )
-      vim.notify(string.format("Deleting cache for %s", executable))
-      vim.fs.rm(test_cmd.cache, { force = true })
-      goto continue
-    end
-    assert(type(test_data) == "table", "test_data was not a table")
-
-    -- Parse the suites
-    local suites, executable_files = require("cmakeseer.neotest.gtest.parsing").parse_executable_suites(test_data)
-    g_test_executables_suites[executable] = suites
-    g_executable_files[executable] = executable_files
-    ::continue::
   end
 
   -- Enumerate all the test directories
@@ -254,25 +241,25 @@ end
 ---@param executable_path string Absolute file path to the executable.
 ---@return neotest.Tree | nil
 function M.discover_positions(executable_path)
-  ---@type table<string, cmakeseer.neotest.gtest.treesitter.CapturedTest[]>
+  ---@type table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>
   local suite_tests = {}
   local executable_files = g_executable_files[executable_path]
+  if not executable_files then
+    return nil
+  end
   for file, _ in pairs(executable_files) do
     local queried_tests = M.treesitter.query_tests(file)
     if type(queried_tests) == "string" then
       vim.notify(string.format("Failed to find positions in %s: %s", file, queried_tests), vim.log.levels.ERROR)
-      goto continue
-    end
-
-    for suite, tests in pairs(queried_tests) do
-      if suite_tests[suite] ~= nil then
-        vim.list_extend(suite_tests[suite], tests)
-      else
-        suite_tests[suite] = tests
+    else
+      for suite, tests in pairs(queried_tests) do
+        if suite_tests[suite] ~= nil then
+          vim.list_extend(suite_tests[suite], tests)
+        else
+          suite_tests[suite] = tests
+        end
       end
     end
-
-    ::continue::
   end
 
   local suites = g_test_executables_suites[executable_path]
@@ -280,7 +267,7 @@ function M.discover_positions(executable_path)
     vim.notify_once("No suites detected for " .. executable_path, vim.log.levels.WARN)
     return nil
   end
-  local structure = require("cmakeseer.neotest.gtest.structure").build(executable_path, suite_tests, suites)
+  local structure = require("neotest.cmakeseer.gtest.structure").build(executable_path, suite_tests, suites)
   local tree = require("neotest.types.tree").from_list(structure, function(pos)
     return pos.id
   end)
@@ -290,7 +277,7 @@ end
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 function M.build_spec(args)
-  local Suite = require("cmakeseer.neotest.gtest.suite")
+  local Suite = require("neotest.cmakeseer.gtest.suite")
 
   -- TODO: Support DAP and other strategies. Check the `strategy` field of `args`.
   local raw_id = args[1]
@@ -301,7 +288,7 @@ function M.build_spec(args)
     return nil
   end
 
-  ---@type cmakeseer.neotest.gtest.TestId
+  ---@type neotest.cmakeseer.gtest.TestId
   local id = {
     executable = id_parts[1],
     suite = id_parts[2],
@@ -309,7 +296,7 @@ function M.build_spec(args)
   }
 
   local output_file = vim.fs.joinpath(M.opts.cache_directory(), "results.json")
-  ---@type cmakeseer.neotest.gtest.Context
+  ---@type neotest.cmakeseer.gtest.Context
   local context = {
     executable = executable,
     neotest_id = raw_id,
@@ -325,14 +312,19 @@ function M.build_spec(args)
   elseif #id_parts == 2 then
     -- This is a suite
     local suites = g_test_executables_suites[id.executable]
+    if suites == nil then
+      vim.notify("Cannot find tests for " .. tostring(id.executable))
+      return nil
+    end
 
     local suite_name = id.suite
+    ---@cast suite_name string
     local suite_parts = vim.split(suite_name, "/")
     if #suite_parts >= 2 then
       suite_name = suite_parts[2]
     end
 
-    ---@type cmakeseer.neotest.gtest.suite.Basic
+    ---@type neotest.cmakeseer.gtest.suite.Basic
     local suite = suites[suite_name]
     if suite == nil then
       -- TODO: Better suite name detection
@@ -346,12 +338,7 @@ function M.build_spec(args)
     end
 
     local suite_type = Suite.type_from_suite(suite)
-    if
-      suite_type == Suite.Type.Basic
-      or suite_type == Suite.Type.Parameterized
-      or (suite_type == Suite.Type.Typed and #suite_parts == 2)
-      or (suite_type == Suite.Type.ParameterizedTyped and #suite_parts == 3)
-    then
+    if suite_type == Suite.Type.Basic or suite_type == Suite.Type.Parameterized or (suite_type == Suite.Type.Typed and #suite_parts == 2) or (suite_type == Suite.Type.ParameterizedTyped and #suite_parts == 3) then
       spec = {
         command = { executable, string.format("--gtest_filter=%s.*", id.suite) },
       }
@@ -363,13 +350,18 @@ function M.build_spec(args)
   elseif #id_parts == 3 then
     -- This is an individual test
     local suites = g_test_executables_suites[id.executable]
+    if suites == nil then
+      vim.notify("Cannot find tests for " .. tostring(id.executable))
+      return nil
+    end
 
     local suite_name = id.suite
+    assert(suite_name ~= nil) -- TODO: Validate this is a good assert
     local suite_parts = vim.split(suite_name, "/")
     if #suite_parts >= 2 then
       suite_name = suite_parts[2]
     end
-    ---@type cmakeseer.neotest.gtest.suite.Basic
+    ---@type neotest.cmakeseer.gtest.suite.Basic
     local suite = suites[suite_name]
     local suite_type = Suite.type_from_suite(suite)
 
@@ -414,7 +406,7 @@ function M.results(spec, result, _)
 
   _ = result
 
-  ---@type cmakeseer.neotest.gtest.Context
+  ---@type neotest.cmakeseer.gtest.Context
   local context = spec.context
   local fin = io.open(context.output_file, "r")
   if fin == nil then

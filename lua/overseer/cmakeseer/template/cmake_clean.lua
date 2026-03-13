@@ -1,11 +1,10 @@
-local Cmakeseer = require("cmakeseer")
-
 local function builder()
+  local CMakeSeer = require("cmakeseer")
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Clean",
-    cmd = Cmakeseer.cmake_command(),
-    args = Cmakeseer.get_build_args(),
+    cmd = CMakeSeer.cmake_command(),
+    args = CMakeSeer.get_build_args(),
   }
 
   table.insert(task.args, "--target")
@@ -19,6 +18,8 @@ return {
   desc = "Cleans the CMake build directory",
   builder = builder,
   condition = {
-    callback = Cmakeseer.project_is_configured,
+    callback = function()
+      return require("cmakeseer").project_is_configured()
+    end,
   },
 }

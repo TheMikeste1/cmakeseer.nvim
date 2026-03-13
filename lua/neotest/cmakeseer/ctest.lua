@@ -1,6 +1,6 @@
 local NeotestTypes = require("neotest.types")
 local NeotestLib = require("neotest.lib")
-local Cmakeseer = require("cmakeseer")
+local CMakeSeer = require("cmakeseer")
 
 ---@type table<string, neotest.Result>
 local g_test_results = {}
@@ -17,14 +17,14 @@ end
 ---@return string[] command The command that fails.
 local function __generate_test_command(test)
   local escaped_test_name = __escape_regex(test.name)
-  return { "ctest", "--test-dir", Cmakeseer.get_build_directory(), "-R", escaped_test_name }
+  return { "ctest", "--test-dir", CMakeSeer.get_build_directory(), "-R", escaped_test_name }
 end
 
 ---@private
 ---@param file_path string The absolute path to the file whose nodes should be fetched.
 ---@return [number, cmakeseer.cmake.api.Node]? maybe_nodes The nodes associated with the file. Nil if the file isn't recognized.
 local function __get_nodes_for_file(file_path)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return nil
   end
@@ -60,7 +60,7 @@ end
 ---@param file string The name of the file containing the tests.
 ---@return neotest.RunSpec | nil specs A RunSpec to run all tests in the file.
 local function __get_file_test_run_spec(file)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return nil
   end
@@ -103,7 +103,7 @@ local function __get_file_test_run_spec(file)
 
   ---@type neotest.RunSpec
   return {
-    command = { "ctest", "--test-dir", Cmakeseer.get_build_directory(), "-R", test_regex },
+    command = { "ctest", "--test-dir", CMakeSeer.get_build_directory(), "-R", test_regex },
     context = {
       ids = test_ids,
       test_indices = test_indices,
@@ -116,7 +116,7 @@ end
 ---@param file string The name of the file containing the tests.
 ---@return neotest.RunSpec[] | nil specs The run specs in the file.
 local function __get_file_test_run_specs(file)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return nil
   end
@@ -155,7 +155,7 @@ end
 ---@param test_name string The name, of the test.
 ---@return neotest.RunSpec | nil spec The run spec, if the test exists.
 local function __get_test_run_spec_by_id(id, test_name)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return nil
   end
@@ -194,15 +194,12 @@ local function __parse_ctest_failures(output_lines)
   while i < #output_lines do
     i = i + 1
     local line = output_lines[i]
-    if line == "" then
-      goto continue
+    if line ~= "" then
+      if line == "Errors while running CTest" or line:sub(1, 1) ~= "\t" then
+        break
+      end
+      table.insert(error_lines, line)
     end
-
-    if line == "Errors while running CTest" or line:sub(1, 1) ~= "\t" then
-      break
-    end
-    table.insert(error_lines, line)
-    ::continue::
   end
 
   ---@type table<string, neotest.Result>
@@ -255,15 +252,14 @@ end
 ---@param project_root string Root directory of project
 ---@return boolean
 function M.filter_dir(name, rel_path, project_root)
-  return name ~= "__cmake_systeminformation"
-    and vim.fs.normalize(vim.fs.joinpath(project_root, rel_path)) ~= Cmakeseer.get_build_directory()
+  return name ~= "__cmake_systeminformation" and vim.fs.normalize(vim.fs.joinpath(project_root, rel_path)) ~= CMakeSeer.get_build_directory()
 end
 
 ---@async
 ---@param file_path string
 ---@return boolean
 function M.is_test_file(file_path)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return false
   end
@@ -283,7 +279,7 @@ end
 ---@param file_path string Absolute file path
 ---@return neotest.Tree | nil
 function M.discover_positions(file_path)
-  local maybe_info = Cmakeseer.get_ctest_info()
+  local maybe_info = CMakeSeer.state.get_ctest_info()
   if maybe_info == nil then
     return nil
   end
@@ -342,45 +338,48 @@ function M.discover_positions(file_path)
   for _, index_and_node in ipairs(nodes) do
     local node_index = index_and_node[1]
     local node = index_and_node[2]
-    if node.line == nil then
-      goto continue
-    end
+    if node.line ~= nil then
+      local line_length = 1
+      if node.line < line_num then
+        file:seek("set")
+        line_num = 0
+      end
 
-    local line_length = 1
-    if node.line < line_num then
-      file:seek("set")
-      line_num = 0
-    end
+      if line_num < node.line then
+        for line in file:lines() do
+          line_num = line_num + 1
+          if line_num == node.line then
+            line_length = #line
+            break
+          end
+        end
+      end
 
-    if line_num < node.line then
-      for line in file:lines() do
-        line_num = line_num + 1
-        if line_num == node.line then
-          line_length = #line
-          break
+      for _, test in ipairs(tests) do
+        if test.backtrace == node_index then
+          ---@type neotest.Position
+          local position = {
+            id = test.name,
+            type = "test",
+            name = test.name,
+            path = file_path,
+            range = { node.line - 1, 0, node.line - 1, line_length - 1 },
+          }
+          positions[#positions + 1] = position
         end
       end
     end
-
-    for _, test in ipairs(tests) do
-      if test.backtrace == node_index then
-        ---@type neotest.Position
-        local position = {
-          id = test.name,
-          type = "test",
-          name = test.name,
-          path = file_path,
-          range = { node.line - 1, 0, node.line - 1, line_length - 1 },
-        }
-        positions[#positions + 1] = position
-      end
-    end
-    ::continue::
   end
 
   file:close()
 
-  local tree = NeotestLib.positions.parse_tree(positions, { nested_tests = true })
+  local tree = NeotestLib.positions.parse_tree(positions, {
+    nested_tests = true,
+    require_namespaces = false,
+    position_id = function(position, _)
+      return position.id
+    end,
+  })
   return tree
 end
 
@@ -438,7 +437,7 @@ function M.results(spec, result, _)
         }
       end
     else
-      local tests = Cmakeseer.get_ctest_tests()
+      local tests = CMakeSeer.state.get_ctest_tests()
       assert(tests ~= nil)
 
       assert(vim.fn.glob(result.output) ~= "", "Output file should exist")

@@ -1,10 +1,13 @@
+-- vim: set filetype=lua:
 return {
-    include = {"lua"},
+    include = { "lua" },
     exclude = {
         ".luarocks/",
+        ".dependencies/",
         "/tmp",
         "/usr",
         "spec/",
+        "**/share/nvim/",
         os.getenv("XDG_CONFIG_HOME"),
     },
     tick = true

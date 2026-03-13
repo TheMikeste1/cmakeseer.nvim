@@ -23,7 +23,7 @@ M.Kind = {
 
 --- Checks if an object is a valid ObjectKind.
 ---@param obj table<string, any> The object to check.
----@param expected_kind cmakeseer.cmake.api.Kind The expected Kind of object. If nil, attempt to determine its type.
+---@param expected_kind cmakeseer.cmake.api.Kind? The expected Kind of object. If nil, attempt to determine its type.
 ---@return boolean is_object_kind If the object is an ObjectKind.
 function M.is_valid(obj, expected_kind)
   if type(obj) ~= "table" then

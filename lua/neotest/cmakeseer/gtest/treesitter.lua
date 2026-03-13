@@ -1,4 +1,4 @@
----@class cmakeseer.neotest.gtest.treesitter.CapturedTest
+---@class neotest.cmakeseer.gtest.treesitter.CapturedTest
 ---@field name string The name of the test.
 ---@field type "TEST"|"TEST_F"|"TEST_P"|"TYPED_TEST"|"TYPED_TEST_P" The type of the test.
 ---@field suite string The suite to which the test belongs.
@@ -35,7 +35,7 @@ local M = {}
 
 --- Queries for tests in a file.
 ---@param filepath string The path to the file.
----@return table<string, cmakeseer.neotest.gtest.treesitter.CapturedTest[]>|string maybe_tests The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
+---@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>|string maybe_tests The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
 function M.query_tests(filepath)
   local lang = "cpp"
   local parse_query = vim.treesitter.query.parse or vim.treesitter.parse_query
@@ -66,28 +66,24 @@ function M.query_tests(filepath)
       end
     end
 
-    if captured_nodes["test"] == nil then
-      -- We're not doing anything with the suite capture. Yet.
-      goto continue
+    if captured_nodes["test"] ~= nil then
+      local test = captured_nodes["test"]
+      local name = vim.treesitter.get_node_text(test["name"], contents)
+      local type = vim.treesitter.get_node_text(test["type"], contents)
+      local suite = vim.treesitter.get_node_text(test["suite"], contents)
+      local definition = test["definition"]
+      ---@type neotest.cmakeseer.gtest.treesitter.CapturedTest
+      local ts_test = {
+        name = name,
+        type = type,
+        suite = suite,
+        filepath = filepath,
+        range = { definition:range() },
+      }
+
+      ts_tests[suite] = ts_tests[suite] or {}
+      table.insert(ts_tests[suite], ts_test)
     end
-
-    local test = captured_nodes["test"]
-    local name = vim.treesitter.get_node_text(test["name"], contents)
-    local type = vim.treesitter.get_node_text(test["type"], contents)
-    local suite = vim.treesitter.get_node_text(test["suite"], contents)
-    local definition = test["definition"]
-    ---@type cmakeseer.neotest.gtest.treesitter.CapturedTest
-    local ts_test = {
-      name = name,
-      type = type,
-      suite = suite,
-      filepath = filepath,
-      range = { definition:range() },
-    }
-
-    ts_tests[suite] = ts_tests[suite] or {}
-    table.insert(ts_tests[suite], ts_test)
-    ::continue::
   end
 
   return ts_tests

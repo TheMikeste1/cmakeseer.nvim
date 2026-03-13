@@ -1,12 +1,14 @@
-local overseer = require("overseer")
-local Cmakeseer = require("cmakeseer")
+---@module "overseer"
+
+-- TODO: Add "Configure with Preset" target
 
 --- @return overseer.TaskDefinition
 local function builder()
+  local CMakeSeer = require("cmakeseer")
   return {
     name = "CMake Configure",
-    cmd = Cmakeseer.cmake_command(),
-    args = Cmakeseer.get_configure_args(),
+    cmd = CMakeSeer.cmake_command(),
+    args = CMakeSeer.get_configure_args(),
     components = {
       "cmakeseer.configure_hooks",
       {
@@ -22,6 +24,6 @@ end
 return {
   name = "CMake Configure",
   desc = "Configure the current CMake projects",
-  tags = { overseer.TAG.BUILD },
+  tags = { require("overseer").TAG.BUILD },
   builder = builder,
 }
