@@ -15,7 +15,7 @@ local M = {
 ---@param build_directory string The directory in which the CMake project will be configured.
 ---@return cmakeseer.cmake.api.CTestInfo|cmakeseer.ctest.api.IssueQueryError maybe_error The CTestInfo response, or an error, if one occurs.
 function M.issue_query(build_directory)
-  if not vim.fn.glob(build_directory) then
+  if vim.fn.glob(build_directory) == "" then
     return M.IssueQueryError.NotConfigured
   end
 
@@ -23,15 +23,12 @@ function M.issue_query(build_directory)
     return M.IssueQueryError.NotCTestProject
   end
 
-  local handle = io.popen(string.format("ctest --test-dir '%s' --show-only=json-v1", build_directory), "r")
-  if handle == nil then
+  local result = vim.system({ "ctest", "--test-dir", build_directory, "--show-only=json-v1" }):wait(1000)
+  if result.code ~= 0 or result.stdout == nil or result.stdout == "" then
     return M.IssueQueryError.SpawnProcess
   end
 
-  local result = handle:read("a")
-  handle:close()
-
-  local success, json = pcall(vim.fn.json_decode, result)
+  local success, json = pcall(vim.fn.json_decode, result.stdout)
   if not success then
     return M.IssueQueryError.InvalidJson
   end

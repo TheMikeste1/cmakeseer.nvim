@@ -8,6 +8,14 @@ local CMakeApi = require("cmakeseer.cmake.api")
 ---@field id string Unique ID identifying the target.
 ---@field backtrace number? Unsigned integer 0-based index into the backtraceGraph member's nodes array.
 
+---@class cmakeseer.cmake.api.codemodel.Source
+---@field path string Path to the source file. Relative to the top-level source root if inside the root. Otherwise, absolute.
+---@field compileGroupIndex integer? Optional member that is present when the source is compiled.
+---@field sourceGroupIndex integer?  Optional member that is present when the source is part of a source group.
+---@field isGenerated boolean? Optional member that is present with boolean value true if the source is generated.
+---@field fileSetIndex integer? Optional member that is present when the source is part of a file set.
+---@field backtrace integer? Optional member that is present when a CMake language backtrace  command invocation that added this source to the target is available.
+
 ---@class cmakeseer.cmake.api.codemodel.Target A CMake target.
 ---@field name string The name of the target.
 ---@field id string The unique ID for the target.
@@ -15,6 +23,7 @@ local CMakeApi = require("cmakeseer.cmake.api")
 ---@field nameOnDisk string? The name of the target on disk.
 ---@field artifacts cmakeseer.cmake.api.codemodel.Artifact[]? The artifacts produced by the target.
 ---@field dependencies cmakeseer.cmake.api.codemodel.Dependency[] The target's dependencies.
+---@field sources cmakeseer.cmake.api.codemodel.Source[] The target's dependencies.
 ---TODO: Add the rest
 
 local M = {
@@ -33,11 +42,7 @@ local M = {
 ---@param type cmakeseer.cmake.api.codemodel.TargetType The type to check.
 ---@return boolean is_library If the provided type is a library.
 function M.is_library(type)
-  return type == M.TargetType.StaticLibrary
-    or type == M.TargetType.SharedLibrary
-    or type == M.TargetType.ModuleLibrary
-    or type == M.TargetType.ObjectLibrary
-    or type == M.TargetType.InterfaceLibrary
+  return type == M.TargetType.StaticLibrary or type == M.TargetType.SharedLibrary or type == M.TargetType.ModuleLibrary or type == M.TargetType.ObjectLibrary or type == M.TargetType.InterfaceLibrary
 end
 
 --- Parses a Target from the provided reference.
@@ -91,7 +96,7 @@ end
 ---@param target cmakeseer.cmake.api.codemodel.Target
 ---@return string? target_path The path to the target's executable or library output, if one exists.
 function M.get_target_path(target)
-  if target.artifacts == nil then
+  if target.artifacts == nil or #target.artifacts == 0 then
     return nil
   end
 

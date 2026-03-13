@@ -1,6 +1,5 @@
 local ApiUtils = require("cmakeseer.cmake.api.utils")
 local ObjectKind = require("cmakeseer.cmake.api.object_kind")
-local Utils = require("cmakeseer.utils")
 
 ---@class cmakeseer.cmake.api.ReplyFileReference A successful reply provided in response to a query.
 ---@field kind cmakeseer.cmake.api.Kind The Kind for which the response if provided.
@@ -51,12 +50,18 @@ end
 ---@param index_file_path string The path to the index file.
 ---@return ApiResponse[]? maybe_responses An array of API responses, if the index file had them.
 local function get_responses_from_index_file(index_file_path)
-  local lines = vim.fn.readfile(index_file_path)
-  if #lines == 0 then
+  local f = io.open(index_file_path, "r")
+  if not f then
+    return nil
+  end
+  local contents_str = f:read("*a")
+  f:close()
+
+  local success, contents = pcall(vim.json.decode, contents_str, {})
+  if success == false then
     return nil
   end
 
-  local contents = vim.fn.json_decode(lines)
   local client_data = contents.reply["client-cmakeseer"]
   if client_data == nil then
     return nil
@@ -98,12 +103,14 @@ end
 function M.parse_object_kind_file(reference, build_directory)
   local response_directory = M.get_reply_directory(build_directory)
   local file_path = vim.fs.joinpath(response_directory, reference.jsonFile)
-  local file_contents = vim.fn.readfile(file_path)
-  if #file_contents == 0 then
+  local f = io.open(file_path, "r")
+  if not f then
     return nil
   end
+  local file_contents = f:read("*a")
+  f:close()
 
-  local maybe_object_kind = vim.fn.json_decode(file_contents)
+  local maybe_object_kind = vim.json.decode(file_contents, {})
   if not ObjectKind.is_valid(maybe_object_kind) then
     vim.notify("ObjectKind not valid for file `" .. reference.jsonFile .. "`", vim.log.levels.ERROR)
     return nil

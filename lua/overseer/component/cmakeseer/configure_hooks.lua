@@ -8,7 +8,7 @@ local Callbacks = require("cmakeseer.callbacks")
 local function on_pre_start(component, task)
   vim.notify("Running preconfigure hooks", vim.log.levels.TRACE)
   Callbacks.on_pre_configure()
-  Callbacks.run_user_preconfigure()
+  vim.api.nvim_exec_autocmds("User", { pattern = "CMakeSeerPreconfigure" })
 end
 
 --- Reads query responses for CMakeseer.
@@ -21,8 +21,8 @@ local function on_complete(component, task, status, result)
   vim.notify("Running postconfigure hooks", vim.log.levels.TRACE)
   if status == "SUCCESS" then
     Callbacks.on_post_configure_success()
-    Callbacks.run_user_postconfigure()
   end
+  vim.api.nvim_exec_autocmds("User", { pattern = "CMakeSeerPostconfigure", data = { status = status } })
 end
 
 --- @type overseer.Component
@@ -32,6 +32,7 @@ return {
   editable = false,
   serializable = true,
   params = {},
+  --- @param params table The parameters to the builder.
   --- @return overseer.ComponentSkeleton
   ---@diagnostic disable-next-line: unused-local
   constructor = function(params)

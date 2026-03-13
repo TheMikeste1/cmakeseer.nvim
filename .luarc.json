@@ -1,16 +1,57 @@
 {
-    "diagnostics.libraryFiles": "Disable",
-    "runtime.version": "LuaJIT",
-    "workspace.checkThirdParty": "Disable",
-    "workspace.ignoreDir": [
-        ".dependencies"
-    ],
-    "workspace.library": [
-        "$PWD/.dependencies/busted/library",
-        "$PWD/.dependencies/luassert/library",
-        "$PWD/.dependencies/luvit-meta/library",
-        "$PWD/.dependencies/mega.cmdparse/lua",
-        "$PWD/.dependencies/mega.logging/lua",
-        "$VIMRUNTIME/lua"
-    ]
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "diagnostics.globals": ["_"],
+  "diagnostics.libraryFiles": "Disable",
+  "runtime.version": "LuaJIT",
+  "runtime.path": ["lua/?.lua", "lua/?/init.lua", "?.lua", "?/init.lua"],
+  "workspace.checkThirdParty": "Disable",
+  "workspace.ignoreDir": [".dependencies"],
+  "workspace.library": [
+    "$PWD/lua",
+    "$PWD/.dependencies/busted/library",
+    "$PWD/.dependencies/luassert/library",
+    "$PWD/.dependencies/luvit-meta/library",
+    "$PWD/.dependencies/neoconf.nvim",
+    "$PWD/.dependencies/neotest",
+    "$PWD/.dependencies/overseer.nvim",
+    "$VIMRUNTIME/lua"
+  ],
+  "diagnostics.severity": {
+    "assign-type-mismatch": "Error",
+    "cast-local-type": "Error",
+    "deprecated": "Error",
+    "duplicate-index": "Error",
+    "inject-field": "Error",
+    "missing-fields": "Error",
+    "missing-parameter": "Error",
+    "missing-return": "Error",
+    "need-check-nil": "Error",
+    "no-unknown": "Warning",
+    "param-type-mismatch": "Error",
+    "redundant-parameter": "Error",
+    "redundant-return": "Error",
+    "redundant-return-value": "Error",
+    "return-type-mismatch": "Error",
+    "undefined-field": "Error",
+    "undefined-global": "Error",
+    "unreachable-code": "Error",
+    "unused-function": "Error",
+    "unused-local": "Error",
+    "unused-vararg": "Error"
+  },
+  "diagnostics.groupFileStatus": {
+    "ambiguity": "Any",
+    "await": "Any",
+    "conventions": "Any",
+    "duplicate": "Any",
+    "global": "Any",
+    "luadoc": "Any",
+    "redefined": "Any",
+    "strict": "Any",
+    "strong": "Any",
+    "type-check": "Any",
+    "unbalanced": "Any",
+    "unused": "Any"
+  },
+  "diagnostics.disable": ["no-unknown", "duplicate-set-field"]
 }

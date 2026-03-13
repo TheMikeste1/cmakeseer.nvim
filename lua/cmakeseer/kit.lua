@@ -1,6 +1,3 @@
-local FileUtils = require("cmakeseer.file_utils")
-local Utils = require("cmakeseer.utils")
-
 --- @class cmakeseer.Compilers
 --- @field C string
 --- @field CXX string|nil
@@ -26,7 +23,16 @@ local function read_cmakekit_files(kit_file)
   local file_contents = file:read("a")
   file:close()
 
-  local kits = vim.json.decode(file_contents)
+  if file_contents == nil or file_contents == "" then
+    vim.notify("Kit file `" .. kit_file .. "` is empty", vim.log.levels.ERROR)
+    return {}
+  end
+
+  local ok, kits = pcall(vim.json.decode, file_contents)
+  if not ok then
+    vim.notify("Failed to decode kit file `" .. kit_file .. "`: " .. tostring(kits), vim.log.levels.ERROR)
+    return {}
+  end
   -- TODO: Validate the kits we read in and ensure they are actually kits
   return kits
 end
@@ -72,10 +78,13 @@ local function extract_kit_from_gcc(filepath)
 
   local version = "<version unknown>"
   local machine = "<machine unknown>"
-  if version_out.code == 0 then
-    version = version_out.stdout:match("[0-9.]+\n"):gsub("[\n]+$", "")
+  if version_out.code == 0 and version_out.stdout then
+    local matched = version_out.stdout:match("[0-9%.]+[\r\n]*$")
+    if matched then
+      version = matched:gsub("[\r\n]+$", "")
+    end
   end
-  if machine_out.code == 0 then
+  if machine_out.code == 0 and machine_out.stdout then
     machine = machine_out.stdout:gsub("[\n]+$", "")
   end
 
@@ -144,7 +153,9 @@ end
 
 --- Scans for kits in the provided directory.
 ---@param directory string The directory in which to scan.
+---@return cmakeseer.Kit[] kits
 function M.scan_for_kits(directory)
+  -- TODO: Make async
   if directory:sub(-1) ~= "/" then
     directory = directory .. "/"
   end
@@ -182,8 +193,8 @@ end
 ---@param kits cmakeseer.Kit[] The kits to persist.
 function M.persist_kits(filepath, kits)
   filepath = vim.fn.expand(filepath)
-  local parent_path = FileUtils.get_parent_path(filepath)
-  if not FileUtils.is_directory(parent_path) then
+  local parent_path = vim.fn.fnamemodify(filepath, ":h")
+  if vim.fn.isdirectory(parent_path) == 0 then
     local success = vim.fn.mkdir(parent_path, "p") == 1
     if not success then
       vim.notify("Failed to create parent path for " .. filepath .. ". Cannot persist kits.", vim.log.levels.ERROR)
@@ -216,6 +227,9 @@ end
 ---@param b cmakeseer.Kit the rhs kit.
 ---@return boolean equal If the two kits are considered equal.
 function M.are_kits_equal(a, b)
+  if not a.compilers or not b.compilers then
+    return a.compilers == b.compilers
+  end
   return a.compilers.C == b.compilers.C and a.compilers.CXX == b.compilers.CXX
 end
 
@@ -230,7 +244,7 @@ function M.remove_duplicate_kits(kits)
       table.insert(kit_set, kit)
     end
   end
-  return kits
+  return kit_set
 end
 
 ---@param kits cmakeseer.Kit[] The array containing kits.

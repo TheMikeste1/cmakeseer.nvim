@@ -3,18 +3,18 @@
 ## Tasks
 
 - [x] Build
-- [ ] Build Target
+- [x] Build Target
 - [x] Clean
-- [ ] Cancel Build
 - [X] Clean Rebuild
-- [ ] Compile Active File
+- [x] Compile Active File
 - [x] Configure
-- [ ] Configure with CMake Debugger
+- [x] Configure with CMake Debugger
 - [ ] Debug
-- [ ] Delete Cache and Reconfigure
-- [ ] Delete Cache and Reconfigure with CMake Debugger
+- [x] Delete Cache and Reconfigure
+- [x] Delete Cache and Reconfigure with CMake Debugger
 - [X] Install
 - [ ] Run Tests (CTest?)
+    - [ ] With debug
 - [ ] Run Without Debugging
 
 ## Commands

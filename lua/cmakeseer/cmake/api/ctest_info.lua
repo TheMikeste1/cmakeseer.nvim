@@ -2,8 +2,6 @@
 -- Source: https://cmake.org/cmake/help/latest/manual/ctest.1.html#show-as-json-object-model
 --]]
 
-local Utils = require("cmakeseer.utils")
-
 ---@class cmakeseer.cmake.api.Node
 ---@field file number The index of the associated file.
 ---@field command number? The index of the associated command.
@@ -34,7 +32,14 @@ local Utils = require("cmakeseer.utils")
 ---@param obj table<string, any> The object to check.
 ---@return boolean is_valid If the provided object is a valid Test.
 local function is_valid_test(obj)
-  -- TODO
+  if type(obj) ~= "table" then
+    return false
+  end
+
+  if type(obj.name) ~= "string" then
+    return false
+  end
+
   return true
 end
 

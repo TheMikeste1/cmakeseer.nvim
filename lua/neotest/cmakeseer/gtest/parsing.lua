@@ -1,4 +1,4 @@
-local Suite = require("cmakeseer.neotest.gtest.suite")
+local Suite = require("neotest.cmakeseer.gtest.suite")
 
 --- Parses the name of a GTest suite into its component parts.
 ---@param suite table<string, any> The GTest suite to parse.
@@ -42,44 +42,40 @@ local M = {}
 
 --- Parses suites for an executable out of an executable's GTest data.
 ---@param test_data table The GTest data for the test.
----@return table<string, cmakeseer.neotest.gtest.suite.Basic> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
+---@return table<string, table<neotest.cmakeseer.gtest.suite.Type, neotest.cmakeseer.gtest.suite.Basic>> suites, table<string> executable_files The suites in the test and the paths to the files containing tests compiled into the executable.
 function M.parse_executable_suites(test_data)
-  ---@type table<string, table<cmakeseer.neotest.gtest.suite.Type, cmakeseer.neotest.gtest.suite.Basic> > Suite IDs to Suite.
+  ---@type table<string, table<neotest.cmakeseer.gtest.suite.Type, neotest.cmakeseer.gtest.suite.Basic> > Suite IDs to Suite.
   local suites = {}
   ---@type table<string> Files used by suites
   local executable_files = {}
   for _, suite in ipairs(test_data.testsuites) do
     local prefix, suite_id, postfix = parse_gtest_suite_name(suite)
-    if suite_id == nil then
-      goto continue
-    end
+    if suite_id ~= nil then
+      local suite_type = Suite.type_from_id_parts(prefix, postfix)
+      if suite_type == nil then
+        vim.notify("Could not identify suite type for " .. tostring(suite.name), vim.log.levels.ERROR)
+      else
+        suites[suite_id] = suites[suite_id] or {}
+        local suite_entry = suites[suite_id][suite_type]
+        if suite_entry == nil then
+          -- Doesn't exist; create a new one
+          if suite_type == Suite.Type.Basic then
+            suite_entry = Suite.Basic:new({ name = suite_id })
+          elseif suite_type == Suite.Type.Parameterized then
+            suite_entry = Suite.Parameterized:new({ name = suite_id })
+          elseif suite_type == Suite.Type.Typed then
+            suite_entry = Suite.Typed:new({ name = suite_id })
+          elseif suite_type == Suite.Type.ParameterizedTyped then
+            suite_entry = Suite.ParameterizedTyped:new({ name = suite_id })
+          end
 
-    local suite_type = Suite.type_from_id_parts(prefix, postfix)
-    if suite_type == nil then
-      vim.notify("Could not identify suite type for " .. suite, vim.log.levels.ERROR)
-      goto continue
-    end
+          assert(suite_entry ~= nil)
+          suites[suite_id][suite_type] = suite_entry
+        end
 
-    suites[suite_id] = suites[suite_id] or {}
-    local suite_entry = suites[suite_id][suite_type]
-    if suite_entry == nil then
-      -- Doesn't exist; create a new one
-      if suite_type == Suite.Type.Basic then
-        suite_entry = Suite.Basic:new({ name = suite_id })
-      elseif suite_type == Suite.Type.Parameterized then
-        suite_entry = Suite.Parameterized:new({ name = suite_id })
-      elseif suite_type == Suite.Type.Typed then
-        suite_entry = Suite.Typed:new({ name = suite_id })
-      elseif suite_type == Suite.Type.ParameterizedTyped then
-        suite_entry = Suite.ParameterizedTyped:new({ name = suite_id })
+        suite_entry:parse_add_gtests(suite.testsuite, executable_files, prefix, postfix)
       end
-
-      assert(suite_entry ~= nil)
-      suites[suite_id][suite_type] = suite_entry
     end
-
-    suite_entry:parse_add_gtests(suite.testsuite, executable_files, prefix, postfix)
-    ::continue::
   end
 
   return suites, executable_files

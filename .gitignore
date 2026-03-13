@@ -45,3 +45,6 @@ luac.out
 .dependencies/
 luacov_html/
 luacov.report.out.index
+*/build/
+
+luajit.p.report

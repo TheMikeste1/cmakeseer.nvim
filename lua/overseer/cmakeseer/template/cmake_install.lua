@@ -1,14 +1,15 @@
-local Cmakeseer = require("cmakeseer")
+---@module "overseer"
 
 local function builder()
+  local CMakeSeer = require("cmakeseer")
   -- TODO: Add option to use sudo
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Install",
-    cmd =Cmakeseer.cmake_command(),
+    cmd = CMakeSeer.cmake_command(),
     args = {
       "--install",
-      Cmakeseer.get_build_directory(),
+      CMakeSeer.get_build_directory(),
     },
     components = {
       {
@@ -28,6 +29,8 @@ return {
   desc = "Installs the project",
   builder = builder,
   condition = {
-    callback = Cmakeseer.project_is_configured,
+    callback = function()
+      return require("cmakeseer").project_is_configured()
+    end,
   },
 }

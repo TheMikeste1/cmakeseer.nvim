@@ -1,14 +1,15 @@
 ---@module "overseer"
-local Cmakeseer = require("cmakeseer")
 
 -- TODO: Add tags to all templates
 
 local function builder()
+  local CMakeSeer = require("cmakeseer")
+
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Build",
-    cmd = Cmakeseer.cmake_command(),
-    args = Cmakeseer.get_build_args(),
+    cmd = CMakeSeer.cmake_command(),
+    args = CMakeSeer.get_build_args(),
     components = {
       "cmakeseer.configure_hooks",
       "cmakeseer.build_hooks",
@@ -20,7 +21,7 @@ local function builder()
     },
   }
 
-  if not Cmakeseer.project_is_configured() then
+  if not CMakeSeer.project_is_configured() then
     -- Insert just before "default" to minimize shifts
     table.insert(task.components, #task.components - 1, {
       "dependencies",

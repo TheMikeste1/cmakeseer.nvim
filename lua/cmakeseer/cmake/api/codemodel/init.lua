@@ -2,8 +2,6 @@
 -- Source: https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html#codemodel-version-2
 --]]
 
-local Utils = require("cmakeseer.utils")
-
 -- TODO: Fill out descriptions
 
 --- @class cmakeseer.cmake.api.codemodel.Paths Contains information about the paths in the CMake projects.
@@ -75,8 +73,7 @@ local function is_valid_directory(obj)
   end
 
   if
-    obj.minimumCMakeVersion ~= nil
-    and (type(obj.minimumCMakeVersion) ~= "table" or type(obj.minimumCMakeVersion.string) ~= "string") -- TODO: Validate version
+    obj.minimumCMakeVersion ~= nil and (type(obj.minimumCMakeVersion) ~= "table" or type(obj.minimumCMakeVersion.string) ~= "string") -- TODO: Validate version
   then
     return false
   end
