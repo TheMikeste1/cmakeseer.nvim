@@ -48,9 +48,12 @@ local function load_targets()
     end
   end
 
-  require("cmakeseer.state").set_targets(parsed_targets)
+  local state = require("cmakeseer.state")
+  if #parsed_targets ~= #state.targets() then
+    vim.notify(string.format("Found %i targets", #parsed_targets))
+  end
 
-  vim.notify(string.format("Found %i targets", #parsed_targets))
+  state.set_targets(parsed_targets)
 end
 
 local function load_ctest_info()

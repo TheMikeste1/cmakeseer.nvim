@@ -150,11 +150,13 @@ function M.scan_for_kits()
 
   kits = Kit.remove_duplicate_kits(kits)
 
-  local count_message = "Found " .. #kits .. " kit"
-  if #kits ~= 1 then
-    count_message = count_message .. "s"
+  if #kits ~= #M.state.discovered_kits() then
+    local count_message = "Found " .. #kits .. " kit"
+    if #kits ~= 1 then
+      count_message = count_message .. "s"
+    end
+    vim.notify(count_message)
   end
-  vim.notify(count_message)
 
   M.state.set_discovered_kits(kits)
 
