@@ -43,6 +43,7 @@ local function builder(params)
       },
     }
   end
+  -- TODO: Change this into a picker
   if #potential_targets > 1 then
     local potential_str = table.concat(
       vim
