@@ -46,6 +46,7 @@ function M.query_tests(filepath)
     return "Could not open " .. filepath
   end
 
+  ---@type string
   local contents = file:read("*a")
   file:close()
 
@@ -62,7 +63,7 @@ function M.query_tests(filepath)
       local match = matches[i]
       if match ~= nil then
         captured_nodes[type] = captured_nodes[type] or {}
-        captured_nodes[type][field] = match
+        captured_nodes[type][field] = match[1] or match
       end
     end
 
