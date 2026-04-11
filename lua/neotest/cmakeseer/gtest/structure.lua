@@ -10,7 +10,7 @@ local M = {}
 --- Builds the structure for a basic test suite.
 ---@param executable string The path to the executable containing suites.
 ---@param suite_definition neotest.cmakeseer.gtest.suite.Basic The definition for the Suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedTest[] The treesitter tests for the suite.
+---@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
 ---@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
 local function build_basic_suite_structure(executable, suite_definition, tests)
   local suite_id = string.format("%s::%s", executable, suite_definition.name)
@@ -51,7 +51,7 @@ end
 --- Builds the structure for a parameterized test suite.
 ---@param executable string The path to the executable containing suites.
 ---@param suite_definition neotest.cmakeseer.gtest.suite.Parameterized The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedTest[] The treesitter tests for the suite.
+---@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
 ---@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
 local function build_parameterized_suite_structure(executable, suite_definition, tests)
   local suite_structures = {}
@@ -109,7 +109,7 @@ end
 --- Builds the structure for a typed test suite.
 ---@param executable string The path to the executable containing suites.
 ---@param suite_definition neotest.cmakeseer.gtest.suite.ParameterizedTyped The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedTest[] The treesitter tests for the suite.
+---@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
 ---@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
 local function build_parameterized_typed_suite_structure(executable, suite_definition, tests)
   local suite_structures = {}
@@ -167,7 +167,7 @@ end
 --- Builds the structure for a parameterized typed test suite.
 ---@param executable string The path to the executable containing suites.
 ---@param suite_definition neotest.cmakeseer.gtest.suite.Typed The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedTest[] The treesitter tests for the suite.
+---@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
 ---@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
 local function build_typed_suite_structure(executable, suite_definition, tests)
   local suite_id = string.format("%s::%s", executable, suite_definition.name)
@@ -234,7 +234,7 @@ end
 
 --- Builds the structure tree for GTests.
 ---@param executable string The path to the executable containing the tests.
----@param queried_tests table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]> The queried tests for the entire executable.
+---@param queried_tests table<string, neotest.cmakeseer.gtest.treesitter.CapturedFileTest[]> The queried tests for the entire executable.
 ---@param suites table<string, table<neotest.cmakeseer.gtest.suite.Type, neotest.cmakeseer.gtest.suite.Basic>> The known GTest suites.
 ---@return any[] structure The recursive tree structure representing the tests.
 function M.build(executable, queried_tests, suites)

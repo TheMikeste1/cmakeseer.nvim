@@ -241,7 +241,7 @@ end
 ---@param executable_path string Absolute file path to the executable.
 ---@return neotest.Tree | nil
 function M.discover_positions(executable_path)
-  ---@type table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>
+  ---@type table<string, neotest.cmakeseer.gtest.treesitter.CapturedFileTest[]>
   local suite_tests = {}
   local executable_files = g_executable_files[executable_path]
   if not executable_files then
