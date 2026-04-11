@@ -10,15 +10,33 @@ function M.cmake_command()
   return M.config.cmake_command
 end
 
+local project_root = nil
+function M.get_project_root()
+  if project_root == nil then
+    -- Search for Git root first
+    project_root = vim.fs.root(0, ".git")
+      or vim.fs.root(0, "CMakeLists.txt") -- fallback to nearest CMakeLists
+      or vim.uv.cwd()
+      or vim.fn.getcwd()
+  end
+
+  return project_root
+end
+
 --- @return string build_directory The project's build directory.
 function M.get_build_directory()
-  -- FIXME: If the user changes tabs or directories while a build is going AND this path is relative, it will try to place the build directory in the cd'd to directory
   local build_dir = M.config.build_directory
   if type(build_dir) == "function" then
     build_dir = build_dir()
   end
 
-  return vim.fs.normalize(vim.fs.abspath(build_dir))
+  if vim.fs.abspath(build_dir) == build_dir then
+    -- Absolute path, just return it
+    return vim.fs.normalize(build_dir)
+  end
+
+  -- Return relative to project root
+  return vim.fs.normalize(vim.fs.joinpath(M.get_project_root(), build_dir))
 end
 
 --- @return boolean is_configured If the project is configured.
@@ -58,7 +76,7 @@ function M.get_configure_args()
 
   local args = {
     "-S",
-    vim.fn.getcwd(),
+    M.get_project_root(),
     "-B",
     M.get_build_directory(),
     "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
