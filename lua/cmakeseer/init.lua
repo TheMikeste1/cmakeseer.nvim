@@ -33,10 +33,23 @@ end
 
 ---@return string[] args The args used to build a CMake project.
 function M.get_build_args()
-  return {
+  local args = {
     "--build",
     M.get_build_directory(),
   }
+
+  local parallel = require("cmakeseer.settings").get_settings().parallel
+  if type(parallel) == "function" then
+    parallel = parallel()
+  end
+  if parallel ~= nil and parallel >= 0 then
+    table.insert(args, "--parallel")
+    if parallel > 0 then
+      table.insert(args, tostring(parallel))
+    end
+  end
+
+  return args
 end
 
 ---@return string[] args The args used to configure a CMake project.
