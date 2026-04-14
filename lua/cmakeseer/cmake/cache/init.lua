@@ -33,16 +33,30 @@ local function process_cache_line(vars, working_description, line)
   end
 end
 
+local LEGAL_BOOL_VALUES = {
+  ON = true,
+  OFF = true,
+  TRUE = true,
+  FALSE = true,
+  YES = true,
+  NO = true,
+  [1] = true,
+  [0] = true,
+  Y = true,
+  N = true,
+  [""] = true,
+}
+
 ---@param variable_line string The string containing the cache variable.
 ---@return cmakeseer.cmake.cache.Variable?
 function M.parse_cache_variable(variable_line)
   -- Example:
   -- - `CMAKE_OBJDUMP:FILEPATH=/usr/bin/objdump`
   -- - `CMAKE_PROJECT_COMPAT_VERSION:STATIC=`
-  local name, remainder = variable_line:match("(.+):(.*)")
-  local type, value = remainder:match("(.+)=(.*)")
+  local name, remainder = variable_line:match("(..-):(.*)")
+  local type, value = remainder:match("(..-)=(.*)")
 
-  if type == "BOOL" and (value ~= "ON" or value ~= "OFF") then
+  if type == "BOOL" and LEGAL_BOOL_VALUES[value] == nil then
     return nil
   end
 
@@ -69,6 +83,20 @@ function M.parse_cache_string(cache_string)
   end
 
   return vars
+end
+
+--- Parses the file containing CMake cache variables.
+---@param cache_path string The path to the file containing the cache.
+---@return table<string, cmakeseer.cmake.cache.Variable>|string
+function M.parse_cache_file(cache_path)
+  local file = io.open(cache_path, "r")
+  if file == nil then
+    return "Could not open file"
+  end
+
+  local contents = file:read("*a")
+  file:close()
+  return M.parse_cache_string(contents)
 end
 
 return M
