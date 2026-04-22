@@ -16,6 +16,7 @@ download-types:
 	@git clone git@github.com:folke/neoconf.nvim.git     .dependencies/neoconf.nvim  $(IGNORE_EXISTING)
 	@git clone git@github.com:nvim-neotest/neotest.git   .dependencies/neotest       $(IGNORE_EXISTING)
 	@git clone git@github.com:stevearc/overseer.nvim.git .dependencies/overseer.nvim $(IGNORE_EXISTING)
+	@git clone git@github.com:MunifTanjim/nui.nvim.git   .dependencies/nui.nvim      $(IGNORE_EXISTING)
 
 
 llscheck: download-types

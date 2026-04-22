@@ -9,7 +9,7 @@ end
 
 --- Run health checks for cmakeseer.
 function M.check()
-  vim.health.start("cmakeseer: Core Dependencies")
+  vim.health.start("cmakeseer: Core CLI Dependencies")
 
   if has_cmd("cmake") then
     local version = vim.fn.system("cmake --version"):match("[0-9%.]+")
@@ -23,6 +23,14 @@ function M.check()
     vim.health.ok("ctest found: v" .. version)
   else
     vim.health.warn("ctest not found in PATH. CTest integration will not work.")
+  end
+
+  vim.health.start("cmakeseer: Plugin Dependencies")
+
+  if pcall(require, "nui.layout") then
+    vim.health.ok("nui found (UIs are available)")
+  else
+    vim.health.info("nui not found (UIs will not work)")
   end
 
   vim.health.start("cmakeseer: Optional Tools (Profiling & Documentation)")
