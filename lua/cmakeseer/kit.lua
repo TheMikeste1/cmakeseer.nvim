@@ -6,6 +6,17 @@
 --- @field name string
 --- @field compilers cmakeseer.Compilers
 
+--- @param a cmakeseer.Kit
+--- @param b cmakeseer.Kit
+--- @return boolean
+local function compare_kits(a, b)
+  if a.name == b.name then
+    return a.compilers.C < b.compilers.C
+  end
+
+  return a.name < b.name
+end
+
 --- @param kit_file string Paths to file containing CMake kit definitions. These will not be expanded.
 --- @return cmakeseer.Kit[] kits The kits
 local function read_cmakekit_files(kit_file)
@@ -148,6 +159,9 @@ function M.load_all_kits(kit_paths)
     local kits_from_file = read_cmakekit_files(file_path)
     vim.list_extend(kits, kits_from_file)
   end
+
+  -- Sort kits by name
+  table.sort(kits, compare_kits)
   return kits
 end
 
@@ -185,6 +199,9 @@ function M.scan_for_kits(directory)
     end
   end
 
+  -- Sort kits by name
+  table.sort(kits, compare_kits)
+
   return kits
 end
 
@@ -192,6 +209,9 @@ end
 ---@param filepath string The path to which the kits should be persisted.
 ---@param kits cmakeseer.Kit[] The kits to persist.
 function M.persist_kits(filepath, kits)
+  -- Sort kits by name
+  table.sort(kits, compare_kits)
+
   filepath = vim.fn.expand(filepath)
   local parent_path = vim.fn.fnamemodify(filepath, ":h")
   if vim.fn.isdirectory(parent_path) == 0 then
