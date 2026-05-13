@@ -79,7 +79,7 @@ local function extract_kit_from_gcc(filepath)
   local version = "<version unknown>"
   local machine = "<machine unknown>"
   if version_out.code == 0 and version_out.stdout then
-    local matched = version_out.stdout:match("[0-9%.]+[\r\n]*$")
+    local matched = version_out.stdout:match("(%d+%.%d+%.%d+)[\r\n]*")
     if matched then
       version = matched:gsub("[\r\n]+$", "")
     end
