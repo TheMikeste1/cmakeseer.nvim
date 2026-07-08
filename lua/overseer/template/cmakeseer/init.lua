@@ -45,8 +45,6 @@ local function get_configured_targets()
 
   local target_templates = generate_build_targets()
   templates = vim.list_extend(templates, target_templates)
-  local preset_templates = generate_preset_targets()
-  templates = vim.list_extend(templates, preset_templates)
 
   return templates
 end
@@ -67,6 +65,8 @@ return {
       require("overseer.cmakeseer.template.cmake_build"),
       require("overseer.cmakeseer.template.cmake_configure"),
     }
+    local preset_templates = generate_preset_targets()
+    templates = vim.list_extend(templates, preset_templates)
 
     if CMakeSeer.project_is_configured() then
       vim.list_extend(templates, get_configured_targets())
