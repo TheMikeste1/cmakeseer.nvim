@@ -70,10 +70,8 @@ function M.get_build_args()
   return args
 end
 
----@return string[] args The args used to configure a CMake project.
-function M.get_configure_args()
-  local Settings = require("cmakeseer.settings")
-
+---@return string[] args The basic args used to configure a CMake project.
+function M.get_basic_configure_args()
   local args = {
     "-S",
     M.get_project_root(),
@@ -82,6 +80,14 @@ function M.get_configure_args()
     "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
   }
 
+  return args
+end
+
+---@return string[] args The args used to configure a CMake project.
+function M.get_configure_args()
+  local Settings = require("cmakeseer.settings")
+
+  local args = M.get_basic_configure_args()
   local variant = M.state.selected_variant()
   if variant ~= M.Variant.Unspecified then
     local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)

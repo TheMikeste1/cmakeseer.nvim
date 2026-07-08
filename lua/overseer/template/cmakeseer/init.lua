@@ -4,9 +4,25 @@
 local current_file = nil
 local function generate_build_targets()
   local CMakeSeer = require("cmakeseer")
+  local TargetBuilder = require("overseer.template.cmakeseer.target_builder")
+
   local templates = {}
   for _, target in ipairs(CMakeSeer.state.get_targets()) do
-    local template = require("overseer.template.cmakeseer.target_builder").build_template_for(target.name, target.type)
+    local template = TargetBuilder.build_template_for(target.name, target.type)
+    table.insert(templates, template)
+  end
+  return templates
+end
+
+local function generate_preset_targets()
+  local ConfigurePresetBuilder = require("overseer.template.cmakeseer.configure_preset_builder")
+
+  local preset_str = vim.fn.system("cmake --list-presets")
+  local templates = {}
+  for preset in string.gmatch(preset_str, '"([^"]+)"') do
+    local template = ConfigurePresetBuilder.build_template_for(preset, false)
+    table.insert(templates, template)
+    template = ConfigurePresetBuilder.build_template_for(preset, true)
     table.insert(templates, template)
   end
   return templates
@@ -29,6 +45,8 @@ local function get_configured_targets()
 
   local target_templates = generate_build_targets()
   templates = vim.list_extend(templates, target_templates)
+  local preset_templates = generate_preset_targets()
+  templates = vim.list_extend(templates, preset_templates)
 
   return templates
 end

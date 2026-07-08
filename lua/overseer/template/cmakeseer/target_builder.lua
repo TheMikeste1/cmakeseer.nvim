@@ -12,7 +12,6 @@ function M.build_template_for(target_name, target_type)
   local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
 
   local run_verb = "Build"
-
   if target_type == TargetType.Utility then
     run_verb = "Run"
   end
