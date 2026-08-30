@@ -17,7 +17,7 @@ end
 ---@return string[] command The command that fails.
 local function __generate_test_command(test)
   local escaped_test_name = __escape_regex(test.name)
-  return { "ctest", "--test-dir", CMakeSeer.get_build_directory(), "-R", escaped_test_name }
+  return { "ctest", "--test-dir", CMakeSeer.get_config():resolve_build_directory(), "-R", escaped_test_name }
 end
 
 ---@private
@@ -103,7 +103,7 @@ local function __get_file_test_run_spec(file)
 
   ---@type neotest.RunSpec
   return {
-    command = { "ctest", "--test-dir", CMakeSeer.get_build_directory(), "-R", test_regex },
+    command = { "ctest", "--test-dir", CMakeSeer.get_config():resolve_build_directory(), "-R", test_regex },
     context = {
       ids = test_ids,
       test_indices = test_indices,
@@ -252,7 +252,7 @@ end
 ---@param project_root string Root directory of project
 ---@return boolean
 function M.filter_dir(name, rel_path, project_root)
-  return name ~= "__cmake_systeminformation" and vim.fs.normalize(vim.fs.joinpath(project_root, rel_path)) ~= CMakeSeer.get_build_directory()
+  return name ~= "__cmake_systeminformation" and vim.fs.normalize(vim.fs.joinpath(project_root, rel_path)) ~= CMakeSeer.get_config():resolve_build_directory()
 end
 
 ---@async

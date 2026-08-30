@@ -86,6 +86,6 @@ return {
   end,
   cache_key = function(_)
     local CMakeSeer = require("cmakeseer")
-    return vim.fs.joinpath(CMakeSeer.get_build_directory(), "CMakeCache.txt")
+    return vim.fs.joinpath(CMakeSeer.get_config():resolve_build_directory(), "CMakeCache.txt")
   end,
 }

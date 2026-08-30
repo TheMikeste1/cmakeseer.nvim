@@ -1,59 +1,27 @@
+local current_config = require("cmakeseer.config").Configuration.new()
+
 ---@class CMakeSeer
 local M = {
-  config = require("cmakeseer.config"),
   state = require("cmakeseer.state"),
 }
 M.Variant = M.state.Variant
 
----@return string command The command used to run cmake.
-function M.cmake_command()
-  return M.config.cmake_command
+---@return cmakeseer.Configuration config CMakeSeer's configuration.
+function M.get_config()
+  return current_config
 end
 
-local project_root = nil
-function M.get_project_root()
-  if project_root == nil then
-    -- Search for Git root first
-    project_root = vim.fs.root(0, ".git")
-      or vim.fs.root(0, "CMakeLists.txt") -- fallback to nearest CMakeLists
-      or vim.uv.cwd()
-      or vim.fn.getcwd()
-  end
-
-  return project_root
-end
-
---- @return string build_directory The project's build directory.
-function M.get_build_directory()
-  local build_dir = M.config.build_directory
-  if type(build_dir) == "function" then
-    build_dir = build_dir()
-  end
-
-  if vim.fs.abspath(build_dir) == build_dir then
-    -- Absolute path, just return it
-    return vim.fs.normalize(build_dir)
-  end
-
-  -- Return relative to project root
-  return vim.fs.normalize(vim.fs.joinpath(M.get_project_root(), build_dir))
-end
-
---- @return boolean is_configured If the project is configured.
+---@return boolean is_configured If the project is configured.
 function M.project_is_configured()
-  return vim.fn.glob(vim.fs.joinpath(M.get_build_directory(), "CMakeCache.txt")) ~= ""
-end
-
---- @return string build_cmd The command used to build the CMake project.
-function M.get_build_command()
-  return string.format("%s --build %s", M.cmake_command(), M.get_build_directory())
+  local cache_path = vim.fs.joinpath(current_config:resolve_build_directory(), "CMakeCache.txt")
+  return vim.uv.fs_stat(cache_path) ~= nil
 end
 
 ---@return string[] args The args used to build a CMake project.
 function M.get_build_args()
   local args = {
     "--build",
-    M.get_build_directory(),
+    current_config:resolve_build_directory(),
   }
 
   local parallel = require("cmakeseer.settings").get_settings().parallel
@@ -74,9 +42,9 @@ end
 function M.get_basic_configure_args()
   local args = {
     "-S",
-    M.get_project_root(),
+    current_config:project_root(),
     "-B",
-    M.get_build_directory(),
+    current_config:resolve_build_directory(),
     "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
   }
 
@@ -113,7 +81,7 @@ end
 
 --- @return string[] configure_command The command used to configure the CMake project.
 function M.get_configure_command()
-  local command = { M.cmake_command() }
+  local command = { current_config.cmake_command }
   local args = M.get_configure_args()
   for _, arg in ipairs(args) do
     table.insert(command, arg)
@@ -126,9 +94,9 @@ end
 function M.get_all_kits()
   local Kit = require("cmakeseer.kit")
 
-  local kits = M.config.kits
+  local kits = current_config.kits
   vim.list_extend(kits, M.state.discovered_kits())
-  local file_kits = Kit.load_all_kits(M.config.kit_paths)
+  local file_kits = Kit.load_all_kits(current_config.kit_paths)
   vim.list_extend(kits, file_kits)
   kits = Kit.remove_duplicate_kits(kits)
   return kits
@@ -174,8 +142,8 @@ function M.scan_for_kits()
   local Kit = require("cmakeseer.kit")
 
   local kits = {}
-  local paths = M.config.scan_paths or {}
-  if M.config.should_scan_path then
+  local paths = current_config.scan_paths or {}
+  if current_config.should_scan_path then
     local env_paths = vim.split(vim.env.PATH, ":", { trimempty = true })
     paths = vim.iter({ paths, env_paths }):flatten():unique():totable()
   end
@@ -197,23 +165,37 @@ function M.scan_for_kits()
 
   M.state.set_discovered_kits(kits)
 
-  if M.config.persist_file then
+  if current_config.persist_file then
     vim.notify("Persisting kits", vim.log.levels.INFO)
-    Kit.persist_kits(M.config.persist_file, M.get_all_kits())
+    Kit.persist_kits(current_config.persist_file, M.get_all_kits())
   end
 end
 
 ---@return boolean is_cmake_project If the current project is a CMake project.
 function M.is_cmake_project()
-  local root = vim.fn.getcwd() -- TODO: Automatically discover root
+  local root = current_config:project_root()
   return vim.fn.glob(vim.fs.joinpath(root, "CMakeLists.txt")) ~= ""
 end
 
 ---@return boolean is_ctest_project If the current project is a CTest project.
 function M.is_ctest_project()
-  return require("cmakeseer.ctest.api").is_ctest_project(M.get_build_directory())
+  return require("cmakeseer.ctest.api").is_ctest_project(current_config:resolve_build_directory())
 end
 
-M.setup = M.config.set
+---@class cmakeseer.Options
+---@field cmake_command string? The command used to run CMake. Defaults to `cmake`.
+---@field build_directory (string|fun(): string)? The path (or a function that generates a path) to the build directory. Can be relative to the project root.
+---@field project_root (fun(): string)? A function that generates a path to the project root. Can be relative to the current working directory.
+---@field default_cmake_settings cmakeseer.CMakeSettings? Contains definition:value pairs to be used when configuring the project.
+---@field should_scan_path boolean? If the PATH environment variable directories should be scanned for kits.
+---@field scan_paths string[]? Additional paths to scan for kits.
+---@field kit_paths string[]? Paths to files containing CMake kit definitions. These will not be expanded.
+---@field kits cmakeseer.Kit[]? Global user-defined kits.
+---@field persist_file string? The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
+
+---@param opts cmakeseer.Options
+function M.setup(opts)
+  current_config = require("cmakeseer.config").Configuration.new(opts)
+end
 
 return M

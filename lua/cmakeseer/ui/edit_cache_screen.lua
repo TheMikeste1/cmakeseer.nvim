@@ -23,7 +23,7 @@ function M.edit_cache_screen()
     return
   end
 
-  local cache_path = vim.fs.joinpath(cmakeseer.get_build_directory(), "CMakeCache.txt")
+  local cache_path = vim.fs.joinpath(cmakeseer.get_config():resolve_build_directory(), "CMakeCache.txt")
   if vim.uv.fs_stat(cache_path) == nil then
     vim.notify("Cannot find cache at " .. cache_path, vim.log.levels.ERROR)
     return

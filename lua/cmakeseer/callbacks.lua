@@ -4,7 +4,7 @@ local CTestApi = require("cmakeseer.ctest.api")
 local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
 
 local function load_targets()
-  local build_dir = CMakeSeer.get_build_directory()
+  local build_dir = CMakeSeer.get_config():resolve_build_directory()
   local responses = CMakeApi.read_responses(build_dir)
   local codemodel_reference = nil
   for _, response in ipairs(responses) do
@@ -57,7 +57,7 @@ local function load_targets()
 end
 
 local function load_ctest_info()
-  local maybe_info = CTestApi.issue_query(CMakeSeer.get_build_directory())
+  local maybe_info = CTestApi.issue_query(CMakeSeer.get_config():resolve_build_directory())
   if type(maybe_info) == "table" then
     require("cmakeseer.state").set_ctest_info(maybe_info)
     return
@@ -91,7 +91,7 @@ local M = {}
 
 --- Called before the project is configured.
 function M.on_pre_configure()
-  local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, CMakeSeer.get_build_directory())
+  local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, CMakeSeer.get_config():resolve_build_directory())
   if maybe_error ~= nil then
     local error_str = "Unknown error"
     if maybe_error == CMakeApi.IssueQueryError.FailedToMakeQueryFile then

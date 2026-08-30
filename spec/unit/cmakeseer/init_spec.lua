@@ -3,24 +3,6 @@ local stub = require("luassert.stub")
 local match = require("luassert.match")
 
 describe("cmakeseer.init", function()
-  describe("get_build_directory", function()
-    it("returns normalized absolute path", function()
-      main.config.set({ build_directory = "build" })
-      local dir = main.get_build_directory()
-      assert.is_not_nil(dir:match("/build$"))
-    end)
-
-    it("handles function build_directory", function()
-      main.config.set({
-        build_directory = function()
-          return "custom-build"
-        end,
-      })
-      local dir = main.get_build_directory()
-      assert.is_not_nil(dir:match("/custom%-build$"))
-    end)
-  end)
-
   describe("project_is_configured", function()
     it("checks for CMakeCache.txt", function()
       local glob_stub = stub(vim.fn, "glob", function()
@@ -86,7 +68,7 @@ describe("cmakeseer.init", function()
 
   describe("get_build_args", function()
     it("returns correct build args", function()
-      main.config.set({ build_directory = "build" })
+      main.setup({ build_directory = "build" })
       local args = main.get_build_args()
       assert.are.equal("--build", args[1])
       assert.is_not_nil(args[2]:match("/build$"))
@@ -100,7 +82,7 @@ describe("cmakeseer.init", function()
         return { { name = "FileKit", compilers = { C = "f" } } }
       end)
 
-      main.config.set({ kits = { { name = "ConfigKit", compilers = { C = "c" } } }, kit_paths = { "p" } })
+      main.setup({ kits = { { name = "ConfigKit", compilers = { C = "c" } } }, kit_paths = { "p" } })
       main.state.set_discovered_kits({ { name = "DiscoveredKit", compilers = { C = "d" } } })
 
       local kits = main.get_all_kits()
@@ -111,11 +93,6 @@ describe("cmakeseer.init", function()
   end)
 
   describe("helper functions", function()
-    it("get_build_command", function()
-      main.config.set({ build_directory = "build" })
-      assert.is_not_nil(main.get_build_command():match("cmake %-%-build"))
-    end)
-
     it("get_configure_command", function()
       assert.is_table(main.get_configure_command())
     end)
@@ -183,7 +160,7 @@ describe("cmakeseer.init", function()
         return {}
       end)
 
-      main.config.set({ should_scan_path = false, scan_paths = { "/test" }, persist_file = "/abs/file.json" })
+      main.setup({ should_scan_path = false, scan_paths = { "/test" }, persist_file = "/abs/file.json" })
       main.scan_for_kits()
 
       local found_kits_msg = false
@@ -222,7 +199,7 @@ describe("cmakeseer.init", function()
       local old_path = vim.env.PATH
       vim.env.PATH = "/bin:/usr/bin"
 
-      main.config.set({ should_scan_path = true, scan_paths = { "/test" }, persist_file = nil })
+      main.setup({ should_scan_path = true, scan_paths = { "/test" }, persist_file = nil })
       main.scan_for_kits()
 
       -- Check that scan_for_kits was called for /bin and /usr/bin

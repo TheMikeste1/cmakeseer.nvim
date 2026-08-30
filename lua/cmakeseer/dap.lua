@@ -19,7 +19,7 @@ function M.setup()
       type = "pipe",
       pipe = pipe,
       executable = {
-        command = require("cmakeseer").cmake_command(),
+        command = require("cmakeseer").get_config().cmake_command,
         args = args,
       },
     })

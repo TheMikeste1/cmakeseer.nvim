@@ -5,7 +5,7 @@ if pcall(require, "neoconf") then
 end
 
 if CMakeSeer.project_is_configured() then
-  vim.uv.fs_stat(require("cmakeseer.cmake.api").get_query_directory(CMakeSeer.get_build_directory()), function(err, stat)
+  vim.uv.fs_stat(require("cmakeseer.cmake.api").get_query_directory(CMakeSeer.get_config():resolve_build_directory()), function(err, stat)
     _ = stat
     if err ~= nil then
       vim.notify("Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured.")

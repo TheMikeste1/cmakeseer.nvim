@@ -6,10 +6,10 @@ local function builder()
   --- @type overseer.TaskDefinition
   local task = {
     name = "CMake Install",
-    cmd = CMakeSeer.cmake_command(),
+    cmd = CMakeSeer.get_config().cmake_command,
     args = {
       "--install",
-      CMakeSeer.get_build_directory(),
+      CMakeSeer.get_config():resolve_build_directory(),
     },
     components = {
       {

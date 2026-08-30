@@ -36,7 +36,7 @@ end
 --- Gets the CMake version.
 --- @return {major: number, minor: number, patch: number}? version The CMake version.
 function M.get_cmake_version()
-  local cmake_cmd = require("cmakeseer").cmake_command()
+  local cmake_cmd = require("cmakeseer").get_config().cmake_command
   local obj = vim.system({ cmake_cmd, "--version" }, { text = true }):wait()
   if obj.code ~= 0 then
     return nil

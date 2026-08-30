@@ -105,7 +105,7 @@ function M.get_target_path(target)
     return path
   end
 
-  return vim.fs.joinpath(Cmakeseer.get_build_directory(), path)
+  return vim.fs.joinpath(Cmakeseer.get_config():resolve_build_directory(), path)
 end
 
 return M

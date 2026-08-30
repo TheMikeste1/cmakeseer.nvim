@@ -7,7 +7,7 @@ local function builder()
   local CMakeSeer = require("cmakeseer")
   return {
     name = "CMake Configure",
-    cmd = CMakeSeer.cmake_command(),
+    cmd = CMakeSeer.get_config().cmake_command,
     args = CMakeSeer.get_configure_args(),
     components = {
       "cmakeseer.configure_hooks",
