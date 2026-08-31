@@ -24,6 +24,14 @@ function M.get_build_args()
     current_config:resolve_build_directory(),
   }
 
+  local preset = M.state.selections.preset
+  if preset ~= nil then
+    -- TODO: Check if binaryDir is in preset. If it does, remove the build directory
+    -- If a build preset isn't selected but a configure preset is, we'll need to
+    -- use the configure preset's build directory.
+    vim.list_extend(args, { "--preset", preset })
+  end
+
   local parallel = require("cmakeseer.settings").get_settings().parallel
   if type(parallel) == "function" then
     parallel = parallel()
@@ -45,9 +53,15 @@ function M.get_basic_configure_args()
     current_config:project_root(),
     "-B",
     current_config:resolve_build_directory(),
-    "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON",
   }
 
+  local preset = M.state.selections.preset
+  if preset ~= nil then
+    vim.list_extend(args, { "--preset", preset })
+    -- TODO: Check if binaryDir is in preset. If it does, remove -B.
+  end
+
+  table.insert(args, "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON")
   return args
 end
 
@@ -56,13 +70,13 @@ function M.get_configure_args()
   local Settings = require("cmakeseer.settings")
 
   local args = M.get_basic_configure_args()
-  local variant = M.state.selected_variant()
+  local variant = M.state.selections.variant
   if variant ~= M.Variant.Unspecified then
     local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
     table.insert(args, definition)
   end
 
-  local maybe_selected_kit = M.state.selected_kit()
+  local maybe_selected_kit = M.state.selections.kit
   if maybe_selected_kit == nil then
     vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)
   else

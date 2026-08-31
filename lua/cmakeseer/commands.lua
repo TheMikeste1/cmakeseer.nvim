@@ -26,12 +26,14 @@ function M.select_kit()
       end
       return item.name .. " (" .. c_compiler .. ", " .. cxx_compiler .. ")"
     end,
-  }, CMakeSeer.state.set_selected_kit)
+  }, function(kit)
+    CMakeSeer.state.selections.kit = kit
+  end)
 end
 
 --- Select a preset to use
 function M.select_preset()
-  local presets = require("cmakeseer.cmake").fetch_presets()
+  local presets = require("cmakeseer.cmake.preset").fetch_presets(require("cmakeseer").get_config():get_project_root())
   table.insert(presets, "<none>")
   vim.ui.select(presets, {
     prompt = "Select preset",
@@ -39,15 +41,8 @@ function M.select_preset()
     if preset == "<none>" then
       preset = nil
     end
-    CMakeSeer.state.set_selected_preset(preset)
+    CMakeSeer.state.selections.preset = preset
   end)
-end
-
-function M.clear_preset()
-  local presets = require("cmakeseer.cmake").fetch_presets()
-  vim.ui.select(presets, {
-    prompt = "Select preset",
-  }, CMakeSeer.state.set_selected_preset)
 end
 
 function M.select_variant()
@@ -58,7 +53,12 @@ function M.select_variant()
 
   vim.ui.select(variants, {
     prompt = "Select variant",
-  }, CMakeSeer.state.set_selected_variant)
+  }, function(variant)
+    if variant == nil then
+      return
+    end
+    CMakeSeer.state.selections.variant = variant
+  end)
 end
 
 return M

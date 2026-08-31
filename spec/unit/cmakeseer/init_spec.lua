@@ -33,7 +33,7 @@ describe("cmakeseer.init", function()
     end)
 
     it("includes variant if specified", function()
-      main.state.set_selected_variant(main.Variant.Release)
+      main.state.selections.variant = main.Variant.Release
       local args = main.get_configure_args()
       local found = false
       for _, a in ipairs(args) do
@@ -46,10 +46,10 @@ describe("cmakeseer.init", function()
     end)
 
     it("includes compilers if kit selected", function()
-      main.state.set_selected_kit({
+      main.state.selections.kit = {
         name = "Test kit",
         compilers = { C = "/usr/bin/gcc", CXX = "/usr/bin/g++" },
-      })
+      }
       local args = main.get_configure_args()
       local found_c = false
       local found_cxx = false
