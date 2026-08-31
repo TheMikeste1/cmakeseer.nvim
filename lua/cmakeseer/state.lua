@@ -17,10 +17,12 @@ local __targets = {}
 local __selections = {
   --- @type cmakeseer.Kit? The selected kit. Might be `nil` if one has not been selected.
   kit = nil,
-  ---@type cmakeseer.Variant
+  ---@type cmakeseer.Variant The variant to use, e.g. Debug or Release.
   variant = Variant.Debug,
-  ---@type string?
-  preset = nil,
+  ---@type string? The preset to use when configuring.
+  configure_preset = nil,
+  ---@type string? The preset to use when building.
+  build_preset = nil,
 }
 
 ---@return cmakeseer.Kit? selected_kit The currently selected kit, if one exists.

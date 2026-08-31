@@ -19,16 +19,23 @@ end
 
 ---@return string[] args The args used to build a CMake project.
 function M.get_build_args()
-  local args = {
-    "--build",
-    current_config:resolve_build_directory(),
-  }
+  local args = { "--build" }
 
-  local preset = M.state.selections.preset
-  if preset ~= nil then
-    -- TODO: Check if binaryDir is in preset. If it does, remove the build directory
+  local preset = M.state.selections.build_preset
+  local CMakePreset = require("cmakeseer.cmake.preset")
+  if preset == nil then
     -- If a build preset isn't selected but a configure preset is, we'll need to
     -- use the configure preset's build directory.
+    local configure_preset = M.state.selections.configure_preset
+    local binary_dir = nil
+    if configure_preset == nil then
+      -- Add the default build directory
+      binary_dir = current_config:resolve_build_directory()
+    else
+      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
+    end
+    table.insert(args, binary_dir)
+  else
     vim.list_extend(args, { "--preset", preset })
   end
 
@@ -51,14 +58,25 @@ function M.get_basic_configure_args()
   local args = {
     "-S",
     current_config:project_root(),
-    "-B",
-    current_config:resolve_build_directory(),
   }
 
-  local preset = M.state.selections.preset
+  local binary_dir = nil
+  local preset = M.state.selections.configure_preset
   if preset ~= nil then
     vim.list_extend(args, { "--preset", preset })
-    -- TODO: Check if binaryDir is in preset. If it does, remove -B.
+
+    -- Check if the preset includes the build directory
+    local CMakePreset = require("cmakeseer.cmake.preset")
+    binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
+    -- We won't need to specify the dir if it does as the --preset flag will take care of it for us
+  end
+
+  if binary_dir == nil then
+    -- Add the default build directory
+    vim.list_extend(args, {
+      "-B",
+      current_config:resolve_build_directory(),
+    })
   end
 
   table.insert(args, "-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON")

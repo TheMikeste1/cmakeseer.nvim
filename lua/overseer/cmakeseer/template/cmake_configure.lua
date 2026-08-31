@@ -1,12 +1,19 @@
 ---@module "overseer"
 
--- TODO: Add "Configure with Preset" target
+local function get_name()
+  local preset = require("cmakeseer").state.selections.configure_preset
+  local name = "CMake Configure"
+  if preset ~= nil then
+    name = ("%s (%s)"):format(name, preset)
+  end
+  return name
+end
 
 --- @return overseer.TaskDefinition
 local function builder()
   local CMakeSeer = require("cmakeseer")
   return {
-    name = "CMake Configure",
+    name = get_name(),
     cmd = CMakeSeer.get_config().cmake_command,
     args = CMakeSeer.get_configure_args(),
     components = {

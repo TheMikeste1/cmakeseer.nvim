@@ -31,20 +31,35 @@ function M.select_kit()
   end)
 end
 
---- Select a preset to use
-function M.select_preset()
-  local presets = require("cmakeseer.cmake.preset").fetch_presets(require("cmakeseer").get_config():get_project_root())
+--- Select a configure preset to use
+function M.select_configure_preset()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Configure)
   table.insert(presets, "<none>")
   vim.ui.select(presets, {
-    prompt = "Select preset",
+    prompt = "Select configure preset",
   }, function(preset)
     if preset == "<none>" then
       preset = nil
     end
-    CMakeSeer.state.selections.preset = preset
+    CMakeSeer.state.selections.configure_preset = preset
   end)
 end
 
+--- Select a build preset to use
+function M.select_build_preset()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Build)
+  table.insert(presets, "<none>")
+  vim.ui.select(presets, {
+    prompt = "Select build preset",
+  }, function(preset)
+    if preset == "<none>" then
+      preset = nil
+    end
+    CMakeSeer.state.selections.build_preset = preset
+  end)
+end
 function M.select_variant()
   local variants = {}
   for _, value in pairs(CMakeSeer.Variant) do

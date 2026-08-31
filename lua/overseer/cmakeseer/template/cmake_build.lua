@@ -2,12 +2,21 @@
 
 -- TODO: Add tags to all templates
 
+local function get_name()
+  local preset = require("cmakeseer").state.selections.build_preset
+  local name = "CMake Build"
+  if preset ~= nil then
+    name = ("%s (%s)"):format(name, preset)
+  end
+  return name
+end
+
 local function builder()
   local CMakeSeer = require("cmakeseer")
 
   --- @type overseer.TaskDefinition
   local task = {
-    name = "CMake Build",
+    name = get_name(),
     cmd = CMakeSeer.get_config().cmake_command,
     args = CMakeSeer.get_build_args(),
     components = {

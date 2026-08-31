@@ -21,7 +21,8 @@ require("cmakeseer.dap").setup()
 
 local API_COMMAND_HANDLERS = {
   ["select_kit"] = require("cmakeseer.commands").select_kit,
-  ["select_preset"] = require("cmakeseer.commands").select_preset,
+  ["select_build_preset"] = require("cmakeseer.commands").select_build_preset,
+  ["select_configure_preset"] = require("cmakeseer.commands").select_configure_preset,
   ["select_variant"] = require("cmakeseer.commands").select_variant,
 }
 
