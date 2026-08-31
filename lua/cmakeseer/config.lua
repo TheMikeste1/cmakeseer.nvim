@@ -64,6 +64,12 @@ function Configuration.new(o)
   return self
 end
 
+function Configuration:with(o)
+  o = o or {}
+  o = vim.tbl_deep_extend("keep", o, self)
+  return Configuration.new(o)
+end
+
 ---@return string
 function Configuration:resolve_build_directory()
   local build_dir = self.build_directory

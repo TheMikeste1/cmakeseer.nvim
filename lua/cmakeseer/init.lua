@@ -159,7 +159,7 @@ end
 
 ---@param opts cmakeseer.Options
 function M.setup(opts)
-  current_config = require("cmakeseer.config").Configuration.new(opts)
+  current_config = current_config:with(opts)
 end
 
 return M
