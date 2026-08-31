@@ -117,12 +117,14 @@ function M.get_configure_args()
   local Settings = require("cmakeseer.settings")
 
   local args = M.get_basic_configure_args()
+  -- TODO: Check if this is taken care of in the preset
   local variant = M.state.selections.variant
   if variant ~= M.Variant.Unspecified then
     local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
     table.insert(args, definition)
   end
 
+  -- TODO: Check if this is taken care of in the preset
   local maybe_selected_kit = M.state.selections.kit
   if maybe_selected_kit == nil then
     vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)
