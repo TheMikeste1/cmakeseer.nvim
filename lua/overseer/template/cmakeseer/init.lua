@@ -14,20 +14,6 @@ local function generate_build_targets()
   return templates
 end
 
-local function generate_preset_targets()
-  local ConfigurePresetBuilder = require("overseer.template.cmakeseer.configure_preset_builder")
-
-  local preset_str = vim.fn.system("cmake --list-presets")
-  local templates = {}
-  for preset in string.gmatch(preset_str, '"([^"]+)"') do
-    local template = ConfigurePresetBuilder.build_template_for(preset, false)
-    table.insert(templates, template)
-    template = ConfigurePresetBuilder.build_template_for(preset, true)
-    table.insert(templates, template)
-  end
-  return templates
-end
-
 local function get_configured_targets()
   local templates = {
     require("overseer.cmakeseer.template.cmake_build_target"),
@@ -56,8 +42,8 @@ return {
   generator = function(search, cb)
     local CMakeSeer = require("cmakeseer")
 
-    if vim.fn.filereadable(vim.fs.joinpath(search.dir, "CMakeLists.txt")) == 0 and not CMakeSeer.is_cmake_project() then
-      return
+    if not CMakeSeer.is_cmake_project() and not CMakeSeer.is_cmake_project(search.dir) then
+      return "Project is not a CMake project"
     end
 
     local templates = {
@@ -65,8 +51,6 @@ return {
       require("overseer.cmakeseer.template.cmake_build"),
       require("overseer.cmakeseer.template.cmake_configure"),
     }
-    local preset_templates = generate_preset_targets()
-    templates = vim.list_extend(templates, preset_templates)
 
     if CMakeSeer.project_is_configured() then
       vim.list_extend(templates, get_configured_targets())
@@ -86,6 +70,6 @@ return {
   end,
   cache_key = function(_)
     local CMakeSeer = require("cmakeseer")
-    return vim.fs.joinpath(CMakeSeer.get_config():resolve_build_directory(), "CMakeCache.txt")
+    return CMakeSeer.get_project_cache_file()
   end,
 }

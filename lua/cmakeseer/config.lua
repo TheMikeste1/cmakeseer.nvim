@@ -1,12 +1,12 @@
 local function project_root()
-  return vim.fs.root(0, "CMakePresets.json")
-    or vim.fs.root(0, "CMakeUserPresets.json")
+  return vim.fs.root(0, {
+    "CMakePresets.json",
+    "CMakeUserPresets.json",
     -- TODO: We might want this to be more nuanced by finding the git root,
     -- then working our way back down to the current file's directory to find a CMakeLists.txt
-    or vim.fs.root(0, ".git")
-    or vim.fs.root(0, "CMakeLists.txt") -- fallback to nearest CMakeLists. It's probably be better to keep going up until there are no more.
-    or vim.uv.cwd()
-    or vim.fn.getcwd()
+    ".git",
+    "CMakeLists.txt", -- fallback to nearest CMakeLists. It's probably be better to keep going up until there are no more.
+  }) or vim.uv.cwd() or vim.fn.getcwd()
 end
 
 ---@private

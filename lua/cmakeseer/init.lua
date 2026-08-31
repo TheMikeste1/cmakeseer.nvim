@@ -11,9 +11,31 @@ function M.get_config()
   return current_config
 end
 
+function M.get_project_cache_file()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+
+  local binary_dir = nil
+  local build_preset = M.state.selections.build_preset
+  if build_preset == nil then
+    local configure_preset = M.state.selections.configure_preset
+    if configure_preset ~= nil then
+      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
+    end
+  else
+    binary_dir = CMakePreset.preset_binary_dir(build_preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
+  end
+
+  if binary_dir == nil then
+    -- Add the default build directory
+    binary_dir = current_config:resolve_build_directory()
+  end
+
+  return vim.fs.joinpath(binary_dir, "CMakeCache.txt")
+end
+
 ---@return boolean is_configured If the project is configured.
 function M.project_is_configured()
-  local cache_path = vim.fs.joinpath(current_config:resolve_build_directory(), "CMakeCache.txt")
+  local cache_path = M.get_project_cache_file()
   return vim.uv.fs_stat(cache_path) ~= nil
 end
 
@@ -36,6 +58,13 @@ function M.get_build_args()
     end
     table.insert(args, binary_dir)
   else
+    local binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
+    -- If binary_dir is not nil, it must be taken care of by the preset
+    if binary_dir == nil then
+      binary_dir = current_config:resolve_build_directory()
+      table.insert(args, binary_dir)
+    end
+
     vim.list_extend(args, { "--preset", preset })
   end
 
@@ -167,10 +196,12 @@ function M.scan_for_kits()
   end
 end
 
----@return boolean is_cmake_project If the current project is a CMake project.
-function M.is_cmake_project()
-  local root = current_config:project_root()
-  return vim.fn.glob(vim.fs.joinpath(root, "CMakeLists.txt")) ~= ""
+---@param path string? Optional path to the directory to check. Will default to the project root.
+---@return boolean is_cmake_project If the path contains a CMake project.
+function M.is_cmake_project(path)
+  local root = path or current_config:project_root()
+  local cmake_list = vim.fs.joinpath(root, "CMakeLists.txt")
+  return vim.uv.fs_stat(cmake_list) ~= nil
 end
 
 ---@return boolean is_ctest_project If the current project is a CTest project.
