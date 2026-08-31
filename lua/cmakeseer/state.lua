@@ -1,4 +1,4 @@
---- TODO: Allow custom variants
+--- TODO: Allow custom variants. We should be able to fetch available configurations from the file API.
 ---@enum cmakeseer.Variant
 local Variant = {
   Debug = "Debug",
@@ -16,6 +16,8 @@ local __selected_kit = nil
 local __targets = {}
 ---@type cmakeseer.Variant
 local __selected_variant = Variant.Debug
+---@type string?
+local __selected_preset = nil
 ---@type cmakeseer.cmake.api.CTestInfo?
 local __ctest_info = nil
 
@@ -91,6 +93,17 @@ end
 function M.set_selected_kit(kit)
   -- TODO: Validate kit
   __selected_kit = kit
+end
+
+---@return string? preset The user-selected preset, if one exists.
+function M.selected_preset()
+  return __selected_preset
+end
+M.get_selected_preset = M.selected_preset
+
+---@param preset string? The preset to set. `nil` to select no preset.
+function M.set_selected_preset(preset)
+  __selected_preset = preset
 end
 
 ---@return cmakeseer.cmake.api.CTestInfo? info The CTest info.

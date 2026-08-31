@@ -18,35 +18,43 @@ if CMakeSeer.project_is_configured() then
 end
 
 require("cmakeseer.dap").setup()
-local function handle_api_command(opts)
-  vim.notify("CMakeSeer opts: " .. vim.inspect(opts), vim.log.levels.DEBUG)
-  if not opts.fargs then
-    vim.notify("Missing args")
-    return
-  end
 
-  if opts.fargs[1] == "select_kit" then
-    require("cmakeseer").select_kit()
-    return
-  end
+local API_COMMAND_HANDLERS = {
+  ["select_kit"] = require("cmakeseer.commands").select_kit,
+  ["select_preset"] = require("cmakeseer.commands").select_preset,
+  ["select_variant"] = require("cmakeseer.commands").select_variant,
+}
 
-  if opts.fargs[1] == "select_variant" then
-    require("cmakeseer").select_variant()
-    return
-  end
-
-  if opts.fargs[1] == "edit_cache_entry" then
-    require("cmakeseer.ui.edit_cache_entry")()
+vim.api.nvim_create_user_command("CMakeSeer", function(opts)
+  local handler = API_COMMAND_HANDLERS[opts.fargs[1]]
+  if handler ~= nil then
+    handler()
     return
   end
 
   vim.notify("Unknown CMakeSeer command: " .. opts.args)
-end
+end, {
+  desc = "Update CMakeSeer settings",
+  nargs = "+",
+  complete = function(ArgLead, CmdLine)
+    local command_parts = vim.split(CmdLine, " ")
+    local possibilities = {}
+    if #command_parts < 3 then
+      for key, _ in pairs(API_COMMAND_HANDLERS) do
+        table.insert(possibilities, key)
+      end
+    end
 
-vim.api.nvim_create_user_command("CMakeSeer", handle_api_command, {
-  desc = "Access the CMakeSeer API",
-  nargs = "*",
-  complete = function(_, _)
-    return { "select_kit", "select_variant", "edit_cache_entry" }
+    local matches = {}
+    local nonmatches = {}
+    for _, possiblity in ipairs(possibilities) do
+      if vim.startswith(possiblity, ArgLead) then
+        table.insert(matches, possiblity)
+      else
+        table.insert(nonmatches, possiblity)
+      end
+    end
+
+    return vim.list_extend(matches, nonmatches)
   end,
 })

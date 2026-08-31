@@ -102,42 +102,6 @@ function M.get_all_kits()
   return kits
 end
 
---- Select a kit to use
-function M.select_kit()
-  local kits = M.get_all_kits()
-  vim.ui.select(kits, {
-    prompt = "Select kit",
-    --- @param item cmakeseer.Kit
-    --- @return string
-    format_item = function(item)
-      local c_compiler = item.compilers.C
-      if #c_compiler > 20 then
-        c_compiler = vim.fn.pathshorten(c_compiler)
-      end
-
-      local cxx_compiler = item.compilers.CXX
-      if cxx_compiler == nil then
-        cxx_compiler = "<no CXX compiler>"
-      end
-      if #cxx_compiler > 20 then
-        cxx_compiler = vim.fn.pathshorten(cxx_compiler)
-      end
-      return item.name .. " (" .. c_compiler .. ", " .. cxx_compiler .. ")"
-    end,
-  }, M.state.set_selected_kit)
-end
-
-function M.select_variant()
-  local variants = {}
-  for _, value in pairs(M.Variant) do
-    table.insert(variants, value)
-  end
-
-  vim.ui.select(variants, {
-    prompt = "Select variant",
-  }, M.state.set_selected_variant)
-end
-
 function M.scan_for_kits()
   local Kit = require("cmakeseer.kit")
 

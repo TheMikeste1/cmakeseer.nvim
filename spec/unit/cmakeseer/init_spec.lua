@@ -115,39 +115,6 @@ describe("cmakeseer.init", function()
     end)
   end)
 
-  describe("select_kit", function()
-    it("calls vim.ui.select and sets kit", function()
-      local select_stub = stub(vim.ui, "select", function(items, opts, on_choice)
-        -- Test format_item
-        local kit = { name = "MyKit", compilers = { C = "/usr/bin/gcc", CXX = "/usr/bin/g++" } }
-        opts.format_item(kit)
-
-        -- Test format_item with long path
-        local kit_long = {
-          name = "LongKit",
-          compilers = { C = "/very/long/path/to/some/compiler/gcc", CXX = "/very/long/path/to/some/compiler/g++" },
-        }
-        opts.format_item(kit_long)
-
-        -- Test format_item with missing CXX
-        local kit_no_cxx = { name = "NoCXX", compilers = { C = "gcc" } }
-        opts.format_item(kit_no_cxx)
-
-        on_choice(items[1])
-      end)
-      local main_stub = stub(main, "get_all_kits", function()
-        return { { name = "Kit 1", compilers = { C = "gcc" } }, { name = "Kit 2", compilers = { C = "gcc" } } }
-      end)
-
-      main.select_kit()
-
-      assert.stub(select_stub).was.called(1)
-
-      select_stub:revert()
-      main_stub:revert()
-    end)
-  end)
-
   describe("scan_for_kits", function()
     it("scans paths and discovered kits", function()
       local kit_mod = require("cmakeseer.kit")
@@ -212,23 +179,6 @@ describe("cmakeseer.init", function()
       persist_stub:revert()
       notify_stub:revert()
       get_all_kits_stub:revert()
-    end)
-  end)
-
-  describe("select_variant", function()
-    it("calls vim.ui.select and sets variant", function()
-      local selected = nil
-      local select_stub = stub(vim.ui, "select", function(items, _, on_choice)
-        selected = items[1]
-        on_choice(selected)
-      end)
-
-      main.select_variant()
-
-      assert.stub(select_stub).was.called(1)
-      assert.are.equal(selected, main.state.selected_variant())
-
-      select_stub:revert()
     end)
   end)
 end)
