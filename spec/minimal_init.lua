@@ -82,6 +82,25 @@ for url, directory in pairs(_DEPENDENCIES) do
   vim.opt.rtp:append(directory)
 end
 
+local home = os.getenv("HOME") or ""
+if home ~= "" then
+  local lr_paths = {
+    home .. "/.luarocks/share/lua/5.1/?.lua",
+    home .. "/.luarocks/share/lua/5.1/?/init.lua",
+    home .. "/.luarocks/share/lua/5.4/?.lua",
+    home .. "/.luarocks/share/lua/5.4/?/init.lua",
+  }
+  package.path = table.concat(lr_paths, ";") .. ";" .. package.path
+
+  local lr_cpaths = {
+    home .. "/.luarocks/lib/lua/5.1/?.so",
+    home .. "/.luarocks/lib64/lua/5.1/?.so",
+    home .. "/.luarocks/lib/lua/5.4/?.so",
+    home .. "/.luarocks/lib64/lua/5.4/?.so",
+  }
+  package.cpath = table.concat(lr_cpaths, ";") .. ";" .. package.cpath
+end
+
 if cloned then
   print("Finished cloning.")
 end

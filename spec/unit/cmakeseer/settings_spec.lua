@@ -1,5 +1,5 @@
 local settings = require("cmakeseer.settings")
-local config = require("cmakeseer.config")
+local CMakeSeer = require("cmakeseer")
 
 describe("cmakeseer.settings", function()
   before_each(function()
@@ -8,7 +8,7 @@ describe("cmakeseer.settings", function()
 
   it("returns default settings initially", function()
     local default = settings.get_settings()
-    assert.are.same(config.default_cmake_settings, default)
+    assert.are.same(CMakeSeer.get_config().default_cmake_settings, default)
   end)
 
   it("allows setting and getting settings", function()
@@ -29,6 +29,6 @@ describe("cmakeseer.settings", function()
     }
     settings.set_settings(new_settings)
     settings.reset_settings()
-    assert.are.same(config.default_cmake_settings, settings.get_settings())
+    assert.are.same(CMakeSeer.get_config().default_cmake_settings, settings.get_settings())
   end)
 end)

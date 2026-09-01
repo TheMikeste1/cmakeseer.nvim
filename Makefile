@@ -1,4 +1,8 @@
-.PHONY: download-types llscheck check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop neoclippy
+export PATH := $(HOME)/.luarocks/bin:$(PATH)
+export LUA_PATH := $(HOME)/.luarocks/share/lua/5.1/?.lua;$(HOME)/.luarocks/share/lua/5.1/?/init.lua;$(HOME)/.luarocks/share/lua/5.4/?.lua;$(HOME)/.luarocks/share/lua/5.4/?/init.lua;;
+export LUA_CPATH := $(HOME)/.luarocks/lib/lua/5.1/?.so;$(HOME)/.luarocks/lib64/lua/5.1/?.so;$(HOME)/.luarocks/lib/lua/5.4/?.so;$(HOME)/.luarocks/lib64/lua/5.4/?.so;;
+
+.PHONY: download-types install-busted llscheck check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop neoclippy
 
 ifeq ($(OS),Windows_NT)
     IGNORE_EXISTING =
@@ -7,6 +11,9 @@ else
 endif
 
 CONFIGURATION = .luarc.json
+
+install-busted:
+	@which busted > /dev/null 2>&1 || luarocks --lua-version=5.1 install --local busted $(IGNORE_EXISTING) || luarocks install --local busted $(IGNORE_EXISTING)
 
 download-types:
 	@echo "Downloading types. . ."
@@ -35,7 +42,7 @@ neoclippy:
 	python3 neoclippy.py lua/
 
 # standard test
-test:
+test: install-busted
 	busted .
 
 # Run tests under instrumenting profiler (profile.nvim)

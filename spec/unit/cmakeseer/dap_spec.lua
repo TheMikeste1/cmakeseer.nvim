@@ -95,9 +95,7 @@ describe("cmakeseer.dap", function()
     local adapter = dap.adapters.cmake
     ---@diagnostic disable-next-line: missing-parameter
     local callback_stub = stub()
-    local cmake_command_stub = stub(CMakeSeer, "cmake_command", function()
-      return "mycmake"
-    end)
+    local get_config_stub = stub(CMakeSeer, "get_config", { cmake_command = "mycmake" })
 
     local config = {
       cmakeArgs = function()
@@ -122,7 +120,7 @@ describe("cmakeseer.dap", function()
     end
     assert.is_true(found_foo)
 
-    cmake_command_stub:revert()
+    get_config_stub:revert()
   end)
 
   it("cmake adapter handles nil cmakeArgs", function()
@@ -130,9 +128,7 @@ describe("cmakeseer.dap", function()
     local adapter = dap.adapters.cmake
     ---@diagnostic disable-next-line: missing-parameter
     local callback_stub = stub()
-    local cmake_command_stub = stub(CMakeSeer, "cmake_command", function()
-      return "mycmake"
-    end)
+    local get_config_stub = stub(CMakeSeer, "get_config", { cmake_command = "mycmake" })
 
     adapter(callback_stub, {})
 
@@ -140,7 +136,7 @@ describe("cmakeseer.dap", function()
     local adapter_result = (callback_stub --[[@as any]]).calls[1].refs[1]
     assert.are.equal("mycmake", adapter_result.executable.command)
 
-    cmake_command_stub:revert()
+    get_config_stub:revert()
   end)
 
   describe("debug_configure logic", function()

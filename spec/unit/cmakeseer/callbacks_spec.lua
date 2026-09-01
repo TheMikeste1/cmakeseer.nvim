@@ -1,64 +1,54 @@
 local callbacks = require("cmakeseer.callbacks")
 local CMakeSeer = require("cmakeseer")
-local CTestApi = require("cmakeseer.ctest.api")
 local state = require("cmakeseer.state")
 local stub = require("luassert.stub")
+local match = require("luassert.match")
 
 describe("cmakeseer.callbacks", function()
-  describe("on_post_configure_success", function()
-    local is_ctest_stub
-    local issue_query_stub
-    local set_info_stub
-    local get_build_dir_stub
+  describe("on_pre_configure", function()
+    it("issues query for codemodel", function()
+      local CMakeApi = require("cmakeseer.cmake.api")
+      local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
+      local resolve_stub = stub(CMakeSeer, "resolve_build_directory", "/build/path")
+      local query_stub = stub(CMakeApi, "issue_query")
 
+      callbacks.on_pre_configure()
+
+      assert.stub(query_stub).was.called_with(ObjectKind.codemodel, "/build/path")
+
+      resolve_stub:revert()
+      query_stub:revert()
+    end)
+
+    it("notifies when query issue returns an error", function()
+      local CMakeApi = require("cmakeseer.cmake.api")
+      local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
+      local resolve_stub = stub(CMakeSeer, "resolve_build_directory", "/build/path")
+      local query_stub = stub(CMakeApi, "issue_query", CMakeApi.IssueQueryError.FailedToMakeQueryFile)
+      local notify_stub = stub(vim, "notify")
+
+      callbacks.on_pre_configure()
+
+      assert.stub(notify_stub).was.called_with(match.matches("Failed to make query file", 1, true), vim.log.levels.ERROR)
+
+      resolve_stub:revert()
+      query_stub:revert()
+      notify_stub:revert()
+    end)
+  end)
+
+  describe("on_post_configure_success", function()
+    local resolve_stub
     local read_responses_stub
 
     before_each(function()
-      is_ctest_stub = stub(CMakeSeer, "is_ctest_project")
-      issue_query_stub = stub(CTestApi, "issue_query")
-      set_info_stub = stub(state, "set_ctest_info")
-      get_build_dir_stub = stub(CMakeSeer, "get_build_directory", "/path/to/build")
-      -- Mocking CMakeApi.read_responses as it is also called in on_post_configure_success via load_targets
+      resolve_stub = stub(CMakeSeer, "resolve_build_directory", "/path/to/build")
       read_responses_stub = stub(require("cmakeseer.cmake.api"), "read_responses", {})
     end)
 
     after_each(function()
-      is_ctest_stub:revert()
-      issue_query_stub:revert()
-      set_info_stub:revert()
-      get_build_dir_stub:revert()
+      resolve_stub:revert()
       read_responses_stub:revert()
-    end)
-
-    it("loads CTest info if it is a CTest project", function()
-      is_ctest_stub.returns(true)
-      local info = { tests = {} }
-      issue_query_stub.returns(info)
-
-      callbacks.on_post_configure_success()
-
-      assert.stub(issue_query_stub).was.called_with("/path/to/build")
-      assert.stub(set_info_stub).was.called_with(info)
-    end)
-
-    it("does not load CTest info if it is not a CTest project", function()
-      is_ctest_stub.returns(false)
-
-      callbacks.on_post_configure_success()
-
-      assert.stub(issue_query_stub).was.not_called()
-      assert.stub(set_info_stub).was.not_called()
-    end)
-
-    it("notifies on CTest query error", function()
-      is_ctest_stub.returns(true)
-      issue_query_stub.returns(CTestApi.IssueQueryError.NotConfigured)
-      local notify_stub = stub(vim, "notify")
-
-      callbacks.on_post_configure_success()
-
-      assert.stub(notify_stub).was.called_with("Unable to load CTest info: NotConfigured", vim.log.levels.ERROR)
-      notify_stub:revert()
     end)
 
     it("loads targets on success", function()
