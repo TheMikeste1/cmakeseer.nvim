@@ -61,8 +61,17 @@ setmetatable(selections_proxy, {
   --- Handles writes.
   --- Will handle all writes since the proxy doesn't actually have any contents.
   __newindex = function(_, key, value)
+    local old_value = __selections[key]
+    if old_value == value then
+      return
+    end
+
     -- TODO: Handle validation
     __selections[key] = value
+
+    if key == "configure_preset" or key == "build_preset" then
+      require("cmakeseer").load_if_configured()
+    end
   end,
 })
 

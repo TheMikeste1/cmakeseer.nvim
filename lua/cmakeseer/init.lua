@@ -39,6 +39,22 @@ function M.project_is_configured()
   return vim.uv.fs_stat(cache_path) ~= nil
 end
 
+--- Loads targets if the project is configured.
+function M.load_if_configured()
+  if M.project_is_configured() then
+    vim.uv.fs_stat(require("cmakeseer.cmake.api").get_query_directory(M.resolve_build_directory()), function(err, stat)
+      _ = stat
+      if err ~= nil then
+        vim.notify("Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured.")
+        return
+      end
+
+      vim.notify("Project is already configured; attempting to load targets. . .")
+      vim.schedule(require("cmakeseer.callbacks").on_post_configure_success)
+    end)
+  end
+end
+
 --- Resolves the current build directory. Will attempt to use the build preset's build directory, then the configure's, and finally the default configured build directory.
 ---@return string binary_dir The resolved build directory.
 function M.resolve_build_directory()

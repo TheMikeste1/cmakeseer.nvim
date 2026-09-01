@@ -59,7 +59,7 @@ local M = {}
 
 --- Called before the project is configured.
 function M.on_pre_configure()
-  local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, CMakeSeer.get_config():resolve_build_directory())
+  local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, CMakeSeer.resolve_build_directory())
   if maybe_error ~= nil then
     local error_str = "Unknown error"
     if maybe_error == CMakeApi.IssueQueryError.FailedToMakeQueryFile then
