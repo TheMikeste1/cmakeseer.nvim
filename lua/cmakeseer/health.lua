@@ -57,7 +57,7 @@ function M.check()
   local ok, init = pcall(require, "cmakeseer")
   if ok then
     if init.project_is_configured() then
-      vim.health.ok("Project is currently configured in " .. init.get_config():resolve_build_directory())
+      vim.health.ok("Project is currently configured in " .. init.resolve_build_directory())
     else
       vim.health.info("Project is not yet configured.")
     end

@@ -27,6 +27,9 @@ function M.select_kit()
       return item.name .. " (" .. c_compiler .. ", " .. cxx_compiler .. ")"
     end,
   }, function(kit)
+    if kit == nil then
+      return
+    end
     CMakeSeer.state.selections.kit = kit
   end)
 end
@@ -39,6 +42,9 @@ function M.select_configure_preset()
   vim.ui.select(presets, {
     prompt = "Select configure preset",
   }, function(preset)
+    if preset == nil then
+      return
+    end
     if preset == "<none>" then
       preset = nil
     end
@@ -54,6 +60,9 @@ function M.select_build_preset()
   vim.ui.select(presets, {
     prompt = "Select build preset",
   }, function(preset)
+    if preset == nil then
+      return
+    end
     if preset == "<none>" then
       preset = nil
     end

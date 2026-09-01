@@ -9,7 +9,7 @@ local function builder()
     cmd = CMakeSeer.get_config().cmake_command,
     args = {
       "--install",
-      CMakeSeer.get_config():resolve_build_directory(),
+      CMakeSeer.resolve_build_directory(),
     },
     components = {
       {

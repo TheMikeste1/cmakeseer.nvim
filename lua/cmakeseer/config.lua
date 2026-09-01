@@ -67,6 +67,7 @@ end
 function Configuration:with(o)
   o = o or {}
   o = vim.tbl_deep_extend("keep", o, self)
+  o._project_root = nil
   return Configuration.new(o)
 end
 

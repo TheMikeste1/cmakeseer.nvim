@@ -35,7 +35,7 @@ M = {
       return string.match(target.name, "[tT]est") and not M.is_gtest_test(target)
     end,
     cache_directory = function()
-      return vim.fs.joinpath(CMakeSeer.get_config():resolve_build_directory(), ".cache", "cmakeseer", "gtest")
+      return vim.fs.joinpath(CMakeSeer.resolve_build_directory(), ".cache", "cmakeseer", "gtest")
     end,
   },
   treesitter = require("neotest.cmakeseer.gtest.treesitter"),
@@ -72,7 +72,7 @@ local function generate_executable_commands(targets)
     assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
     assert(#target.artifacts == 1, "Should only have one artifact for executable")
 
-    local executable = vim.fs.joinpath(CMakeSeer.get_config():resolve_build_directory(), target.artifacts[1].path)
+    local executable = vim.fs.joinpath(CMakeSeer.resolve_build_directory(), target.artifacts[1].path)
     local cache = vim.fs.joinpath(M.opts.cache_directory(), string.format("%s.json", target.name))
 
     local skip = false

@@ -12,25 +12,7 @@ function M.get_config()
 end
 
 function M.get_project_cache_file()
-  local CMakePreset = require("cmakeseer.cmake.preset")
-
-  local binary_dir = nil
-  local build_preset = M.state.selections.build_preset
-  if build_preset == nil then
-    local configure_preset = M.state.selections.configure_preset
-    if configure_preset ~= nil then
-      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
-    end
-  else
-    binary_dir = CMakePreset.preset_binary_dir(build_preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
-  end
-
-  if binary_dir == nil then
-    -- Add the default build directory
-    binary_dir = current_config:resolve_build_directory()
-  end
-
-  return vim.fs.joinpath(binary_dir, "CMakeCache.txt")
+  return vim.fs.joinpath(M.resolve_build_directory(), "CMakeCache.txt")
 end
 
 ---@return boolean is_configured If the project is configured.
@@ -90,12 +72,15 @@ function M.get_build_args()
     -- use the configure preset's build directory.
     local configure_preset = M.state.selections.configure_preset
     local binary_dir = nil
-    if configure_preset == nil then
-      -- Add the default build directory
-      binary_dir = current_config:resolve_build_directory()
-    else
+    if configure_preset ~= nil then
       binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
     end
+    if binary_dir == nil then
+      -- Add the default build directory
+      binary_dir = current_config:resolve_build_directory()
+    end
+
+    assert(binary_dir ~= nil)
     table.insert(args, binary_dir)
   else
     local binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
@@ -130,6 +115,7 @@ function M.get_basic_configure_args()
   }
 
   local binary_dir = nil
+  -- TODO: Account for build preset
   local preset = M.state.selections.configure_preset
   if preset ~= nil then
     vim.list_extend(args, { "--preset", preset })
@@ -144,7 +130,7 @@ function M.get_basic_configure_args()
     -- Add the default build directory
     vim.list_extend(args, {
       "-B",
-      current_config:resolve_build_directory(),
+      M.resolve_build_directory(),
     })
   end
 
