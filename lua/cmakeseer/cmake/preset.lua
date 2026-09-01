@@ -6,7 +6,11 @@ local function read_json(filepath)
 
   local content = file:read("*a")
   file:close()
-  return vim.json.decode(content)
+  local success, result = pcall(vim.json.decode, content)
+  if success then
+    return result
+  end
+  return nil
 end
 
 ---@enum cmakeseer.cmake.PresetType
