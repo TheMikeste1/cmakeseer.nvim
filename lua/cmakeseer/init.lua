@@ -39,6 +39,30 @@ function M.project_is_configured()
   return vim.uv.fs_stat(cache_path) ~= nil
 end
 
+--- Resolves the current build directory. Will attempt to use the build preset's build directory, then the configure's, and finally the default configured build directory.
+---@return string binary_dir The resolved build directory.
+function M.resolve_build_directory()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+
+  local binary_dir = nil
+  local preset = M.state.selections.build_preset
+  if preset == nil then
+    -- If a build preset isn't selected but a configure preset is, we'll need to
+    -- use the configure preset's build directory.
+    local configure_preset = M.state.selections.configure_preset
+    if configure_preset ~= nil then
+      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
+    end
+  else
+    binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build, { resolve_path = true })
+  end
+
+  if binary_dir == nil then
+    binary_dir = current_config:resolve_build_directory()
+  end
+  return binary_dir
+end
+
 ---@return string[] args The args used to build a CMake project.
 function M.get_build_args()
   local args = { "--build" }

@@ -1,10 +1,9 @@
 local CMakeApi = require("cmakeseer.cmake.api")
 local CMakeSeer = require("cmakeseer")
-local CTestApi = require("cmakeseer.ctest.api")
 local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
 
 local function load_targets()
-  local build_dir = CMakeSeer.get_config():resolve_build_directory()
+  local build_dir = CMakeSeer.resolve_build_directory()
   local responses = CMakeApi.read_responses(build_dir)
   local codemodel_reference = nil
   for _, response in ipairs(responses) do
