@@ -22,6 +22,70 @@ local M = {
   PresetTypes = PresetTypes,
 }
 
+--- Resolves CMake-preset style paths, filling in variables like ${source_dir} and ${hostSystemName}.
+--- See also <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
+---@param path string The path to resolve.
+---@param dir string Source directory to use when resolving paths.
+---@return string resolved_path The resolved path.
+function M.resolve_path(path, dir)
+  local expanded = path:gsub("(%${(.+)})", function(match, var)
+    -- TODO: Support more. We probably need more info about the preset we're resolving.
+    -- It might actually be better to create a Preset class that has a resolve path method on it.
+    if var == "sourceDir" then
+      return dir
+    elseif var == "sourceParentDir" then
+      return vim.fs.dirname(dir)
+    elseif var == "sourceDirName" then
+      return vim.fs.basename(dir)
+    elseif var == "presetName" then
+      vim.notify("Preset variable `presetName` not yet supported", vim.log.levels.ERROR)
+    elseif var == "generator" then
+      vim.notify("Preset variable `generator` not yet supported", vim.log.levels.ERROR)
+    elseif var == "hostSystemName" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return "Windows"
+      end
+      return system_name
+    elseif var == "fileDir" then
+      vim.notify("Preset variable `fileDir` not yet supported", vim.log.levels.ERROR)
+    elseif var == "dollar" then
+      return "$"
+    elseif var == "pathListSep" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return ";"
+      end
+      return ":"
+    end
+
+    -- Not recognized; return the match.
+    return match
+  end)
+
+  expanded = expanded:gsub("(%$env{(.+)})", function(match, var)
+    -- TODO: Check the environment field of the preset and prefer it instead
+    local maybe_env = vim.env[var]
+    if maybe_env ~= nil then
+      return maybe_env
+    end
+    -- Not recognized; return the match.
+    return match
+  end)
+
+  expanded = expanded:gsub("(%$penv{(.+)})", function(match, var)
+    local maybe_env = vim.env[var]
+    if maybe_env ~= nil then
+      return maybe_env
+    end
+    -- Not recognized; return the match.
+    return match
+  end)
+
+  expanded = vim.fs.normalize(expanded)
+  return expanded
+end
+
 --- Fetches the available presets.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
@@ -82,8 +146,11 @@ end
 ---@param preset string The preset to check.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
+---@param opts table? Additional options. TODO: Document the options.
 ---@return string? binary_dir The binary directory for the preset, if it exists and has one.
-function M.preset_binary_dir(preset, dir, preset_type)
+function M.preset_binary_dir(preset, dir, preset_type, opts)
+  opts = opts or { resolve_path = false }
+
   -- Workflows are unique and may not have one specific binary dir
   -- TODO: Add a workflow template to the Overseer templates
   if preset_type == PresetTypes.Workflow then
@@ -115,30 +182,28 @@ function M.preset_binary_dir(preset, dir, preset_type)
     return nil
   end
 
+  local binary_dir = nil
   if preset_type == PresetTypes.Configure then
-    -- TODO: Add a resolve function to handle things like ${source_dir} in the path
-    local binary_dir = preset_entry["binaryDir"]
-    if binary_dir ~= nil then
-      return binary_dir
+    binary_dir = preset_entry["binaryDir"]
+    if binary_dir == nil and preset_entry["inherits"] ~= nil then
+      binary_dir = M.preset_binary_dir(preset_entry["inherits"], dir, PresetTypes.Configure)
+    end
+  else
+    local configure_preset = preset_entry["configurePreset"]
+    if configure_preset ~= nil then
+      binary_dir = M.preset_binary_dir(configure_preset, dir, PresetTypes.Configure)
     end
 
-    if preset_entry["inherits"] ~= nil then
-      return M.preset_binary_dir(preset_entry["inherits"], dir, PresetTypes.Configure)
+    if binary_dir == nil and preset_entry["inherits"] ~= nil then
+      binary_dir = M.preset_binary_dir(preset_entry["inherits"], dir, preset_type)
     end
-
-    return nil
   end
 
-  local configure_preset = preset_entry["configurePreset"]
-  if configure_preset ~= nil then
-    return M.preset_binary_dir(configure_preset, dir, PresetTypes.Configure)
+  if binary_dir ~= nil and opts.resolve_path then
+    binary_dir = M.resolve_path(binary_dir, dir)
   end
 
-  if preset_entry["inherits"] ~= nil then
-    return M.preset_binary_dir(preset_entry["inherits"], dir, preset_type)
-  end
-
-  return nil
+  return binary_dir
 end
 
 return M

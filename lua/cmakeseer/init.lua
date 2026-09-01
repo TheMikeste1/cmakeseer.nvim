@@ -54,7 +54,7 @@ function M.get_build_args()
       -- Add the default build directory
       binary_dir = current_config:resolve_build_directory()
     else
-      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
+      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
     end
     table.insert(args, binary_dir)
   else
