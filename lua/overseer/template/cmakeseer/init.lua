@@ -14,6 +14,20 @@ local function generate_build_targets()
   return templates
 end
 
+local function generate_workflow_templates()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+  local WorkflowBuilder = require("overseer.template.cmakeseer.workflow_builder")
+
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Workflow)
+
+  local templates = {}
+  for _, preset in ipairs(presets) do
+    local template = WorkflowBuilder.build_template_for(preset)
+    table.insert(templates, template)
+  end
+  return templates
+end
+
 local function get_configured_targets()
   local templates = {
     require("overseer.cmakeseer.template.cmake_build_target"),
@@ -52,6 +66,8 @@ return {
       require("overseer.cmakeseer.template.cmake_configure"),
       require("overseer.cmakeseer.template.cmake_configure_no_defines"),
     }
+
+    vim.list_extend(templates, generate_workflow_templates())
 
     if CMakeSeer.project_is_configured() then
       vim.list_extend(templates, get_configured_targets())

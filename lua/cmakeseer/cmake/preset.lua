@@ -152,7 +152,6 @@ function M.preset_binary_dir(preset, dir, preset_type, opts)
   opts = opts or { resolve_path = false }
 
   -- Workflows are unique and may not have one specific binary dir
-  -- TODO: Add a workflow template to the Overseer templates
   if preset_type == PresetTypes.Workflow then
     return nil
   end
