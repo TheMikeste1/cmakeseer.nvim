@@ -32,6 +32,7 @@ local M = {
 ---@param dir string Source directory to use when resolving paths.
 ---@return string resolved_path The resolved path.
 function M.resolve_path(path, dir)
+  -- TODO: This probably needs to be made more generic so it can resolve the macros in any preset value. . .
   local expanded = path:gsub("(%${([^}]+)})", function(match, var)
     -- TODO: Support more. We probably need more info about the preset we're resolving.
     -- It might actually be better to create a Preset class that has a resolve path method on it.
@@ -189,7 +190,19 @@ function M.preset_binary_dir(preset, dir, preset_type, opts)
   if preset_type == PresetTypes.Configure then
     binary_dir = preset_entry["binaryDir"]
     if binary_dir == nil and preset_entry["inherits"] ~= nil then
-      binary_dir = M.preset_binary_dir(preset_entry["inherits"], dir, PresetTypes.Configure)
+      local inherits = preset_entry["inherits"]
+      if type(inherits) == "string" then
+        inherits = { inherits }
+      end
+
+      assert(type(inherits) == "table")
+      for _, inheritted in ipairs(inherits) do
+        binary_dir = M.preset_binary_dir(inheritted, dir, PresetTypes.Configure)
+        if binary_dir ~= nil then
+          -- Break on the first to have a binary dir.
+          break
+        end
+      end
     end
   else
     local configure_preset = preset_entry["configurePreset"]
@@ -198,7 +211,19 @@ function M.preset_binary_dir(preset, dir, preset_type, opts)
     end
 
     if binary_dir == nil and preset_entry["inherits"] ~= nil then
-      binary_dir = M.preset_binary_dir(preset_entry["inherits"], dir, preset_type)
+      local inherits = preset_entry["inherits"]
+      if type(inherits) == "string" then
+        inherits = { inherits }
+      end
+      assert(type(inherits) == "table")
+
+      for _, inheritted in ipairs(inherits) do
+        binary_dir = M.preset_binary_dir(inheritted, dir, preset_type)
+        if binary_dir ~= nil then
+          -- Break on the first to have a binary dir.
+          break
+        end
+      end
     end
   end
 
