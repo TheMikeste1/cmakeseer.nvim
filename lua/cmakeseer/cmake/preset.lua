@@ -32,7 +32,7 @@ local M = {
 ---@param dir string Source directory to use when resolving paths.
 ---@return string resolved_path The resolved path.
 function M.resolve_path(path, dir)
-  local expanded = path:gsub("(%${(.+)})", function(match, var)
+  local expanded = path:gsub("(%${([^}]+)})", function(match, var)
     -- TODO: Support more. We probably need more info about the preset we're resolving.
     -- It might actually be better to create a Preset class that has a resolve path method on it.
     if var == "sourceDir" then
@@ -67,7 +67,7 @@ function M.resolve_path(path, dir)
     return match
   end)
 
-  expanded = expanded:gsub("(%$env{(.+)})", function(match, var)
+  expanded = expanded:gsub("(%$env{([^}]+)})", function(match, var)
     -- TODO: Check the environment field of the preset and prefer it instead
     local maybe_env = vim.env[var]
     if maybe_env ~= nil then
@@ -77,7 +77,7 @@ function M.resolve_path(path, dir)
     return match
   end)
 
-  expanded = expanded:gsub("(%$penv{(.+)})", function(match, var)
+  expanded = expanded:gsub("(%$penv{([^}]+)})", function(match, var)
     local maybe_env = vim.env[var]
     if maybe_env ~= nil then
       return maybe_env
