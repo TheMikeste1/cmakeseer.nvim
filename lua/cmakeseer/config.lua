@@ -50,14 +50,14 @@ Configuration.__index = Configuration
 
 function Configuration.new(o)
   o = o or {}
-  local self = setmetatable({}, Configuration)
+  local self = setmetatable(vim.deepcopy(o), Configuration)
   for k, v in pairs(_defaults) do
-    if o[k] ~= nil then
-      self[k] = o[k]
-    elseif type(v) == "table" then
-      self[k] = vim.deepcopy(v)
-    else
-      self[k] = v
+    if self[k] == nil then
+      if type(v) == "table" then
+        self[k] = vim.deepcopy(v)
+      else
+        self[k] = v
+      end
     end
   end
 
