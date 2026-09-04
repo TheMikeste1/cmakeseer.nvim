@@ -5,7 +5,7 @@ local match = require("luassert.match")
 
 describe("cmakeseer.init", function()
   before_each(function()
-    main.setup(require("cmakeseer.config").Configuration.new())
+    main.setup({})
     main.state.selections.build_preset = nil
     main.state.selections.configure_preset = nil
     main.state.selections.kit = nil
@@ -19,7 +19,7 @@ describe("cmakeseer.init", function()
 
       local cache_file = main.get_project_cache_file()
       assert.are.equal(vim.fs.joinpath("/build/preset_dir", "CMakeCache.txt"), cache_file)
-      assert.stub(bin_stub).was.called_with("my-build-preset", match.is_string(), CMakePreset.PresetTypes.Build)
+      assert.stub(bin_stub).was.called_with("my-build-preset", match.is_string(), CMakePreset.PresetTypes.Build, { resolve_path = true })
 
       bin_stub:revert()
     end)
@@ -30,7 +30,7 @@ describe("cmakeseer.init", function()
 
       local cache_file = main.get_project_cache_file()
       assert.are.equal(vim.fs.joinpath("/config/preset_dir", "CMakeCache.txt"), cache_file)
-      assert.stub(bin_stub).was.called_with("my-config-preset", match.is_string(), CMakePreset.PresetTypes.Configure)
+      assert.stub(bin_stub).was.called_with("my-config-preset", match.is_string(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
 
       bin_stub:revert()
     end)
