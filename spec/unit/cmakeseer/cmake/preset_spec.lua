@@ -1,6 +1,5 @@
 local CMakePreset = require("cmakeseer.cmake.preset")
 local stub = require("luassert.stub")
-local match = require("luassert.match")
 
 describe("cmakeseer.cmake.preset", function()
   describe("PresetTypes", function()
@@ -108,7 +107,7 @@ describe("cmakeseer.cmake.preset", function()
     end)
   end)
 
-  describe("file_for and preset_binary_dir", function()
+  describe("file_for and try_determine_binary_dir", function()
     local test_dir
 
     before_each(function()
@@ -122,6 +121,7 @@ describe("cmakeseer.cmake.preset", function()
 
     it("finds preset in CMakePresets.json", function()
       local cmake_presets = {
+        version = 1,
         configurePresets = {
           { name = "default", binaryDir = "${sourceDir}/build/default" },
         },
@@ -132,15 +132,18 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local filepath = CMakePreset.file_for("default", test_dir, CMakePreset.PresetTypes.Configure)
-      assert.are.equal(vim.fs.joinpath(test_dir, "CMakePresets.json"), filepath)
+      local preset_file = CMakePreset.file_for("default", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.is_not_nil(preset_file)
+      ---@cast preset_file -nil
+      assert.are.equal(vim.fs.joinpath(test_dir, "CMakePresets.json"), preset_file.path)
 
-      local bdir = CMakePreset.preset_binary_dir("default", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("default", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/default"), bdir)
     end)
 
     it("finds preset in CMakeUserPresets.json", function()
       local cmake_user_presets = {
+        version = 1,
         configurePresets = {
           { name = "user-preset", binaryDir = "${sourceDir}/build/user" },
         },
@@ -151,13 +154,15 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_user_presets))
       file:close()
 
-      local filepath = CMakePreset.file_for("user-preset", test_dir, CMakePreset.PresetTypes.Configure)
-      assert.are.equal(vim.fs.joinpath(test_dir, "CMakeUserPresets.json"), filepath)
+      local preset_file = CMakePreset.file_for("user-preset", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.is_not_nil(preset_file)
+      ---@cast preset_file -nil
+      assert.are.equal(vim.fs.joinpath(test_dir, "CMakeUserPresets.json"), preset_file.path)
     end)
 
     it("returns nil when preset not found or files missing", function()
       assert.is_nil(CMakePreset.file_for("missing", test_dir, CMakePreset.PresetTypes.Configure))
-      assert.is_nil(CMakePreset.preset_binary_dir("missing", test_dir, CMakePreset.PresetTypes.Configure))
+      assert.is_nil(CMakePreset.try_determine_binary_dir("missing", test_dir, CMakePreset.PresetTypes.Configure))
     end)
 
     it("safely handles invalid JSON in CMakePresets.json without error", function()
@@ -172,12 +177,13 @@ describe("cmakeseer.cmake.preset", function()
       end)
     end)
 
-    it("returns nil for Workflow presets in preset_binary_dir", function()
-      assert.is_nil(CMakePreset.preset_binary_dir("my-workflow", test_dir, CMakePreset.PresetTypes.Workflow))
+    it("returns nil for Workflow presets in try_determine_binary_dir", function()
+      assert.is_nil(CMakePreset.try_determine_binary_dir("my-workflow", test_dir, CMakePreset.PresetTypes.Workflow))
     end)
 
     it("resolves binaryDir via inherits string in Configure preset", function()
       local cmake_presets = {
+        version = 1,
         configurePresets = {
           { name = "base", binaryDir = "${sourceDir}/build/base" },
           { name = "derived", inherits = "base" },
@@ -189,12 +195,13 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir = CMakePreset.preset_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/base"), bdir)
     end)
 
     it("resolves binaryDir from Build preset with configurePreset or inherits", function()
       local cmake_presets = {
+        version = 1,
         configurePresets = {
           { name = "config-base", binaryDir = "${sourceDir}/build/config-base" },
         },
@@ -209,15 +216,16 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir1 = CMakePreset.preset_binary_dir("build-derived", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
+      local bdir1 = CMakePreset.try_determine_binary_dir("build-derived", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/config-base"), bdir1)
 
-      local bdir2 = CMakePreset.preset_binary_dir("build-inherited", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
+      local bdir2 = CMakePreset.try_determine_binary_dir("build-inherited", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/config-base"), bdir2)
     end)
 
-    it("resolves preset_binary_dir when inherits is an array of strings", function()
+    it("resolves try_determine_binary_dir when inherits is an array of strings", function()
       local cmake_presets = {
+        version = 1,
         configurePresets = {
           { name = "base", binaryDir = "${sourceDir}/build/base" },
           { name = "derived", inherits = { "base" } },
@@ -229,7 +237,7 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir = CMakePreset.preset_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/base"), bdir)
     end)
   end)

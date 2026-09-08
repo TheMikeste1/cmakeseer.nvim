@@ -14,7 +14,7 @@ describe("cmakeseer.init", function()
 
   describe("get_project_cache_file", function()
     it("returns cache file path using build_preset if set", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", "/build/preset_dir")
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", "/build/preset_dir")
       main.state.selections.build_preset = "my-build-preset"
 
       local cache_file = main.get_project_cache_file()
@@ -25,7 +25,7 @@ describe("cmakeseer.init", function()
     end)
 
     it("returns cache file path using configure_preset if set and build_preset is nil", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", "/config/preset_dir")
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", "/config/preset_dir")
       main.state.selections.configure_preset = "my-config-preset"
 
       local cache_file = main.get_project_cache_file()
@@ -114,7 +114,7 @@ describe("cmakeseer.init", function()
 
   describe("resolve_build_directory", function()
     it("resolves via build_preset when present", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", "/resolved/build_preset")
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", "/resolved/build_preset")
       main.state.selections.build_preset = "b_preset"
 
       assert.are.equal("/resolved/build_preset", main.resolve_build_directory())
@@ -123,7 +123,7 @@ describe("cmakeseer.init", function()
     end)
 
     it("resolves via configure_preset when build_preset nil", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", "/resolved/config_preset")
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", "/resolved/config_preset")
       main.state.selections.configure_preset = "c_preset"
 
       assert.are.equal("/resolved/config_preset", main.resolve_build_directory())
@@ -146,7 +146,7 @@ describe("cmakeseer.init", function()
     end)
 
     it("returns args with preset and preset binary dir", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", "/preset/bdir")
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", "/preset/bdir")
       main.state.selections.configure_preset = "my_preset"
 
       local args = main.get_basic_configure_args()
@@ -214,7 +214,7 @@ describe("cmakeseer.init", function()
     end)
 
     it("returns build args with build_preset", function()
-      local bin_stub = stub(CMakePreset, "preset_binary_dir", nil)
+      local bin_stub = stub(CMakePreset, "try_determine_binary_dir", nil)
       main.state.selections.build_preset = "b_preset"
 
       local args = main.get_build_args()

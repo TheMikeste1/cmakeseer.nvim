@@ -188,4 +188,24 @@ function PresetFile.try_from_file(path)
   })
 end
 
+function PresetFile:resolve_includes()
+  -- TODO: Support macro expansion: <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#includes>
+  if self.include == nil then
+    return {}
+  end
+
+  return vim
+    .iter(self.include)
+    :map(function(path)
+      if path[1] == "/" then
+        return path
+      end
+
+      -- Must be relative
+      local parent_dir = vim.fn.fnamemodify(self.path, ":p:h")
+      return vim.fs.joinpath(parent_dir, path)
+    end)
+    :totable()
+end
+
 return PresetFile

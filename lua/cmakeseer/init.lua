@@ -49,10 +49,10 @@ function M.resolve_build_directory()
     -- use the configure preset's build directory.
     local configure_preset = M.state.selections.configure_preset
     if configure_preset ~= nil then
-      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      binary_dir = CMakePreset.try_determine_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
     end
   else
-    binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build, { resolve_path = true })
+    binary_dir = CMakePreset.try_determine_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build, { resolve_path = true })
   end
 
   if binary_dir == nil then
@@ -73,7 +73,7 @@ function M.get_build_args()
     local configure_preset = M.state.selections.configure_preset
     local binary_dir = nil
     if configure_preset ~= nil then
-      binary_dir = CMakePreset.preset_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      binary_dir = CMakePreset.try_determine_binary_dir(configure_preset, current_config:project_root(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
     end
     if binary_dir == nil then
       -- Add the default build directory
@@ -83,7 +83,7 @@ function M.get_build_args()
     assert(binary_dir ~= nil)
     table.insert(args, binary_dir)
   else
-    local binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
+    local binary_dir = CMakePreset.try_determine_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Build)
     -- If binary_dir is not nil, it must be taken care of by the preset
     if binary_dir == nil then
       binary_dir = current_config:resolve_build_directory()
@@ -122,7 +122,7 @@ function M.get_basic_configure_args()
 
     -- Check if the preset includes the build directory
     local CMakePreset = require("cmakeseer.cmake.preset")
-    binary_dir = CMakePreset.preset_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
+    binary_dir = CMakePreset.try_determine_binary_dir(preset, current_config:project_root(), CMakePreset.PresetTypes.Configure)
     -- We won't need to specify the dir if it does as the --preset flag will take care of it for us
   end
 
