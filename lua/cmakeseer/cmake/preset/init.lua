@@ -92,11 +92,16 @@ function M.fetch_presets(dir, preset_type)
   return presets
 end
 
+--- Options for `file_for`.
+---@class cmakeseer.cmake.preset.FileForOpts
+---@field check_includes? boolean Whether to follow `include` fields and search included preset files. Defaults to `true`.
+---@field safe_check_includes? boolean Whether to guard against infinite include loops by tracking already-checked files. Defaults to `true`.
+
 --- Finds the file for the given preset.
 ---@param preset string The preset to check.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
----@param opts table? Additional options. TODO: Document the options.
+---@param opts cmakeseer.cmake.preset.FileForOpts? Additional options.
 ---@return cmakeseer.cmake.preset.PresetFile? file The preset file containing the preset.
 function M.file_for(preset, dir, preset_type, opts)
   ---@param file cmakeseer.cmake.preset.PresetFile
@@ -210,11 +215,15 @@ function M.entry_for(preset, dir, preset_type)
   error("UNREACHABLE: file_for would only have returned if the preset existed")
 end
 
+--- Options for `try_determine_binary_dir`.
+---@class cmakeseer.cmake.preset.TryDetermineBinaryDirOpts
+---@field resolve_path? boolean Whether to resolve path macros (e.g. `${sourceDir}`) in the returned binary directory. Defaults to `false`.
+
 --- Gets the binary directory for the given preset, if it has one.
 ---@param preset string The preset to check.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
----@param opts table? Additional options. TODO: Document the options.
+---@param opts cmakeseer.cmake.preset.TryDetermineBinaryDirOpts? Additional options.
 ---@return string? binary_dir The binary directory for the preset, if it exists and has one.
 function M.try_determine_binary_dir(preset, dir, preset_type, opts)
   opts = opts or { resolve_path = false }
