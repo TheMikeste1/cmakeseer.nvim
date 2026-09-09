@@ -1,5 +1,5 @@
 local function project_root()
-  return vim.fs.root(0, {
+  return vim.fs.root(assert(vim.uv.cwd()), {
     "CMakePresets.json",
     "CMakeUserPresets.json",
     -- TODO: We might want this to be more nuanced by finding the git root,
