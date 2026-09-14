@@ -421,17 +421,14 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
       assert.are.equal("/my/presets/build", res)
     end)
 
-    it("expands $env{VAR} and $penv{VAR}", function()
+    it("expands $penv{VAR}", function()
       vim.env.MY_TEST_VAR = "custom_env_val"
       local pf = make_preset_file()
-
-      local res1 = pf:expand_macros("/out/$env{MY_TEST_VAR}")
-      assert.are.equal("/out/custom_env_val", res1)
 
       local res2 = pf:expand_macros("/out/$penv{MY_TEST_VAR}")
       assert.are.equal("/out/custom_env_val", res2)
 
-      local res3 = pf:expand_macros("/out/$env{NONEXISTENT_VAR_XYZ}")
+      local res3 = pf:expand_macros("/out/$penv{NONEXISTENT_VAR_XYZ}")
       assert.are.equal("/out/", res3)
 
       vim.env.MY_TEST_VAR = nil
@@ -447,18 +444,6 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
       local pf = make_preset_file()
       local res = pf:expand_macros("${sourceDir}/build/${sourceDirName}")
       assert.are.equal("/my/project/build/project", res)
-    end)
-
-    pending("expands ${presetName} once supported", function()
-      local pf = make_preset_file()
-      local res = pf:expand_macros("/path/${presetName}")
-      assert.are.equal("/path/my-preset", res)
-    end)
-
-    pending("expands ${generator} once supported", function()
-      local pf = make_preset_file()
-      local res = pf:expand_macros("/path/${generator}")
-      assert.are.equal("/path/Ninja", res)
     end)
   end)
 end)

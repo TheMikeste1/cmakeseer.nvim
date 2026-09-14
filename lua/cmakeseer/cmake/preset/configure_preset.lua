@@ -1,7 +1,22 @@
+local Preset = require("cmakeseer.cmake.preset.base_preset")
+
 --- A container for CMake's configure preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#configure-preset>.
----@class cmakeseer.cmake.preset.ConfigurePreset
+---@class cmakeseer.cmake.preset.ConfigurePreset: cmakeseer.cmake.preset.BasePreset
+---@field generator? string Generator to use for the preset.
+---@field architecture? string|cmakeseer.cmake.preset.ConfigurePreset.Architecture Architecture/platform for generators that support it.
+---@field toolset? string|cmakeseer.cmake.preset.ConfigurePreset.Toolset Toolset for generators that support it.
+---@field toolchain_file? string Path to the toolchain file.
+---@field graphviz? string Path to the graphviz input file.
+---@field binary_dir? string Path to the output binary directory.
+---@field install_dir? string Path to the installation directory (CMAKE_INSTALL_PREFIX).
+---@field cmake_executable? string Path to the CMake executable to use for this preset.
+---@field cache_variables? table<string, boolean|string|cmakeseer.cmake.preset.ConfigurePreset.CacheVariable|nil> Cache variables to set.
+---@field warnings? cmakeseer.cmake.preset.ConfigurePreset.Warnings Warnings to enable.
+---@field errors? cmakeseer.cmake.preset.ConfigurePreset.Errors Errors to enable.
+---@field debug? cmakeseer.cmake.preset.ConfigurePreset.Debug Debug options.
+---@field trace? cmakeseer.cmake.preset.ConfigurePreset.Trace Trace options.
 local ConfigurePreset = {}
-ConfigurePreset.__index = ConfigurePreset
+ConfigurePreset.__index = Preset
 
 ---@class cmakeseer.cmake.preset.ConfigurePreset.Architecture
 ---@field value? string The architecture/platform value.
@@ -58,44 +73,13 @@ ConfigurePreset.__index = ConfigurePreset
 ---@field conditions? (cmakeseer.cmake.preset.ConfigurePreset.Condition|boolean)[] Sub-conditions for "anyOf" or "allOf".
 ---@field condition? cmakeseer.cmake.preset.ConfigurePreset.Condition|boolean Sub-condition to negate for "not".
 
----@class cmakeseer.cmake.preset.ConfigurePreset
----@field name string Machine-friendly name of the preset.
----@field hidden? boolean Whether the preset is hidden.
----@field inherits? string[] Presets from which to inherit. The first preset to set a value takes precedence.
----@field condition? boolean|cmakeseer.cmake.preset.ConfigurePreset.Condition Condition determining whether preset is enabled.
----@field vendor? table<string, any> Vendor-specific information.
----@field display_name? string Human-friendly name of the preset.
----@field description? string Human-friendly description of the preset.
----@field generator? string Generator to use for the preset.
----@field architecture? string|cmakeseer.cmake.preset.ConfigurePreset.Architecture Architecture/platform for generators that support it.
----@field toolset? string|cmakeseer.cmake.preset.ConfigurePreset.Toolset Toolset for generators that support it.
----@field toolchain_file? string Path to the toolchain file.
----@field graphviz? string Path to the graphviz input file.
----@field binary_dir? string Path to the output binary directory.
----@field install_dir? string Path to the installation directory (CMAKE_INSTALL_PREFIX).
----@field cmake_executable? string Path to the CMake executable to use for this preset.
----@field cache_variables? table<string, boolean|string|cmakeseer.cmake.preset.ConfigurePreset.CacheVariable|nil> Cache variables to set.
----@field environment? table<string, string|nil> Environment variables to set.
----@field warnings? cmakeseer.cmake.preset.ConfigurePreset.Warnings Warnings to enable.
----@field errors? cmakeseer.cmake.preset.ConfigurePreset.Errors Errors to enable.
----@field debug? cmakeseer.cmake.preset.ConfigurePreset.Debug Debug options.
----@field trace? cmakeseer.cmake.preset.ConfigurePreset.Trace Trace options.
-local _ConfigurePresetDefaults = {}
-
 --- Creates a new ConfigurePreset instance.
 ---@param o cmakeseer.cmake.preset.ConfigurePreset Initial values.
 ---@return cmakeseer.cmake.preset.ConfigurePreset obj The new instance.
 function ConfigurePreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), ConfigurePreset)
-  for k, v in pairs(_ConfigurePresetDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
+  local self = Preset.new(o)
+  self = setmetatable(self, ConfigurePreset)
+  ---@cast self cmakeseer.cmake.preset.ConfigurePreset
   return self
 end
 

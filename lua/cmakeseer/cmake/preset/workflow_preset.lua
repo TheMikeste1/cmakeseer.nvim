@@ -1,5 +1,10 @@
 --- A container for CMake's workflow preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#workflow-preset>.
 ---@class cmakeseer.cmake.preset.WorkflowPreset
+---@field name string Machine-friendly name of the preset.
+---@field steps cmakeseer.cmake.preset.WorkflowPreset.Step[] Array of objects describing the steps of the workflow.
+---@field vendor? table<string, any> Vendor-specific information.
+---@field display_name? string Human-friendly name of the preset.
+---@field description? string Human-friendly description of the preset.
 local WorkflowPreset = {}
 WorkflowPreset.__index = WorkflowPreset
 
@@ -7,28 +12,11 @@ WorkflowPreset.__index = WorkflowPreset
 ---@field type "configure"|"build"|"test"|"package" The step type.
 ---@field name string The name of the configure, build, test, or package preset to run.
 
----@class cmakeseer.cmake.preset.WorkflowPreset
----@field name string Machine-friendly name of the preset.
----@field steps cmakeseer.cmake.preset.WorkflowPreset.Step[] Array of objects describing the steps of the workflow.
----@field vendor? table<string, any> Vendor-specific information.
----@field display_name? string Human-friendly name of the preset.
----@field description? string Human-friendly description of the preset.
-local _WorkflowPresetDefaults = {}
-
 --- Creates a new WorkflowPreset instance.
 ---@param o cmakeseer.cmake.preset.WorkflowPreset Initial values.
 ---@return cmakeseer.cmake.preset.WorkflowPreset obj The new instance.
 function WorkflowPreset.new(o)
   local self = setmetatable(vim.deepcopy(o), WorkflowPreset)
-  for k, v in pairs(_WorkflowPresetDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
   return self
 end
 

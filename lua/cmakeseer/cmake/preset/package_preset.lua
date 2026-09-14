@@ -1,21 +1,7 @@
+local Preset = require("cmakeseer.cmake.preset.base_preset")
+
 --- A container for CMake's package preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#package-preset>.
----@class cmakeseer.cmake.preset.PackagePreset
-local PackagePreset = {}
-PackagePreset.__index = PackagePreset
-
----@class cmakeseer.cmake.preset.PackagePreset.Output
----@field debug? boolean Whether to print debug output from CPack.
----@field verbose? boolean Whether to print verbose output from CPack.
-
----@class cmakeseer.cmake.preset.PackagePreset
----@field name string Machine-friendly name of the preset.
----@field hidden? boolean Whether the preset is hidden.
----@field inherits? string[] Presets from which to inherit. The first preset to set a value takes precedence.
----@field condition? boolean|cmakeseer.cmake.preset.ConfigurePreset.Condition Condition determining whether preset is enabled.
----@field vendor? table<string, any> Vendor-specific information.
----@field display_name? string Human-friendly name of the preset.
----@field description? string Human-friendly description of the preset.
----@field environment? table<string, string|nil> Environment variables to set.
+---@class cmakeseer.cmake.preset.PackagePreset: cmakeseer.cmake.preset.BasePreset
 ---@field configure_preset? string The name of a configure preset to associate with this package preset.
 ---@field inherit_configure_environment? boolean Whether to inherit the environment from the configure preset.
 ---@field generators? string[] Generators for CPack to use.
@@ -27,22 +13,20 @@ PackagePreset.__index = PackagePreset
 ---@field package_version? string The package version.
 ---@field package_directory? string The directory in which to place the package.
 ---@field vendor_name? string The vendor name.
-local _PackagePresetDefaults = {}
+local PackagePreset = {}
+PackagePreset.__index = Preset
+
+---@class cmakeseer.cmake.preset.PackagePreset.Output
+---@field debug? boolean Whether to print debug output from CPack.
+---@field verbose? boolean Whether to print verbose output from CPack.
 
 --- Creates a new PackagePreset instance.
 ---@param o cmakeseer.cmake.preset.PackagePreset Initial values.
 ---@return cmakeseer.cmake.preset.PackagePreset obj The new instance.
 function PackagePreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), PackagePreset)
-  for k, v in pairs(_PackagePresetDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
+  local self = Preset.new(o)
+  self = setmetatable(self, PackagePreset)
+  ---@cast self cmakeseer.cmake.preset.PackagePreset
   return self
 end
 

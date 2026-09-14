@@ -13,6 +13,55 @@ local M = {
   PresetTypes = PresetTypes,
 }
 
+--- Expands macros. Does not expand preset-specific macros nor ${fileDir} without `additional_matchers`.
+--- Look for "preset-specific" to see which macros this does NOT expand:
+--- <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
+---@param str string The string to expand.
+---@param additional_matchers? table<string, (fun(): string)?> Optional additional matchers.
+---@return string str The expanded string.
+function M.expand_macros(str, additional_matchers)
+  additional_matchers = additional_matchers or {}
+  str = str:gsub("(%${([^}]+)})", function(match, var)
+    if var == "sourceDir" then
+      return require("cmakeseer").get_config():get_project_root()
+    elseif var == "sourceParentDir" then
+      return vim.fs.dirname(require("cmakeseer").get_config():get_project_root())
+    elseif var == "sourceDirName" then
+      return vim.fs.basename(require("cmakeseer").get_config():get_project_root())
+    elseif var == "hostSystemName" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return "Windows"
+      end
+      return system_name
+    elseif var == "dollar" then
+      return "$"
+    elseif var == "pathListSep" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return ";"
+      end
+      return ":"
+    end
+
+    if additional_matchers[var] ~= nil then
+      return additional_matchers[var]()
+    end
+
+    -- Not recognized; return the match.
+    return match
+  end)
+
+  str = str:gsub("%$penv{([^}]+)}", function(var)
+    local maybe_env = vim.env[var]
+    if maybe_env == nil then
+      return ""
+    end
+    return maybe_env
+  end)
+  return str
+end
+
 --- Fetches the available presets.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.

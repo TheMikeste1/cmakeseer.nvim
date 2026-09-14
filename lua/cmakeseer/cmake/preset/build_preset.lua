@@ -1,17 +1,7 @@
---- A container for CMake's build preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#build-preset>.
----@class cmakeseer.cmake.preset.BuildPreset
-local BuildPreset = {}
-BuildPreset.__index = BuildPreset
+local Preset = require("cmakeseer.cmake.preset.base_preset")
 
----@class cmakeseer.cmake.preset.BuildPreset
----@field name string Machine-friendly name of the preset.
----@field hidden? boolean Whether the preset is hidden.
----@field inherits? string[] Presets from which to inherit. The first preset to set a value takes precedence.
----@field condition? boolean|cmakeseer.cmake.preset.ConfigurePreset.Condition Condition determining whether preset is enabled.
----@field vendor? table<string, any> Vendor-specific information.
----@field display_name? string Human-friendly name of the preset.
----@field description? string Human-friendly description of the preset.
----@field environment? table<string, string|nil> Environment variables to set.
+--- A container for CMake's build preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#build-preset>.
+---@class cmakeseer.cmake.preset.BuildPreset: cmakeseer.cmake.preset.BasePreset
 ---@field configure_preset? string The name of a configure preset to associate with this build preset.
 ---@field inherit_configure_environment? boolean Whether to inherit the environment from the configure preset.
 ---@field jobs? integer Maximum number of concurrent processes to use when building.
@@ -21,22 +11,16 @@ BuildPreset.__index = BuildPreset
 ---@field resolve_package_references? "on"|"off"|"only" Resolves package references before attempting a build.
 ---@field verbose? boolean Whether to execute verbose build output.
 ---@field native_tool_options? string[] Native build tool options passed to the underlying build tool.
-local _BuildPresetDefaults = {}
+local BuildPreset = {}
+BuildPreset.__index = Preset
 
 --- Creates a new BuildPreset instance.
 ---@param o cmakeseer.cmake.preset.BuildPreset Initial values.
 ---@return cmakeseer.cmake.preset.BuildPreset obj The new instance.
 function BuildPreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), BuildPreset)
-  for k, v in pairs(_BuildPresetDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
+  local self = Preset.new(o)
+  self = setmetatable(self, BuildPreset)
+  ---@cast self cmakeseer.cmake.preset.BuildPreset
   return self
 end
 

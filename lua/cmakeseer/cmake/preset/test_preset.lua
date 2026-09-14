@@ -1,7 +1,17 @@
+local Preset = require("cmakeseer.cmake.preset.base_preset")
+
 --- A container for CMake's test preset. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#test-preset>.
----@class cmakeseer.cmake.preset.TestPreset
+---@class cmakeseer.cmake.preset.TestPreset: cmakeseer.cmake.preset.BasePreset
+---@field configure_preset? string The name of a configure preset to associate with this test preset.
+---@field inherit_configure_environment? boolean Whether to inherit the environment from the configure preset.
+---@field configuration? string Build configuration to test.
+---@field overwrite_configuration_file? string[] Configuration options to overwrite CTest configuration options.
+---@field output? cmakeseer.cmake.preset.TestPreset.Output Output options.
+---@field filter? cmakeseer.cmake.preset.TestPreset.Filter Test filters.
+---@field execution? cmakeseer.cmake.preset.TestPreset.Execution Test execution options.
+---@field test_passthrough_arguments? string[] Arguments forwarded to every test executable.
 local TestPreset = {}
-TestPreset.__index = TestPreset
+TestPreset.__index = Preset
 
 ---@class cmakeseer.cmake.preset.TestPreset.Output
 ---@field short_progress? boolean Whether to output test results in a compact format.
@@ -61,39 +71,13 @@ TestPreset.__index = TestPreset
 ---@field timeout? integer Test timeout in seconds.
 ---@field no_tests_action? "default"|"error"|"ignore" Behavior if no tests are found.
 
----@class cmakeseer.cmake.preset.TestPreset
----@field name string Machine-friendly name of the preset.
----@field hidden? boolean Whether the preset is hidden.
----@field inherits? string[] Presets from which to inherit. The first preset to set a value takes precedence.
----@field condition? boolean|cmakeseer.cmake.preset.ConfigurePreset.Condition Condition determining whether preset is enabled.
----@field vendor? table<string, any> Vendor-specific information.
----@field display_name? string Human-friendly name of the preset.
----@field description? string Human-friendly description of the preset.
----@field environment? table<string, string|nil> Environment variables to set.
----@field configure_preset? string The name of a configure preset to associate with this test preset.
----@field inherit_configure_environment? boolean Whether to inherit the environment from the configure preset.
----@field configuration? string Build configuration to test.
----@field overwrite_configuration_file? string[] Configuration options to overwrite CTest configuration options.
----@field output? cmakeseer.cmake.preset.TestPreset.Output Output options.
----@field filter? cmakeseer.cmake.preset.TestPreset.Filter Test filters.
----@field execution? cmakeseer.cmake.preset.TestPreset.Execution Test execution options.
----@field test_passthrough_arguments? string[] Arguments forwarded to every test executable.
-local _TestPresetDefaults = {}
-
 --- Creates a new TestPreset instance.
 ---@param o cmakeseer.cmake.preset.TestPreset Initial values.
 ---@return cmakeseer.cmake.preset.TestPreset obj The new instance.
 function TestPreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), TestPreset)
-  for k, v in pairs(_TestPresetDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
+  local self = Preset.new(o)
+  self = setmetatable(self, TestPreset)
+  ---@cast self cmakeseer.cmake.preset.TestPreset
   return self
 end
 
