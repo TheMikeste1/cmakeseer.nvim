@@ -1,4 +1,6 @@
 local PresetFile = require("cmakeseer.cmake.preset.preset_file")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.PresetFile", function()
   describe("new", function()
@@ -347,6 +349,116 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
       assert.are.equal("test-1", pf.test_presets[1].name)
       assert.are.equal("package-1", pf.package_presets[1].name)
       assert.are.equal("workflow-1", pf.workflow_presets[1].name)
+    end)
+  end)
+
+  describe("expand_macros", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    local function make_preset_file(path)
+      return PresetFile.new({
+        path = path or "/some/dir/CMakePresets.json",
+        version = 3,
+      })
+    end
+
+    it("expands ${sourceDir}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("${sourceDir}/build")
+      assert.are.equal("/my/project/build", res)
+    end)
+
+    it("expands ${sourceParentDir}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("${sourceParentDir}/other")
+      assert.are.equal("/my/other", res)
+    end)
+
+    it("expands ${sourceDirName}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/out/${sourceDirName}")
+      assert.are.equal("/out/project", res)
+    end)
+
+    it("expands ${dollar}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/path/${dollar}var")
+      assert.are.equal("/path/$var", res)
+    end)
+
+    it("expands ${pathListSep}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/a${pathListSep}/b")
+      local expected_sep = vim.uv.os_uname().sysname == "Windows_NT" and ";" or ":"
+      assert.are.equal("/a" .. expected_sep .. "/b", res)
+    end)
+
+    it("expands ${hostSystemName}", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/out/${hostSystemName}")
+      local sysname = vim.uv.os_uname().sysname
+      if sysname == "Windows_NT" then
+        sysname = "Windows"
+      end
+      assert.are.equal("/out/" .. sysname, res)
+    end)
+
+    it("expands ${fileDir}", function()
+      local pf = make_preset_file("/my/presets/CMakePresets.json")
+      local res = pf:expand_macros("${fileDir}/build")
+      assert.are.equal("/my/presets/build", res)
+    end)
+
+    it("expands $env{VAR} and $penv{VAR}", function()
+      vim.env.MY_TEST_VAR = "custom_env_val"
+      local pf = make_preset_file()
+
+      local res1 = pf:expand_macros("/out/$env{MY_TEST_VAR}")
+      assert.are.equal("/out/custom_env_val", res1)
+
+      local res2 = pf:expand_macros("/out/$penv{MY_TEST_VAR}")
+      assert.are.equal("/out/custom_env_val", res2)
+
+      local res3 = pf:expand_macros("/out/$env{NONEXISTENT_VAR_XYZ}")
+      assert.are.equal("/out/", res3)
+
+      vim.env.MY_TEST_VAR = nil
+    end)
+
+    it("leaves unrecognized variable unchanged", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/out/${unrecognizedVar}")
+      assert.are.equal("/out/${unrecognizedVar}", res)
+    end)
+
+    it("expands multiple macros in a single path", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("${sourceDir}/build/${sourceDirName}")
+      assert.are.equal("/my/project/build/project", res)
+    end)
+
+    pending("expands ${presetName} once supported", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/path/${presetName}")
+      assert.are.equal("/path/my-preset", res)
+    end)
+
+    pending("expands ${generator} once supported", function()
+      local pf = make_preset_file()
+      local res = pf:expand_macros("/path/${generator}")
+      assert.are.equal("/path/Ninja", res)
     end)
   end)
 end)

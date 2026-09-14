@@ -1,4 +1,5 @@
 local CMakePreset = require("cmakeseer.cmake.preset")
+local CMakeSeer = require("cmakeseer")
 local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset", function()
@@ -9,83 +10,6 @@ describe("cmakeseer.cmake.preset", function()
       assert.are.equal("test", CMakePreset.PresetTypes.Test)
       assert.are.equal("package", CMakePreset.PresetTypes.Package)
       assert.are.equal("workflow", CMakePreset.PresetTypes.Workflow)
-    end)
-  end)
-
-  describe("resolve_path", function()
-    it("expands ${sourceDir}", function()
-      local res = CMakePreset.resolve_path("${sourceDir}/build", "/my/project")
-      assert.are.equal("/my/project/build", res)
-    end)
-
-    it("expands ${sourceParentDir}", function()
-      local res = CMakePreset.resolve_path("${sourceParentDir}/other", "/my/project")
-      assert.are.equal("/my/other", res)
-    end)
-
-    it("expands ${sourceDirName}", function()
-      local res = CMakePreset.resolve_path("/out/${sourceDirName}", "/my/project")
-      assert.are.equal("/out/project", res)
-    end)
-
-    it("expands ${dollar}", function()
-      local res = CMakePreset.resolve_path("/path/${dollar}var", "/dir")
-      assert.are.equal("/path/$var", res)
-    end)
-
-    it("expands ${pathListSep}", function()
-      local res = CMakePreset.resolve_path("/a${pathListSep}/b", "/dir")
-      local expected_sep = vim.uv.os_uname().sysname == "Windows_NT" and ";" or ":"
-      assert.are.equal("/a" .. expected_sep .. "/b", res)
-    end)
-
-    it("expands ${hostSystemName}", function()
-      local res = CMakePreset.resolve_path("/out/${hostSystemName}", "/dir")
-      local sysname = vim.uv.os_uname().sysname
-      if sysname == "Windows_NT" then
-        sysname = "Windows"
-      end
-      assert.are.equal("/out/" .. sysname, res)
-    end)
-
-    pending("expands ${presetName} once supported", function()
-      local res = CMakePreset.resolve_path("/path/${presetName}", "/dir")
-      assert.are.equal("/path/my-preset", res)
-    end)
-
-    pending("expands ${generator} once supported", function()
-      local res = CMakePreset.resolve_path("/path/${generator}", "/dir")
-      assert.are.equal("/path/Ninja", res)
-    end)
-
-    pending("expands ${fileDir} once supported", function()
-      local res = CMakePreset.resolve_path("${fileDir}/build", "/dir")
-      assert.are.equal("/dir/build", res)
-    end)
-
-    it("expands $env{VAR} and $penv{VAR}", function()
-      vim.env.MY_TEST_VAR = "custom_env_val"
-
-      local res1 = CMakePreset.resolve_path("/out/$env{MY_TEST_VAR}", "/dir")
-      assert.are.equal("/out/custom_env_val", res1)
-
-      local res2 = CMakePreset.resolve_path("/out/$penv{MY_TEST_VAR}", "/dir")
-      assert.are.equal("/out/custom_env_val", res2)
-
-      local res3 = CMakePreset.resolve_path("/out/$env{NONEXISTENT_VAR_XYZ}", "/dir")
-      assert.are.equal("/out/$env{NONEXISTENT_VAR_XYZ}", res3)
-
-      vim.env.MY_TEST_VAR = nil
-    end)
-
-    it("leaves unrecognized variable unchanged", function()
-      local res = CMakePreset.resolve_path("/out/${unrecognizedVar}", "/dir")
-      assert.are.equal("/out/${unrecognizedVar}", res)
-    end)
-
-    it("expands multiple macros in a single path", function()
-      local res = CMakePreset.resolve_path("${sourceDir}/build/${sourceDirName}", "/my/project")
-      assert.are.equal("/my/project/build/project", res)
     end)
   end)
 
@@ -109,14 +33,24 @@ describe("cmakeseer.cmake.preset", function()
 
   describe("file_for and try_determine_binary_dir", function()
     local test_dir
+    local get_config_stub
 
     before_each(function()
       test_dir = vim.fn.tempname()
       vim.fn.mkdir(test_dir, "p")
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return test_dir
+        end,
+      })
     end)
 
     after_each(function()
       vim.fn.delete(test_dir, "rf")
+      if get_config_stub ~= nil then
+        get_config_stub:revert()
+        get_config_stub = nil
+      end
     end)
 
     it("finds preset in CMakePresets.json", function()

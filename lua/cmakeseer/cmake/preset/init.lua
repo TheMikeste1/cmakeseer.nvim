@@ -13,71 +13,6 @@ local M = {
   PresetTypes = PresetTypes,
 }
 
---- Resolves CMake-preset style paths, filling in variables like ${source_dir} and ${hostSystemName}.
---- See also <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
----@param path string The path to resolve.
----@param dir string Source directory to use when resolving paths.
----@return string resolved_path The resolved path.
-function M.resolve_path(path, dir)
-  -- TODO: This probably needs to be made more generic so it can resolve the macros in any preset value. . .
-  local expanded = path:gsub("(%${([^}]+)})", function(match, var)
-    -- TODO: Support more. We probably need more info about the preset we're resolving.
-    -- It might actually be better to create a Preset class that has a resolve path method on it.
-    if var == "sourceDir" then
-      return dir
-    elseif var == "sourceParentDir" then
-      return vim.fs.dirname(dir)
-    elseif var == "sourceDirName" then
-      return vim.fs.basename(dir)
-    elseif var == "presetName" then
-      vim.notify("Preset variable `presetName` not yet supported", vim.log.levels.ERROR)
-    elseif var == "generator" then
-      vim.notify("Preset variable `generator` not yet supported", vim.log.levels.ERROR)
-    elseif var == "hostSystemName" then
-      local system_name = vim.uv.os_uname().sysname
-      if system_name == "Windows_NT" then
-        return "Windows"
-      end
-      return system_name
-    elseif var == "fileDir" then
-      vim.notify("Preset variable `fileDir` not yet supported", vim.log.levels.ERROR)
-    elseif var == "dollar" then
-      return "$"
-    elseif var == "pathListSep" then
-      local system_name = vim.uv.os_uname().sysname
-      if system_name == "Windows_NT" then
-        return ";"
-      end
-      return ":"
-    end
-
-    -- Not recognized; return the match.
-    return match
-  end)
-
-  expanded = expanded:gsub("(%$env{([^}]+)})", function(match, var)
-    -- TODO: Check the environment field of the preset and prefer it instead
-    local maybe_env = vim.env[var]
-    if maybe_env ~= nil then
-      return maybe_env
-    end
-    -- Not recognized; return the match.
-    return match
-  end)
-
-  expanded = expanded:gsub("(%$penv{([^}]+)})", function(match, var)
-    local maybe_env = vim.env[var]
-    if maybe_env ~= nil then
-      return maybe_env
-    end
-    -- Not recognized; return the match.
-    return match
-  end)
-
-  expanded = vim.fs.normalize(expanded)
-  return expanded
-end
-
 --- Fetches the available presets.
 ---@param dir string Directory for fetching presets from another directory.
 ---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
@@ -273,7 +208,11 @@ function M.try_determine_binary_dir(preset, dir, preset_type, opts)
   end
 
   if binary_dir ~= nil and opts.resolve_path then
-    binary_dir = M.resolve_path(binary_dir, dir)
+    local preset_file = M.file_for(preset, dir, preset_type)
+    if preset_file ~= nil then
+      binary_dir = preset_file:expand_macros(binary_dir)
+      binary_dir = vim.fs.normalize(binary_dir)
+    end
   end
 
   return binary_dir

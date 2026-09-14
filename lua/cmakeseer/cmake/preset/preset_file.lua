@@ -197,6 +197,10 @@ function PresetFile:resolve_includes()
   return vim
     .iter(self.include)
     :map(function(path)
+      return self:expand_macros(path)
+    end)
+    :map(function(path)
+      -- TODO: Support Windows?
       if path[1] == "/" then
         return path
       end
@@ -206,6 +210,68 @@ function PresetFile:resolve_includes()
       return vim.fs.joinpath(parent_dir, path)
     end)
     :totable()
+end
+
+--- Expands file-level macros. Does not expand preset-specific macros.
+--- Look for "preset-specific" to see which macros this does NOT expand:
+--- <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
+---@param str string The string to expand.
+---@return string str The expanded string.
+function PresetFile:expand_macros(str)
+  local expanded = str:gsub("(%${([^}]+)})", function(match, var)
+    if var == "sourceDir" then
+      return require("cmakeseer").get_config():get_project_root()
+    elseif var == "sourceParentDir" then
+      return vim.fs.dirname(require("cmakeseer").get_config():get_project_root())
+    elseif var == "sourceDirName" then
+      return vim.fs.basename(require("cmakeseer").get_config():get_project_root())
+    elseif var == "hostSystemName" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return "Windows"
+      end
+      return system_name
+    elseif var == "fileDir" then
+      return vim.fs.dirname(self.path)
+    elseif var == "dollar" then
+      return "$"
+    elseif var == "pathListSep" then
+      local system_name = vim.uv.os_uname().sysname
+      if system_name == "Windows_NT" then
+        return ";"
+      end
+      return ":"
+    end
+
+    -- TODO: Move these to being resolved in a preset
+    if var == "presetName" then
+      vim.notify("Preset variable `presetName` not yet supported", vim.log.levels.ERROR)
+    elseif var == "generator" then
+      vim.notify("Preset variable `generator` not yet supported", vim.log.levels.ERROR)
+    end
+
+    -- Not recognized; return the match.
+    return match
+  end)
+
+  -- TODO: Move env to being resolved in a preset
+  expanded = expanded:gsub("%$env{([^}]+)}", function(var)
+    -- TODO: Check the environment field of the preset and prefer it instead
+    local maybe_env = vim.env[var]
+    if maybe_env == nil then
+      return ""
+    end
+    return maybe_env
+  end)
+
+  expanded = expanded:gsub("%$penv{([^}]+)}", function(var)
+    local maybe_env = vim.env[var]
+    if maybe_env == nil then
+      return ""
+    end
+    return maybe_env
+  end)
+  return expanded
 end
 
 return PresetFile
