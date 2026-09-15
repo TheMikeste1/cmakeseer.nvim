@@ -15,8 +15,29 @@ BasePreset.__index = BasePreset
 ---@param o cmakeseer.cmake.preset.BasePreset Initial values.
 ---@return cmakeseer.cmake.preset.BasePreset obj The new instance.
 function BasePreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), BasePreset)
+  return BasePreset.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a BasePreset.
+---@param o cmakeseer.cmake.preset.BasePreset Initial values.
+---@return cmakeseer.cmake.preset.BasePreset obj The new instance.
+function BasePreset.take(o)
+  local self = setmetatable(o, BasePreset)
   return self
+end
+
+function BasePreset:expanded()
+  local o = {
+    name = self.name,
+    hidden = self.hidden,
+    inherits = vim.deepcopy(self.inherits),
+    condition = vim.deepcopy(self.condition), ---@diagnostic disable-line: param-type-mismatch
+    vendor = vim.deepcopy(self.vendor),
+    display_name = self.display_name,
+    description = self.description,
+    environment = vim.deepcopy(self.environment),
+  }
+  return BasePreset.take(o)
 end
 
 --- Expands macros. Will also expand file-level macros if a PresetFile is provided.

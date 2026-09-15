@@ -18,10 +18,30 @@ BuildPreset.__index = Preset
 ---@param o cmakeseer.cmake.preset.BuildPreset Initial values.
 ---@return cmakeseer.cmake.preset.BuildPreset obj The new instance.
 function BuildPreset.new(o)
-  local self = Preset.new(o)
+  return BuildPreset.take(vim.deepcopy(o))
+end
+
+function BuildPreset.take(o)
+  local self = Preset.take(o)
   self = setmetatable(self, BuildPreset)
   ---@cast self cmakeseer.cmake.preset.BuildPreset
   return self
+end
+
+function BuildPreset:expanded()
+  local o = Preset.expanded(self)
+  ---@cast o table
+  o.configure_preset = self.configure_preset
+  o.inherit_configure_environment = self.inherit_configure_environment
+  o.jobs = self.jobs
+  o.targets = vim.deepcopy(self.targets) ---@diagnostic disable-line: param-type-mismatch
+  o.configuration = self.configuration
+  o.clean_first = self.clean_first
+  o.resolve_package_references = self.resolve_package_references
+  o.verbose = self.verbose
+  -- TODO: Expand
+  o.native_tool_options = self.native_tool_options
+  return BuildPreset.take(o)
 end
 
 --- Creates a new BuildPreset instance from a decoded JSON table.

@@ -1,14 +1,5 @@
 --- A container for CMake's preset files. See <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html>.
 ---@class cmakeseer.cmake.preset.PresetFile
-local PresetFile = {}
-PresetFile.__index = PresetFile
-
----@class cmakeseer.cmake.preset.PresetFile.CMakeVersion
----@field major? integer The major version.
----@field minor? integer The minor version.
----@field patch? integer The patch version.
-
----@class cmakeseer.cmake.preset.PresetFile
 ---@field path string Path to this PresetFile.
 ---@field version integer The version of the preset schema.
 ---@field cmake_minimum_required? cmakeseer.cmake.preset.PresetFile.CMakeVersion The minimum version of CMake to build this project.
@@ -19,7 +10,13 @@ PresetFile.__index = PresetFile
 ---@field test_presets? cmakeseer.cmake.preset.TestPreset[] Optional array of test presets.
 ---@field package_presets? cmakeseer.cmake.preset.PackagePreset[] Optional array of package presets.
 ---@field workflow_presets? cmakeseer.cmake.preset.WorkflowPreset[] Optional array of workflow presets.
-local _PresetFileDefaults = {}
+local PresetFile = {}
+PresetFile.__index = PresetFile
+
+---@class cmakeseer.cmake.preset.PresetFile.CMakeVersion
+---@field major? integer The major version.
+---@field minor? integer The minor version.
+---@field patch? integer The patch version.
 
 -- TODO: When resolving includes:
 -- > If CMakePresets.json and CMakeUserPresets.json are both present, CMakeUserPresets.json implicitly includes CMakePresets.json, even with no include field, in all versions of the format.
@@ -29,16 +26,14 @@ local _PresetFileDefaults = {}
 ---@param o cmakeseer.cmake.preset.PresetFile Initial values.
 ---@return cmakeseer.cmake.preset.PresetFile obj The new instance.
 function PresetFile.new(o)
-  local self = setmetatable(vim.deepcopy(o), PresetFile)
-  for k, v in pairs(_PresetFileDefaults) do
-    if self[k] == nil then
-      if type(v) == "table" then
-        self[k] = vim.deepcopy(v)
-      else
-        self[k] = v
-      end
-    end
-  end
+  return PresetFile.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a PresetFile.
+---@param o cmakeseer.cmake.preset.PresetFile Initial values.
+---@return cmakeseer.cmake.preset.PresetFile obj The new instance.
+function PresetFile.take(o)
+  local self = setmetatable(o, PresetFile)
   return self
 end
 
@@ -188,10 +183,25 @@ function PresetFile.try_from_file(path)
   })
 end
 
-function PresetFile:resolve_includes()
-  -- TODO: Support macro expansion: <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#includes>
+function PresetFile:expanded()
+  local o = {
+    path = self.path,
+    version = self.version,
+    cmake_minimum_required = vim.deepcopy(self.cmake_minimum_required),
+    include = self:expand_includes(),
+    vendor = vim.deepcopy(self.vendor),
+    configure_presets = self:expand_configure_presets(),
+    build_presets = self:expand_build_presets(),
+    test_presets = self:expand_test_presets(),
+    package_presets = self:expand_package_presets(),
+    workflow_presets = self:expand_workflow_presets(),
+  }
+  return PresetFile.take(o)
+end
+
+function PresetFile:expand_includes()
   if self.include == nil then
-    return {}
+    return nil
   end
 
   return vim
@@ -210,6 +220,63 @@ function PresetFile:resolve_includes()
       return vim.fs.joinpath(parent_dir, path)
     end)
     :totable()
+end
+
+function PresetFile:resolve_includes()
+  return self:expand_includes() or {}
+end
+
+local function expand_presets(file, presets)
+  if presets == nil then
+    return nil
+  end
+
+  return vim
+    .iter(presets)
+    :map(function(preset)
+      return preset:expanded(file)
+    end)
+    :totable()
+end
+
+function PresetFile:expand_configure_presets()
+  return expand_presets(self, self.configure_presets)
+end
+
+function PresetFile:resolve_configure_presets()
+  return self:expand_configure_presets() or {}
+end
+
+function PresetFile:expand_build_presets()
+  return expand_presets(self, self.build_presets)
+end
+
+function PresetFile:resolve_build_presets()
+  return self:expand_build_presets() or {}
+end
+
+function PresetFile:expand_test_presets()
+  return expand_presets(self, self.test_presets)
+end
+
+function PresetFile:resolve_test_presets()
+  return self:expand_test_presets() or {}
+end
+
+function PresetFile:expand_package_presets()
+  return expand_presets(self, self.package_presets)
+end
+
+function PresetFile:resolve_package_presets()
+  return self:expand_package_presets() or {}
+end
+
+function PresetFile:expand_workflow_presets()
+  return expand_presets(self, self.workflow_presets)
+end
+
+function PresetFile:resolve_workflow_presets()
+  return self:expand_workflow_presets() or {}
 end
 
 --- Expands file-level macros. Does not expand preset-specific macros.
