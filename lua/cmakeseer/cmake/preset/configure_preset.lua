@@ -92,7 +92,14 @@ ConfigurePreset.__index = Preset
 ---@param o cmakeseer.cmake.preset.ConfigurePreset Initial values.
 ---@return cmakeseer.cmake.preset.ConfigurePreset obj The new instance.
 function ConfigurePreset.new(o)
-  local self = Preset.new(o)
+  return ConfigurePreset.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a ConfigurePreset.
+---@param o cmakeseer.cmake.preset.ConfigurePreset Initial values.
+---@return cmakeseer.cmake.preset.ConfigurePreset obj The new instance.
+function ConfigurePreset.take(o)
+  local self = Preset.take(o)
   self = setmetatable(self, ConfigurePreset)
   ---@cast self cmakeseer.cmake.preset.ConfigurePreset
   return self

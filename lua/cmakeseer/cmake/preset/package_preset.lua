@@ -24,7 +24,14 @@ PackagePreset.__index = Preset
 ---@param o cmakeseer.cmake.preset.PackagePreset Initial values.
 ---@return cmakeseer.cmake.preset.PackagePreset obj The new instance.
 function PackagePreset.new(o)
-  local self = Preset.new(o)
+  return PackagePreset.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a PackagePreset.
+---@param o cmakeseer.cmake.preset.PackagePreset Initial values.
+---@return cmakeseer.cmake.preset.PackagePreset obj The new instance.
+function PackagePreset.take(o)
+  local self = Preset.take(o)
   self = setmetatable(self, PackagePreset)
   ---@cast self cmakeseer.cmake.preset.PackagePreset
   return self

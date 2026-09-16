@@ -75,7 +75,14 @@ TestPreset.__index = Preset
 ---@param o cmakeseer.cmake.preset.TestPreset Initial values.
 ---@return cmakeseer.cmake.preset.TestPreset obj The new instance.
 function TestPreset.new(o)
-  local self = Preset.new(o)
+  return TestPreset.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a TestPreset.
+---@param o cmakeseer.cmake.preset.TestPreset Initial values.
+---@return cmakeseer.cmake.preset.TestPreset obj The new instance.
+function TestPreset.take(o)
+  local self = Preset.take(o)
   self = setmetatable(self, TestPreset)
   ---@cast self cmakeseer.cmake.preset.TestPreset
   return self
