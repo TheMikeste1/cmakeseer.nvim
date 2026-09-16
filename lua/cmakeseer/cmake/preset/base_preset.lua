@@ -134,6 +134,24 @@ function BasePreset:expanded()
   return BasePreset.take(o)
 end
 
+--- Determines the preset type of a preset instance.
+---@param preset cmakeseer.cmake.preset.BasePreset
+---@return cmakeseer.cmake.PresetType? preset_type The preset type, if it can be determined.
+local function preset_type_of(preset)
+  local PresetTypes = require("cmakeseer.cmake.preset").PresetTypes
+  local mt = getmetatable(preset)
+  if mt == require("cmakeseer.cmake.preset.configure_preset") then
+    return PresetTypes.Configure
+  elseif mt == require("cmakeseer.cmake.preset.build_preset") then
+    return PresetTypes.Build
+  elseif mt == require("cmakeseer.cmake.preset.test_preset") then
+    return PresetTypes.Test
+  elseif mt == require("cmakeseer.cmake.preset.package_preset") then
+    return PresetTypes.Package
+  end
+  return nil
+end
+
 --- Expands macros. Will also expand file-level macros if a PresetFile is provided.
 --- Look for "preset-specific" to see which macros this does NOT expand:
 --- <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
@@ -149,8 +167,13 @@ function BasePreset:expand_macros(str, maybe_file)
       return self.name
     end,
     generator = function()
-      vim.notify("Preset variable `generator` not yet supported", vim.log.levels.ERROR)
-      return ""
+      local preset_type = preset_type_of(self)
+      if preset_type == nil then
+        return ""
+      end
+
+      local dir = maybe_file and vim.fs.dirname(maybe_file.path) or require("cmakeseer").get_config():get_project_root()
+      return require("cmakeseer.cmake.preset").try_determine_generator(self.name, dir, preset_type)
     end,
   })
 

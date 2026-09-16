@@ -199,6 +199,61 @@ function M.entry_for(preset, dir, preset_type)
   error("UNREACHABLE: file_for would only have returned if the preset existed")
 end
 
+--- Gets the value of a field for the given preset, if it has one.
+---@param preset string The preset to check.
+---@param dir string Directory for fetching presets from another directory.
+---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
+---@param field cmakeseer.cmake.preset.ConfigurePresetField The field to fetch.
+---@param empty_value string? The value to return when the preset does not have the field.
+---@return string? value The value of the field, or `empty_value` if it does not have one.
+local function try_determine_value(preset, dir, preset_type, field, empty_value)
+  -- Workflows are unique and may not have the value
+  if preset_type == PresetTypes.Workflow then
+    return empty_value
+  end
+
+  local preset_entry = M.entry_for(preset, dir, preset_type)
+  if preset_entry == nil then
+    return empty_value
+  end
+
+  local value = empty_value
+  if preset_type == PresetTypes.Configure then
+    ---@cast preset_entry cmakeseer.cmake.preset.ConfigurePreset
+    value = preset_entry[field] or empty_value
+    if value == empty_value and preset_entry.inherits ~= nil then
+      ---@type string[]
+      local inherits = preset_entry.inherits
+      for _, inheritted in ipairs(inherits) do
+        value = try_determine_value(inheritted, dir, PresetTypes.Configure, field, empty_value)
+        if value ~= empty_value then
+          -- Break on the first to have a value.
+          break
+        end
+      end
+    end
+  else
+    local configure_preset = preset_entry.configure_preset
+    if configure_preset ~= nil then
+      value = try_determine_value(configure_preset, dir, PresetTypes.Configure, field, empty_value)
+    end
+
+    if value == empty_value and preset_entry.inherits ~= nil then
+      ---@type string[]
+      local inherits = preset_entry.inherits
+      for _, inheritted in ipairs(inherits) do
+        value = try_determine_value(inheritted, dir, preset_type, field, empty_value)
+        if value ~= empty_value then
+          -- Break on the first to have a value.
+          break
+        end
+      end
+    end
+  end
+
+  return value
+end
+
 --- Options for `try_determine_binary_dir`.
 ---@class cmakeseer.cmake.preset.TryDetermineBinaryDirOpts
 ---@field resolve_path? boolean Whether to resolve path macros (e.g. `${sourceDir}`) in the returned binary directory. Defaults to `false`.
@@ -212,50 +267,7 @@ end
 function M.try_determine_binary_dir(preset, dir, preset_type, opts)
   opts = opts or { resolve_path = false }
 
-  -- Workflows are unique and may not have one specific binary dir
-  if preset_type == PresetTypes.Workflow then
-    return nil
-  end
-
-  local preset_entry = M.entry_for(preset, dir, preset_type)
-  if preset_entry == nil then
-    return nil
-  end
-
-  local binary_dir = nil
-  if preset_type == PresetTypes.Configure then
-    ---@cast preset_entry cmakeseer.cmake.preset.ConfigurePreset
-    binary_dir = preset_entry.binary_dir
-    if binary_dir == nil and preset_entry.inherits ~= nil then
-      ---@type string[]
-      local inherits = preset_entry.inherits
-      for _, inheritted in ipairs(inherits) do
-        binary_dir = M.try_determine_binary_dir(inheritted, dir, PresetTypes.Configure)
-        if binary_dir ~= nil then
-          -- Break on the first to have a binary dir.
-          break
-        end
-      end
-    end
-  else
-    local configure_preset = preset_entry.configure_preset
-    if configure_preset ~= nil then
-      binary_dir = M.try_determine_binary_dir(configure_preset, dir, PresetTypes.Configure)
-    end
-
-    if binary_dir == nil and preset_entry.inherits ~= nil then
-      ---@type string[]
-      local inherits = preset_entry.inherits
-      for _, inheritted in ipairs(inherits) do
-        binary_dir = M.try_determine_binary_dir(inheritted, dir, preset_type)
-        if binary_dir ~= nil then
-          -- Break on the first to have a binary dir.
-          break
-        end
-      end
-    end
-  end
-
+  local binary_dir = try_determine_value(preset, dir, preset_type, "binary_dir", nil)
   if binary_dir ~= nil and opts.resolve_path then
     local preset_file = M.file_for(preset, dir, preset_type)
     if preset_file ~= nil then
@@ -265,6 +277,15 @@ function M.try_determine_binary_dir(preset, dir, preset_type, opts)
   end
 
   return binary_dir
+end
+
+--- Gets the generator for the given preset, if it has one.
+---@param preset string The preset to check.
+---@param dir string Directory for fetching presets from another directory.
+---@param preset_type cmakeseer.cmake.PresetType The type of preset to fetch.
+---@return string generator The generator for the preset, or "" if it does not have one.
+function M.try_determine_generator(preset, dir, preset_type)
+  return try_determine_value(preset, dir, preset_type, "generator", "") or ""
 end
 
 return M

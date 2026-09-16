@@ -175,4 +175,253 @@ describe("cmakeseer.cmake.preset", function()
       assert.are.equal(vim.fs.joinpath(test_dir, "build/base"), bdir)
     end)
   end)
+
+  describe("try_determine_generator", function()
+    local test_dir
+    local get_config_stub
+
+    before_each(function()
+      test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return test_dir
+        end,
+      })
+    end)
+
+    after_each(function()
+      vim.fn.delete(test_dir, "rf")
+      if get_config_stub ~= nil then
+        get_config_stub:revert()
+        get_config_stub = nil
+      end
+    end)
+
+    ---@param presets table The preset file contents to write.
+    local function write_presets(presets)
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode(presets))
+      file:close()
+    end
+
+    it("returns the generator for a Configure preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "default", generator = "Ninja" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("inherits the generator from a single parent Configure preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "base", generator = "Ninja" },
+          { name = "derived", inherits = "base" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("inherits the generator from an array of parents, first match wins", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "base1", generator = "Ninja" },
+          { name = "base2", generator = "Unix Makefiles" },
+          { name = "derived", inherits = { "base1", "base2" } },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("returns empty string when no generator is found in the chain", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "base" },
+          { name = "derived", inherits = "base" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("", generator)
+    end)
+
+    it("returns the generator from configurePreset for a Build preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config", generator = "Ninja" },
+        },
+        buildPresets = {
+          { name = "build", configurePreset = "config" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.PresetTypes.Build)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("resolves the generator through inherited Build presets when configurePreset has none", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config", generator = "Ninja" },
+        },
+        buildPresets = {
+          { name = "build-base", configurePreset = "config" },
+          { name = "build-derived", inherits = "build-base" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("returns empty string for a Build preset with no generator anywhere", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config" },
+        },
+        buildPresets = {
+          { name = "build", configurePreset = "config" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.PresetTypes.Build)
+      assert.are.equal("", generator)
+    end)
+
+    it("falls back to inherits when configurePreset has no generator for a Build preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config-no-gen" },
+          { name = "config-with-gen", generator = "Ninja" },
+        },
+        buildPresets = {
+          { name = "build-base", configurePreset = "config-with-gen" },
+          { name = "build-derived", configurePreset = "config-no-gen", inherits = "build-base" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("falls back to inherits when configurePreset is missing for a Build preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config", generator = "Ninja" },
+        },
+        buildPresets = {
+          { name = "build-base", configurePreset = "config" },
+          { name = "build-derived", configurePreset = "missing-config", inherits = "build-base" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("returns the generator from configurePreset for a Test preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config", generator = "Ninja" },
+        },
+        testPresets = {
+          { name = "test", configurePreset = "config" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("test", test_dir, CMakePreset.PresetTypes.Test)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("returns the generator from configurePreset for a Package preset", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "config", generator = "Ninja" },
+        },
+        packagePresets = {
+          { name = "package", configurePreset = "config" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("package", test_dir, CMakePreset.PresetTypes.Package)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("returns empty string for Workflow presets", function()
+      write_presets({
+        version = 1,
+        workflowPresets = {
+          { name = "workflow", steps = { { type = "configure", name = "config" } } },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("workflow", test_dir, CMakePreset.PresetTypes.Workflow)
+      assert.are.equal("", generator)
+    end)
+
+    it("returns empty string for a missing preset", function()
+      local generator = CMakePreset.try_determine_generator("missing", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("", generator)
+    end)
+
+    it("returns the generator as-is without macro expansion", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "default", generator = "${sourceDir}/build" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("${sourceDir}/build", generator)
+    end)
+
+    it("resolves the generator through a deep inheritance chain", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "level1", generator = "Ninja" },
+          { name = "level2", inherits = "level1" },
+          { name = "level3", inherits = "level2" },
+          { name = "level4", inherits = "level3" },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("level4", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("Ninja", generator)
+    end)
+
+    it("handles an empty inherits array", function()
+      write_presets({
+        version = 1,
+        configurePresets = {
+          { name = "default", inherits = {} },
+        },
+      })
+
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      assert.are.equal("", generator)
+    end)
+  end)
 end)

@@ -18,6 +18,21 @@ local Preset = require("cmakeseer.cmake.preset.base_preset")
 local ConfigurePreset = {}
 ConfigurePreset.__index = Preset
 
+---@alias cmakeseer.cmake.preset.ConfigurePresetField
+---| "generator"
+---| "architecture"
+---| "toolset"
+---| "toolchain_file"
+---| "graphviz"
+---| "binary_dir"
+---| "install_dir"
+---| "cmake_executable"
+---| "cache_variables"
+---| "warnings"
+---| "errors"
+---| "debug"
+---| "trace"
+
 ---@class cmakeseer.cmake.preset.ConfigurePreset.Architecture
 ---@field value? string The architecture/platform value.
 ---@field strategy? "set"|"external" Telling CMake how to handle the field.

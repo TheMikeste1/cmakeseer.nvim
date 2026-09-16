@@ -1,4 +1,5 @@
 local BasePreset = require("cmakeseer.cmake.preset.base_preset")
+local ConfigurePreset = require("cmakeseer.cmake.preset.configure_preset")
 local PresetFile = require("cmakeseer.cmake.preset.preset_file")
 local CMakeSeer = require("cmakeseer")
 local stub = require("luassert.stub")
@@ -193,10 +194,34 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       assert.are.equal("/path/my-preset", res)
     end)
 
-    pending("expands ${generator}", function()
+    it("expands ${generator} to empty string for a base preset", function()
       local preset = BasePreset.new({ name = "my-preset" })
       local res = preset:expand_macros("/path/${generator}")
       assert.are.equal("/path/", res)
+    end)
+
+    it("expands ${generator} from the configure preset", function()
+      local test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode({
+        version = 1,
+        configurePresets = {
+          { name = "my-config", generator = "Ninja" },
+        },
+      }))
+      file:close()
+
+      local preset = ConfigurePreset.new({ name = "my-config" })
+      local pf = PresetFile.try_from_file(vim.fs.joinpath(test_dir, "CMakePresets.json"))
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local res = preset:expand_macros("/path/${generator}", pf)
+      assert.are.equal("/path/Ninja", res)
+
+      vim.fn.delete(test_dir, "rf")
     end)
 
     it("expands ${fileDir} when a PresetFile is provided", function()
