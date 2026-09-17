@@ -28,7 +28,10 @@ function BuildPreset.take(o)
   return self
 end
 
-function BuildPreset:expanded()
+--- Copies the preset, expanding its fields.
+---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
+---@return cmakeseer.cmake.preset.BuildPreset expanded
+function BuildPreset:expanded(maybe_file)
   local o = Preset.expanded(self)
   ---@cast o table
   o.configure_preset = self.configure_preset
@@ -39,8 +42,12 @@ function BuildPreset:expanded()
   o.clean_first = self.clean_first
   o.resolve_package_references = self.resolve_package_references
   o.verbose = self.verbose
-  -- TODO: Expand
-  o.native_tool_options = self.native_tool_options
+  o.native_tool_options = vim
+    .iter(self.native_tool_options)
+    :map(function(option)
+      return self:expand_macros(option, maybe_file)
+    end)
+    :totable()
   return BuildPreset.take(o)
 end
 
