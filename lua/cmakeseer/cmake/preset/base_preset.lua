@@ -147,9 +147,9 @@ end
 
 --- Determines the preset type of a preset instance.
 ---@param preset cmakeseer.cmake.preset.BasePreset
----@return cmakeseer.cmake.PresetType? preset_type The preset type, if it can be determined.
+---@return cmakeseer.cmake.preset.Type? preset_type The preset type, if it can be determined.
 local function preset_type_of(preset)
-  local PresetTypes = require("cmakeseer.cmake.preset").PresetTypes
+  local PresetTypes = require("cmakeseer.cmake.preset").Types
   local mt = getmetatable(preset)
   if mt == require("cmakeseer.cmake.preset.configure_preset") then
     return PresetTypes.Configure

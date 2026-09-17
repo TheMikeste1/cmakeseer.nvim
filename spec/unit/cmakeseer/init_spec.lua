@@ -19,7 +19,7 @@ describe("cmakeseer.init", function()
 
       local cache_file = main.get_project_cache_file()
       assert.are.equal(vim.fs.joinpath("/build/preset_dir", "CMakeCache.txt"), cache_file)
-      assert.stub(bin_stub).was.called_with("my-build-preset", match.is_string(), CMakePreset.PresetTypes.Build, { resolve_path = true })
+      assert.stub(bin_stub).was.called_with("my-build-preset", match.is_string(), CMakePreset.Types.Build, { resolve_path = true })
 
       bin_stub:revert()
     end)
@@ -30,7 +30,7 @@ describe("cmakeseer.init", function()
 
       local cache_file = main.get_project_cache_file()
       assert.are.equal(vim.fs.joinpath("/config/preset_dir", "CMakeCache.txt"), cache_file)
-      assert.stub(bin_stub).was.called_with("my-config-preset", match.is_string(), CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      assert.stub(bin_stub).was.called_with("my-config-preset", match.is_string(), CMakePreset.Types.Configure, { resolve_path = true })
 
       bin_stub:revert()
     end)

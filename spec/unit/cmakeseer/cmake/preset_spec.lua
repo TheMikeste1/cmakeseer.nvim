@@ -5,11 +5,11 @@ local stub = require("luassert.stub")
 describe("cmakeseer.cmake.preset", function()
   describe("PresetTypes", function()
     it("defines valid preset types", function()
-      assert.are.equal("configure", CMakePreset.PresetTypes.Configure)
-      assert.are.equal("build", CMakePreset.PresetTypes.Build)
-      assert.are.equal("test", CMakePreset.PresetTypes.Test)
-      assert.are.equal("package", CMakePreset.PresetTypes.Package)
-      assert.are.equal("workflow", CMakePreset.PresetTypes.Workflow)
+      assert.are.equal("configure", CMakePreset.Types.Configure)
+      assert.are.equal("build", CMakePreset.Types.Build)
+      assert.are.equal("test", CMakePreset.Types.Test)
+      assert.are.equal("package", CMakePreset.Types.Package)
+      assert.are.equal("workflow", CMakePreset.Types.Workflow)
     end)
   end)
 
@@ -23,7 +23,7 @@ describe("cmakeseer.cmake.preset", function()
         }
       end)
 
-      local presets = CMakePreset.fetch_presets("/my/project", CMakePreset.PresetTypes.Configure)
+      local presets = CMakePreset.fetch_presets("/my/project", CMakePreset.Types.Configure)
       assert.are.same({ "default", "release" }, presets)
 
       assert.stub(system_stub).was.called_with({ "cmake", "-S", "/my/project", "--list-presets", "configure" })
@@ -66,12 +66,12 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local preset_file = CMakePreset.file_for("default", test_dir, CMakePreset.PresetTypes.Configure)
+      local preset_file = CMakePreset.file_for("default", test_dir, CMakePreset.Types.Configure)
       assert.is_not_nil(preset_file)
       ---@cast preset_file -nil
       assert.are.equal(vim.fs.joinpath(test_dir, "CMakePresets.json"), preset_file.path)
 
-      local bdir = CMakePreset.try_determine_binary_dir("default", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("default", test_dir, CMakePreset.Types.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/default"), bdir)
     end)
 
@@ -88,15 +88,15 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_user_presets))
       file:close()
 
-      local preset_file = CMakePreset.file_for("user-preset", test_dir, CMakePreset.PresetTypes.Configure)
+      local preset_file = CMakePreset.file_for("user-preset", test_dir, CMakePreset.Types.Configure)
       assert.is_not_nil(preset_file)
       ---@cast preset_file -nil
       assert.are.equal(vim.fs.joinpath(test_dir, "CMakeUserPresets.json"), preset_file.path)
     end)
 
     it("returns nil when preset not found or files missing", function()
-      assert.is_nil(CMakePreset.file_for("missing", test_dir, CMakePreset.PresetTypes.Configure))
-      assert.is_nil(CMakePreset.try_determine_binary_dir("missing", test_dir, CMakePreset.PresetTypes.Configure))
+      assert.is_nil(CMakePreset.file_for("missing", test_dir, CMakePreset.Types.Configure))
+      assert.is_nil(CMakePreset.try_determine_binary_dir("missing", test_dir, CMakePreset.Types.Configure))
     end)
 
     it("safely handles invalid JSON in CMakePresets.json without error", function()
@@ -107,12 +107,12 @@ describe("cmakeseer.cmake.preset", function()
       file:close()
 
       assert.has_no.errors(function()
-        CMakePreset.file_for("preset", test_dir, CMakePreset.PresetTypes.Configure)
+        CMakePreset.file_for("preset", test_dir, CMakePreset.Types.Configure)
       end)
     end)
 
     it("returns nil for Workflow presets in try_determine_binary_dir", function()
-      assert.is_nil(CMakePreset.try_determine_binary_dir("my-workflow", test_dir, CMakePreset.PresetTypes.Workflow))
+      assert.is_nil(CMakePreset.try_determine_binary_dir("my-workflow", test_dir, CMakePreset.Types.Workflow))
     end)
 
     it("resolves binaryDir via inherits string in Configure preset", function()
@@ -129,7 +129,7 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.Types.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/base"), bdir)
     end)
 
@@ -150,10 +150,10 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir1 = CMakePreset.try_determine_binary_dir("build-derived", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
+      local bdir1 = CMakePreset.try_determine_binary_dir("build-derived", test_dir, CMakePreset.Types.Build, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/config-base"), bdir1)
 
-      local bdir2 = CMakePreset.try_determine_binary_dir("build-inherited", test_dir, CMakePreset.PresetTypes.Build, { resolve_path = true })
+      local bdir2 = CMakePreset.try_determine_binary_dir("build-inherited", test_dir, CMakePreset.Types.Build, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/config-base"), bdir2)
     end)
 
@@ -171,7 +171,7 @@ describe("cmakeseer.cmake.preset", function()
       file:write(vim.json.encode(cmake_presets))
       file:close()
 
-      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.PresetTypes.Configure, { resolve_path = true })
+      local bdir = CMakePreset.try_determine_binary_dir("derived", test_dir, CMakePreset.Types.Configure, { resolve_path = true })
       assert.are.equal(vim.fs.joinpath(test_dir, "build/base"), bdir)
     end)
   end)
@@ -215,7 +215,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -228,7 +228,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -242,7 +242,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -255,7 +255,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("derived", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("", generator)
     end)
 
@@ -270,7 +270,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.PresetTypes.Build)
+      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.Types.Build)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -286,7 +286,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.Types.Build)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -301,7 +301,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.PresetTypes.Build)
+      local generator = CMakePreset.try_determine_generator("build", test_dir, CMakePreset.Types.Build)
       assert.are.equal("", generator)
     end)
 
@@ -318,7 +318,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.Types.Build)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -334,7 +334,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.PresetTypes.Build)
+      local generator = CMakePreset.try_determine_generator("build-derived", test_dir, CMakePreset.Types.Build)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -349,7 +349,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("test", test_dir, CMakePreset.PresetTypes.Test)
+      local generator = CMakePreset.try_determine_generator("test", test_dir, CMakePreset.Types.Test)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -364,7 +364,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("package", test_dir, CMakePreset.PresetTypes.Package)
+      local generator = CMakePreset.try_determine_generator("package", test_dir, CMakePreset.Types.Package)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -376,12 +376,12 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("workflow", test_dir, CMakePreset.PresetTypes.Workflow)
+      local generator = CMakePreset.try_determine_generator("workflow", test_dir, CMakePreset.Types.Workflow)
       assert.are.equal("", generator)
     end)
 
     it("returns empty string for a missing preset", function()
-      local generator = CMakePreset.try_determine_generator("missing", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("missing", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("", generator)
     end)
 
@@ -393,7 +393,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("${sourceDir}/build", generator)
     end)
 
@@ -408,7 +408,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("level4", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("level4", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("Ninja", generator)
     end)
 
@@ -420,7 +420,7 @@ describe("cmakeseer.cmake.preset", function()
         },
       })
 
-      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.PresetTypes.Configure)
+      local generator = CMakePreset.try_determine_generator("default", test_dir, CMakePreset.Types.Configure)
       assert.are.equal("", generator)
     end)
   end)

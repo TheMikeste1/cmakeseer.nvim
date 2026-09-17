@@ -18,7 +18,7 @@ local function generate_workflow_templates()
   local CMakePreset = require("cmakeseer.cmake.preset")
   local WorkflowBuilder = require("overseer.template.cmakeseer.workflow_builder")
 
-  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Workflow)
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.Types.Workflow)
 
   local templates = {}
   for _, preset in ipairs(presets) do

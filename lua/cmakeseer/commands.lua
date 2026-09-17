@@ -37,7 +37,7 @@ end
 --- Select a configure preset to use
 function M.select_configure_preset()
   local CMakePreset = require("cmakeseer.cmake.preset")
-  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Configure)
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.Types.Configure)
   table.insert(presets, "<none>")
   vim.ui.select(presets, {
     prompt = "Select configure preset",
@@ -55,7 +55,7 @@ end
 --- Select a build preset to use
 function M.select_build_preset()
   local CMakePreset = require("cmakeseer.cmake.preset")
-  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.PresetTypes.Build)
+  local presets = CMakePreset.fetch_presets(require("cmakeseer").get_config():get_project_root(), CMakePreset.Types.Build)
   table.insert(presets, "<none>")
   vim.ui.select(presets, {
     prompt = "Select build preset",

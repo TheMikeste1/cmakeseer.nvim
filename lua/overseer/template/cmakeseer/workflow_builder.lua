@@ -7,11 +7,15 @@ local M = {}
 ---@return overseer.TemplateFileDefinition
 function M.build_template_for(preset)
   local CMakeSeer = require("cmakeseer")
+  local Presets = require("cmakeseer.cmake.preset")
 
-  -- TODO: Use the displayName of the preset, if it exists. Maybe use the description too.
+  local entry = Presets.entry_for(preset, CMakeSeer.get_config().project_root(), Presets.Types.Workflow)
+  ---@cast entry cmakeseer.cmake.preset.WorkflowPreset
+  local name = entry.display_name or entry.name
+  local desc = entry.description or ("Runs the `%s` workflow"):format(preset)
   return {
-    name = ("CMake Workflow %s"):format(preset),
-    desc = ("Runs the `%s` workflow"):format(preset),
+    name = ("CMake Workflow %s"):format(name),
+    desc = desc,
     --- @return overseer.TaskDefinition
     builder = function()
       return {
