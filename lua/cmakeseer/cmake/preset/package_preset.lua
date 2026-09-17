@@ -37,6 +37,25 @@ function PackagePreset.take(o)
   return self
 end
 
+--- Copies the preset, expanding its fields.
+---@return cmakeseer.cmake.preset.PackagePreset expanded
+function PackagePreset:expanded()
+  local o = Preset.expanded(self)
+  ---@cast o table
+  o.configure_preset = self.configure_preset
+  o.inherit_configure_environment = self.inherit_configure_environment
+  o.generators = vim.deepcopy(self.generators)
+  o.configurations = vim.deepcopy(self.configurations)
+  o.variables = vim.deepcopy(self.variables)
+  o.config_file = self.config_file
+  o.output = vim.deepcopy(self.output)
+  o.package_name = self.package_name
+  o.package_version = self.package_version
+  o.package_directory = self.package_directory
+  o.vendor_name = self.vendor_name
+  return PackagePreset.take(o)
+end
+
 --- Creates a new PackagePreset instance from a decoded JSON table.
 ---@param json table The JSON table representing the preset.
 ---@return cmakeseer.cmake.preset.PackagePreset? obj, string? error_msg The new instance, if one was successfully created.
