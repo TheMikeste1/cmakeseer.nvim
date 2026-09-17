@@ -105,6 +105,44 @@ function ConfigurePreset.take(o)
   return self
 end
 
+--- Copies the preset, expanding its fields.
+---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
+---@return cmakeseer.cmake.preset.ConfigurePreset expanded
+function ConfigurePreset:expanded(maybe_file)
+  local o = Preset.expanded(self)
+  ---@cast o table
+  o.generator = self.generator
+  o.architecture = vim.deepcopy(self.architecture) ---@diagnostic disable-line: param-type-mismatch
+  o.toolset = vim.deepcopy(self.toolset) ---@diagnostic disable-line: param-type-mismatch
+  o.toolchain_file = self.toolchain_file and self:expand_macros(self.toolchain_file, maybe_file)
+  o.graphviz = self.graphviz and self:expand_macros(self.graphviz, maybe_file)
+  o.binary_dir = self.binary_dir and self:expand_macros(self.binary_dir, maybe_file)
+  o.install_dir = self.install_dir and self:expand_macros(self.install_dir, maybe_file)
+  o.cmake_executable = self.cmake_executable and self:expand_macros(self.cmake_executable, maybe_file)
+  o.cache_variables = self.cache_variables
+    and vim
+      .iter(self.cache_variables)
+      :map(function(key, value)
+        if type(value) == "table" then
+          ---@cast value cmakeseer.cmake.preset.ConfigurePreset.CacheVariable
+          local subvalue = value.value
+          if type(subvalue) == "string" then
+            subvalue = self:expand_macros(subvalue, maybe_file)
+          end
+          value = { type = value.type, value = subvalue }
+        elseif type(value) == "string" then
+          value = self:expand_macros(value, maybe_file)
+        end
+        return key, value
+      end)
+      :totable()
+  o.warnings = vim.deepcopy(self.warnings)
+  o.errors = vim.deepcopy(self.errors)
+  o.debug = vim.deepcopy(self.debug)
+  o.trace = vim.deepcopy(self.trace)
+  return ConfigurePreset.take(o)
+end
+
 --- Creates a new ConfigurePreset instance from a decoded JSON table.
 ---@param json table The JSON table representing the preset.
 ---@return cmakeseer.cmake.preset.ConfigurePreset? obj, string? error_msg The new instance, if one was successfully created.

@@ -129,6 +129,7 @@ function BasePreset:expanded()
     vendor = vim.deepcopy(self.vendor),
     display_name = self.display_name,
     description = self.description,
+    -- TODO: Expand environment
     environment = vim.deepcopy(self.environment),
   }
   return BasePreset.take(o)
