@@ -120,7 +120,10 @@ function BasePreset.try_from_json(json)
   }
 end
 
-function BasePreset:expanded()
+--- Copies the preset, expanding its fields.
+---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
+---@return cmakeseer.cmake.preset.BasePreset expanded
+function BasePreset:expanded(maybe_file)
   local o = {
     name = self.name,
     hidden = self.hidden,
@@ -129,8 +132,15 @@ function BasePreset:expanded()
     vendor = vim.deepcopy(self.vendor),
     display_name = self.display_name,
     description = self.description,
-    -- TODO: Expand environment
-    environment = vim.deepcopy(self.environment),
+    environment = vim
+      .iter(self.environment)
+      :map(function(key, value)
+        if value ~= nil then
+          value = self:expand_macros(value, maybe_file)
+        end
+        return key, value
+      end)
+      :totable(),
   }
   return BasePreset.take(o)
 end
