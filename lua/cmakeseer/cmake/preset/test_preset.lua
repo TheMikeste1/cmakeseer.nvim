@@ -43,7 +43,7 @@ TestPreset.__index = Preset
 ---@field name? string Regex for test names to include.
 ---@field label? string Regex for test labels to include.
 ---@field use_union? boolean Whether to treat name and label filters as a union instead of intersection.
----@field index? cmakeseer.cmake.preset.TestPreset.Filter.Index Tests to include by test index.
+---@field index? string|cmakeseer.cmake.preset.TestPreset.Filter.Index Tests to include by test index.
 
 ---@class cmakeseer.cmake.preset.TestPreset.Filter.Exclude
 ---@field name? string Regex for test names to exclude.
@@ -86,6 +86,64 @@ function TestPreset.take(o)
   self = setmetatable(self, TestPreset)
   ---@cast self cmakeseer.cmake.preset.TestPreset
   return self
+end
+
+--- Copies the preset, expanding its fields.
+---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
+---@return cmakeseer.cmake.preset.TestPreset expanded
+function TestPreset:expanded(maybe_file)
+  local o = Preset.expanded(self)
+  ---@cast o table
+  o.configure_preset = self.configure_preset
+  o.inherit_configure_environment = self.inherit_configure_environment
+  o.configuration = self.configuration
+  o.overwrite_configuration_file = self.overwrite_configuration_file and vim
+    .iter(self.overwrite_configuration_file)
+    :map(function(option)
+      return self:expand_macros(option, maybe_file)
+    end)
+    :totable()
+  o.output = vim.deepcopy(self.output)
+  if o.filter ~= nil then
+    o.filter = {}
+    if self.filter.include ~= nil then
+      local include = self.filter.include
+      ---@cast include -nil
+      o.filter.include = {
+        name = include.name and self:expand_macros(include.name, maybe_file),
+        label = include.label and self:expand_macros(include.label, maybe_file),
+        use_union = include.use_union,
+      }
+      local index = include.index
+      if type(index) == "string" then
+        o.filter.include.index = self:expand_macros(index, maybe_file)
+      elseif index ~= nil then
+        o.filter.include.index = vim.deepcopy(index)
+      end
+    end
+    if self.filter.exclude ~= nil then
+      local exclude = self.filter.exclude
+      ---@cast exclude -nil
+      o.filter.exclude = {
+        name = exclude.name and self:expand_macros(exclude.name, maybe_file),
+        label = exclude.label and self:expand_macros(exclude.label, maybe_file),
+      }
+      local fixtures = exclude.fixtures
+      if fixtures ~= nil then
+        o.filter.exclude.fixtures = {
+          any = fixtures.any and self:expand_macros(fixtures.any, maybe_file),
+          setup = fixtures.setup and self:expand_macros(fixtures.setup, maybe_file),
+          cleanup = fixtures.cleanup and self:expand_macros(fixtures.cleanup, maybe_file),
+        }
+      end
+    end
+  end
+  if self.execution ~= nil then
+    o.execution = vim.deepcopy(self.execution)
+    o.execution.resource_spec_file = o.execution.resource_spec_file and self:expand_macros(o.execution.resource_spec_file, maybe_file)
+  end
+  o.test_passthrough_arguments = vim.deepcopy(self.test_passthrough_arguments)
+  return TestPreset.take(o)
 end
 
 --- Creates a new TestPreset instance from a decoded JSON table.
