@@ -16,8 +16,28 @@ WorkflowPreset.__index = WorkflowPreset
 ---@param o cmakeseer.cmake.preset.WorkflowPreset Initial values.
 ---@return cmakeseer.cmake.preset.WorkflowPreset obj The new instance.
 function WorkflowPreset.new(o)
-  local self = setmetatable(vim.deepcopy(o), WorkflowPreset)
+  return WorkflowPreset.take(vim.deepcopy(o))
+end
+
+--- Takes o and changes it to a WorkflowPreset.
+---@param o cmakeseer.cmake.preset.WorkflowPreset Initial values.
+---@return cmakeseer.cmake.preset.WorkflowPreset obj The new instance.
+function WorkflowPreset.take(o)
+  local self = setmetatable(o, WorkflowPreset)
   return self
+end
+
+--- Copies the preset, expanding its fields.
+---@return cmakeseer.cmake.preset.WorkflowPreset expanded
+function WorkflowPreset:expanded()
+  local o = {
+    name = self.name,
+    steps = vim.deepcopy(self.steps),
+    vendor = vim.deepcopy(self.vendor),
+    display_name = self.display_name,
+    description = self.description,
+  }
+  return WorkflowPreset.take(o)
 end
 
 --- Creates a new WorkflowPreset instance from a decoded JSON table.
