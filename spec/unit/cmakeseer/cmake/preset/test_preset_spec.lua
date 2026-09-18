@@ -1,4 +1,7 @@
 local TestPreset = require("cmakeseer.cmake.preset.test_preset")
+local PresetFile = require("cmakeseer.cmake.preset.preset_file")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.TestPreset", function()
   describe("try_from_json", function()
@@ -219,6 +222,199 @@ describe("cmakeseer.cmake.preset.TestPreset", function()
       local preset3, err3 = TestPreset.try_from_json({ name = "t", testPassthroughArguments = { "--gtest_filter=A.*" } })
       assert.is_nil(err3)
       assert.are.same({ "--gtest_filter=A.*" }, preset3.test_passthrough_arguments)
+    end)
+  end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("expands overwrite_configuration_file", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        overwrite_configuration_file = { "${sourceDir}/opt" },
+      })
+      local expanded = preset:expanded()
+      assert.are.same({ "/my/project/opt" }, expanded.overwrite_configuration_file)
+    end)
+
+    it("expands filter.include.name and label", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        filter = { include = { name = "${sourceDir}/n", label = "${presetName}", use_union = true } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/n", expanded.filter.include.name)
+      assert.are.equal("my-test", expanded.filter.include.label)
+      assert.is_true(expanded.filter.include.use_union)
+    end)
+
+    it("expands string filter.include.index and deep copies object form", function()
+      local preset_str = TestPreset.new({
+        name = "my-test",
+        filter = { include = { index = "${sourceDir}/idx" } },
+      })
+      local expanded_str = preset_str:expanded()
+      assert.are.equal("/my/project/idx", expanded_str.filter.include.index)
+
+      local preset_obj = TestPreset.new({
+        name = "my-test",
+        filter = { include = { index = { start = 1, ["end"] = 10, stride = 2 } } },
+      })
+      local expanded_obj = preset_obj:expanded()
+      assert.are.same({ start = 1, ["end"] = 10, stride = 2 }, expanded_obj.filter.include.index)
+    end)
+
+    it("expands filter.exclude.name and label", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        filter = { exclude = { name = "${sourceDir}/n", label = "${presetName}" } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/n", expanded.filter.exclude.name)
+      assert.are.equal("my-test", expanded.filter.exclude.label)
+    end)
+
+    it("expands filter.exclude.fixtures", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        filter = { exclude = { fixtures = { any = "${sourceDir}/a", setup = "${sourceDir}/s", cleanup = "${sourceDir}/c" } } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/a", expanded.filter.exclude.fixtures.any)
+      assert.are.equal("/my/project/s", expanded.filter.exclude.fixtures.setup)
+      assert.are.equal("/my/project/c", expanded.filter.exclude.fixtures.cleanup)
+    end)
+
+    it("expands execution.resource_spec_file and preserves other execution fields", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        execution = {
+          resource_spec_file = "${sourceDir}/spec",
+          jobs = 4,
+          stop_on_failure = true,
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/spec", expanded.execution.resource_spec_file)
+      assert.are.equal(4, expanded.execution.jobs)
+      assert.is_true(expanded.execution.stop_on_failure)
+    end)
+
+    it("expands output.output_log_file and output_junit_file", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        output = { output_log_file = "${sourceDir}/log.txt", output_junit_file = "${sourceDir}/junit.xml" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/log.txt", expanded.output.output_log_file)
+      assert.are.equal("/my/project/junit.xml", expanded.output.output_junit_file)
+    end)
+
+    it("preserves non-expandable output fields", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        output = { verbosity = "verbose", short_progress = true, max_passed_test_output_size = 1024 },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("verbose", expanded.output.verbosity)
+      assert.is_true(expanded.output.short_progress)
+      assert.are.equal(1024, expanded.output.max_passed_test_output_size)
+    end)
+
+    it("deep copies test_passthrough_arguments without expansion", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        test_passthrough_arguments = { "--gtest_filter=${sourceDir}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.same({ "--gtest_filter=${sourceDir}" }, expanded.test_passthrough_arguments)
+    end)
+
+    it("expands environment values", function()
+      local preset = TestPreset.new({ name = "my-test", environment = { A = "${sourceDir}" } })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.A)
+    end)
+
+    it("expands ${generator} via the associated configure preset", function()
+      local test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode({
+        version = 1,
+        configurePresets = {
+          { name = "my-config", generator = "Ninja" },
+        },
+        testPresets = {
+          { name = "my-test", configurePreset = "my-config" },
+        },
+      }))
+      file:close()
+
+      local preset = TestPreset.new({
+        name = "my-test",
+        configure_preset = "my-config",
+        environment = { A = "${generator}" },
+      })
+      local pf = PresetFile.try_from_file(vim.fs.joinpath(test_dir, "CMakePresets.json"))
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = preset:expanded(pf)
+      assert.are.equal("Ninja", expanded.environment.A)
+
+      vim.fn.delete(test_dir, "rf")
+    end)
+
+    it("preserves filter when set", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        filter = { include = { name = "test_.*" }, exclude = { name = "slow_.*" } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("test_.*", expanded.filter.include.name)
+      assert.are.equal("slow_.*", expanded.filter.exclude.name)
+    end)
+
+    it("handles output with only some subfields", function()
+      local preset = TestPreset.new({ name = "my-test", output = { verbosity = "verbose" } })
+      local expanded = preset:expanded()
+      assert.are.equal("verbose", expanded.output.verbosity)
+      assert.is_nil(expanded.output.output_log_file)
+      assert.is_nil(expanded.output.output_junit_file)
+    end)
+
+    it("returns nil for nil optional fields", function()
+      local preset = TestPreset.new({ name = "my-test" })
+      local expanded = preset:expanded()
+      assert.is_nil(expanded.output)
+      assert.is_nil(expanded.filter)
+      assert.is_nil(expanded.execution)
+      assert.is_nil(expanded.overwrite_configuration_file)
+      assert.is_nil(expanded.test_passthrough_arguments)
+    end)
+
+    it("does not mutate the original", function()
+      local preset = TestPreset.new({
+        name = "my-test",
+        filter = { include = { name = "${sourceDir}/n" } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/n", expanded.filter.include.name)
+      assert.are.equal("${sourceDir}/n", preset.filter.include.name)
     end)
   end)
 end)

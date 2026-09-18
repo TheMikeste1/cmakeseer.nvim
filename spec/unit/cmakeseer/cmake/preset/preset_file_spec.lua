@@ -446,4 +446,102 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
       assert.are.equal("/my/project/build/project", res)
     end)
   end)
+
+  describe("expanded", function()
+    local get_config_stub
+    local temp_dir
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+      temp_dir = vim.fn.tempname()
+      vim.fn.mkdir(temp_dir, "p")
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+      vim.fn.delete(temp_dir, "rf")
+    end)
+
+    local function write_preset_file(content)
+      local filepath = vim.fs.joinpath(temp_dir, "CMakePresets.json")
+      local file = io.open(filepath, "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode(content))
+      file:close()
+      return filepath
+    end
+
+    it("expands all preset kinds from one file", function()
+      local filepath = write_preset_file({
+        version = 6,
+        configurePresets = {
+          {
+            name = "config-1",
+            generator = "Ninja",
+            binaryDir = "${sourceDir}/build",
+            environment = { FOO = "${sourceDir}/foo" },
+          },
+        },
+        buildPresets = {
+          { name = "build-1", configurePreset = "config-1", targets = { "${sourceDir}/app" } },
+        },
+        testPresets = {
+          {
+            name = "test-1",
+            configurePreset = "config-1",
+            output = { outputLogFile = "${sourceDir}/log.txt", outputJUnitFile = "${fileDir}/junit.xml" },
+          },
+        },
+        packagePresets = {
+          {
+            name = "package-1",
+            configFile = "${sourceDir}/CPackConfig.cmake",
+            environment = { PKG_DIR = "${fileDir}/pkg" },
+          },
+        },
+        workflowPresets = {
+          { name = "workflow-1", steps = { { type = "configure", name = "config-1" } } },
+        },
+      })
+      local pf = PresetFile.try_from_file(filepath)
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = pf:expanded()
+      assert.are.equal("/my/project/build", expanded.configure_presets[1].binary_dir)
+      assert.are.equal("/my/project/foo", expanded.configure_presets[1].environment.FOO)
+      assert.are.same({ "/my/project/app" }, expanded.build_presets[1].targets)
+      assert.are.equal("/my/project/log.txt", expanded.test_presets[1].output.output_log_file)
+      assert.are.equal(vim.fs.dirname(filepath) .. "/junit.xml", expanded.test_presets[1].output.output_junit_file)
+      assert.are.equal("${sourceDir}/CPackConfig.cmake", expanded.package_presets[1].config_file)
+      assert.are.equal(vim.fs.dirname(filepath) .. "/pkg", expanded.package_presets[1].environment.PKG_DIR)
+      assert.are.equal("config-1", expanded.workflow_presets[1].steps[1].name)
+    end)
+
+    it("expands minimal presets without optional fields", function()
+      local filepath = write_preset_file({
+        version = 6,
+        configurePresets = { { name = "config-1" } },
+        buildPresets = { { name = "build-1" } },
+        testPresets = { { name = "test-1" } },
+        packagePresets = { { name = "package-1" } },
+        workflowPresets = {
+          { name = "workflow-1", steps = { { type = "configure", name = "config-1" } } },
+        },
+      })
+      local pf = PresetFile.try_from_file(filepath)
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = pf:expanded()
+      assert.is_nil(expanded.configure_presets[1].binary_dir)
+      assert.is_nil(expanded.build_presets[1].targets)
+      assert.is_nil(expanded.test_presets[1].output)
+      assert.is_nil(expanded.package_presets[1].config_file)
+      assert.are.equal("config-1", expanded.workflow_presets[1].steps[1].name)
+    end)
+  end)
 end)

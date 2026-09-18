@@ -1,4 +1,7 @@
 local BuildPreset = require("cmakeseer.cmake.preset.build_preset")
+local PresetFile = require("cmakeseer.cmake.preset.preset_file")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.BuildPreset", function()
   describe("try_from_json", function()
@@ -152,6 +155,123 @@ describe("cmakeseer.cmake.preset.BuildPreset", function()
       local preset3, err3 = BuildPreset.try_from_json({ name = "b", nativeToolOptions = { "-j", "4" } })
       assert.is_nil(err3)
       assert.are.same({ "-j", "4" }, preset3.native_tool_options)
+    end)
+  end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("expands string targets", function()
+      local preset = BuildPreset.new({ name = "my-build", targets = "${sourceDir}/app" })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/app", expanded.targets)
+    end)
+
+    it("expands array targets", function()
+      local preset = BuildPreset.new({ name = "my-build", targets = { "${sourceDir}/app", "${sourceDir}/tests" } })
+      local expanded = preset:expanded()
+      assert.are.same({ "/my/project/app", "/my/project/tests" }, expanded.targets)
+    end)
+
+    it("expands native_tool_options", function()
+      local preset = BuildPreset.new({
+        name = "my-build",
+        native_tool_options = { "-j", "${sourceDir}/opt" },
+      })
+      local expanded = preset:expanded()
+      assert.are.same({ "-j", "/my/project/opt" }, expanded.native_tool_options)
+    end)
+
+    it("expands environment values", function()
+      local preset = BuildPreset.new({ name = "my-build", environment = { A = "${sourceDir}" } })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.A)
+    end)
+
+    it("expands ${generator} from the associated configure preset", function()
+      local test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode({
+        version = 1,
+        configurePresets = {
+          { name = "my-config", generator = "Ninja" },
+        },
+        buildPresets = {
+          { name = "my-build", configurePreset = "my-config" },
+        },
+      }))
+      file:close()
+
+      local preset = BuildPreset.new({
+        name = "my-build",
+        configure_preset = "my-config",
+        environment = { A = "${generator}" },
+      })
+      local pf = PresetFile.try_from_file(vim.fs.joinpath(test_dir, "CMakePresets.json"))
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = preset:expanded(pf)
+      assert.are.equal("Ninja", expanded.environment.A)
+
+      vim.fn.delete(test_dir, "rf")
+    end)
+
+    it("preserves non-expandable fields", function()
+      local preset = BuildPreset.new({
+        name = "my-build",
+        configure_preset = "my-config",
+        inherit_configure_environment = false,
+        jobs = 8,
+        configuration = "Release",
+        clean_first = true,
+        resolve_package_references = "on",
+        verbose = true,
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("my-config", expanded.configure_preset)
+      assert.is_false(expanded.inherit_configure_environment)
+      assert.are.equal(8, expanded.jobs)
+      assert.are.equal("Release", expanded.configuration)
+      assert.is_true(expanded.clean_first)
+      assert.are.equal("on", expanded.resolve_package_references)
+      assert.is_true(expanded.verbose)
+    end)
+
+    it("returns nil for nil optional fields", function()
+      local preset = BuildPreset.new({ name = "my-build" })
+      local expanded = preset:expanded()
+      assert.is_nil(expanded.targets)
+      assert.is_nil(expanded.native_tool_options)
+      assert.is_nil(expanded.environment)
+    end)
+
+    it("handles empty arrays", function()
+      local preset = BuildPreset.new({ name = "my-build", targets = {}, native_tool_options = {} })
+      local expanded = preset:expanded()
+      assert.are.same({}, expanded.targets)
+      assert.are.same({}, expanded.native_tool_options)
+    end)
+
+    it("does not mutate the original", function()
+      local preset = BuildPreset.new({ name = "my-build", targets = { "${sourceDir}/app" } })
+      local expanded = preset:expanded()
+      assert.are.same({ "/my/project/app" }, expanded.targets)
+      assert.are.same({ "${sourceDir}/app" }, preset.targets)
     end)
   end)
 end)

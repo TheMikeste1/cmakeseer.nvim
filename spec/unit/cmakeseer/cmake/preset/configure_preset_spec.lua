@@ -1,4 +1,7 @@
 local ConfigurePreset = require("cmakeseer.cmake.preset.configure_preset")
+local PresetFile = require("cmakeseer.cmake.preset.preset_file")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.ConfigurePreset", function()
   describe("try_from_json", function()
@@ -307,6 +310,153 @@ describe("cmakeseer.cmake.preset.ConfigurePreset", function()
       assert.are.equal("human", preset7.trace.format)
       assert.are.equal("src.cmake", preset7.trace.source)
       assert.are.equal("trace.log", preset7.trace.redirect)
+    end)
+  end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("expands string path fields", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        toolchain_file = "${sourceDir}/toolchain.cmake",
+        graphviz = "${sourceDir}/graph.dot",
+        binary_dir = "${sourceDir}/build",
+        install_dir = "${sourceDir}/install",
+        cmake_executable = "${sourceDir}/cmake",
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/toolchain.cmake", expanded.toolchain_file)
+      assert.are.equal("/my/project/graph.dot", expanded.graphviz)
+      assert.are.equal("/my/project/build", expanded.binary_dir)
+      assert.are.equal("/my/project/install", expanded.install_dir)
+      assert.are.equal("/my/project/cmake", expanded.cmake_executable)
+    end)
+
+    it("expands string cache variables", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        cache_variables = { STR = "${sourceDir}/val" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/val", expanded.cache_variables.STR)
+    end)
+
+    it("expands typed cache variable values and preserves the type", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        cache_variables = { TYPED = { type = "FILEPATH", value = "${sourceDir}/path" } },
+      })
+      local expanded = preset:expanded()
+      assert.are.same({ type = "FILEPATH", value = "/my/project/path" }, expanded.cache_variables.TYPED)
+    end)
+
+    it("preserves boolean and vim.NIL cache variables", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        cache_variables = { BOOL = true, NIL = vim.NIL },
+      })
+      local expanded = preset:expanded()
+      assert.is_true(expanded.cache_variables.BOOL)
+      assert.is_true(expanded.cache_variables.NIL == vim.NIL)
+    end)
+
+    it("expands environment values", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        environment = { A = "${sourceDir}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.A)
+    end)
+
+    it("expands ${generator} from its own generator", function()
+      local test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode({
+        version = 1,
+        configurePresets = {
+          { name = "my-config", generator = "Ninja" },
+        },
+      }))
+      file:close()
+
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        environment = { A = "${generator}" },
+      })
+      local pf = PresetFile.try_from_file(vim.fs.joinpath(test_dir, "CMakePresets.json"))
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = preset:expanded(pf)
+      assert.are.equal("Ninja", expanded.environment.A)
+
+      vim.fn.delete(test_dir, "rf")
+    end)
+
+    it("expands ${fileDir} when a PresetFile is provided", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        binary_dir = "${fileDir}/build",
+      })
+      local pf = PresetFile.new({ path = "/some/dir/CMakePresets.json", version = 3 })
+      local expanded = preset:expanded(pf)
+      assert.are.equal("/some/dir/build", expanded.binary_dir)
+    end)
+
+    it("deep copies non-expandable fields", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        generator = "Ninja",
+        architecture = { value = "x64", strategy = "set" },
+        toolset = { value = "v143", strategy = "external" },
+        warnings = { dev = true },
+        errors = { dev = true },
+        debug = { output = true },
+        trace = { mode = "on" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("Ninja", expanded.generator)
+      assert.are.same({ value = "x64", strategy = "set" }, expanded.architecture)
+      assert.are.same({ value = "v143", strategy = "external" }, expanded.toolset)
+      assert.are.same({ dev = true }, expanded.warnings)
+      assert.are.same({ dev = true }, expanded.errors)
+      assert.are.same({ output = true }, expanded.debug)
+      assert.are.same({ mode = "on" }, expanded.trace)
+    end)
+
+    it("returns nil for nil optional fields", function()
+      local preset = ConfigurePreset.new({ name = "my-config" })
+      local expanded = preset:expanded()
+      assert.is_nil(expanded.binary_dir)
+      assert.is_nil(expanded.toolchain_file)
+      assert.is_nil(expanded.cache_variables)
+      assert.is_nil(expanded.environment)
+    end)
+
+    it("does not mutate the original", function()
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        cache_variables = { STR = "${sourceDir}/val" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/val", expanded.cache_variables.STR)
+      assert.are.equal("${sourceDir}/val", preset.cache_variables.STR)
     end)
   end)
 end)

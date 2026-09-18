@@ -294,4 +294,204 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       assert.are.equal("/my/project/build/my-preset", res)
     end)
   end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("expands environment values with common macros", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          SRC = "${sourceDir}",
+          NAME = "${presetName}",
+          HOST = "${hostSystemName}",
+          DOLLAR = "${dollar}",
+          SEP = "${pathListSep}",
+          PARENT = "${sourceParentDir}",
+          DIRNAME = "${sourceDirName}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.SRC)
+      assert.are.equal("my-preset", expanded.environment.NAME)
+      local sysname = vim.uv.os_uname().sysname
+      if sysname == "Windows_NT" then
+        sysname = "Windows"
+      end
+      assert.are.equal(sysname, expanded.environment.HOST)
+      assert.are.equal("$", expanded.environment.DOLLAR)
+      local expected_sep = vim.uv.os_uname().sysname == "Windows_NT" and ";" or ":"
+      assert.are.equal(expected_sep, expanded.environment.SEP)
+      assert.are.equal("/my", expanded.environment.PARENT)
+      assert.are.equal("project", expanded.environment.DIRNAME)
+    end)
+
+    it("prefers preset environment over vim.env for $env{VAR}", function()
+      vim.env.MY_TEST_VAR = "env_val"
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          MY_TEST_VAR = "preset_env_val",
+          OTHER = "$env{MY_TEST_VAR}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("preset_env_val", expanded.environment.OTHER)
+      vim.env.MY_TEST_VAR = nil
+    end)
+
+    it("expands $penv{VAR} from the parent environment only", function()
+      vim.env.MY_TEST_VAR = "env_val"
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          MY_TEST_VAR = "preset_env_val",
+          OTHER = "$penv{MY_TEST_VAR}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("env_val", expanded.environment.OTHER)
+      vim.env.MY_TEST_VAR = nil
+    end)
+
+    it("preserves vim.NIL environment values", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${sourceDir}", B = vim.NIL },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.A)
+      assert.is_true(expanded.environment.B == vim.NIL)
+    end)
+
+    it("leaves unrecognized macros unchanged", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${unrecognizedVar}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("${unrecognizedVar}", expanded.environment.A)
+    end)
+
+    it("expands multiple macros in a single value", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${sourceDir}/build/${presetName}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/build/my-preset", expanded.environment.A)
+    end)
+
+    it("returns a new instance without mutating the original", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${sourceDir}" },
+      })
+      local expanded = preset:expanded()
+      assert.is_not_nil(expanded)
+      assert.is_true(preset ~= expanded)
+      assert.are.equal("${sourceDir}", preset.environment.A)
+      assert.are.equal("/my/project", expanded.environment.A)
+    end)
+
+    it("leaves ${fileDir} unexpanded without a PresetFile", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${fileDir}/build" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("${fileDir}/build", expanded.environment.A)
+    end)
+
+    it("expands ${fileDir} when a PresetFile is provided", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${fileDir}/build" },
+      })
+      local pf = PresetFile.new({ path = "/some/dir/CMakePresets.json", version = 3 })
+      local expanded = preset:expanded(pf)
+      assert.are.equal("/some/dir/build", expanded.environment.A)
+    end)
+
+    it("expands ${generator} to empty string for a base preset", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = { A = "${generator}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("", expanded.environment.A)
+    end)
+
+    it("expands ${generator} from the configure preset", function()
+      local test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
+      local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
+      assert.is_not_nil(file)
+      ---@cast file -nil
+      file:write(vim.json.encode({
+        version = 1,
+        configurePresets = {
+          { name = "my-config", generator = "Ninja" },
+        },
+      }))
+      file:close()
+
+      local preset = ConfigurePreset.new({
+        name = "my-config",
+        environment = { A = "${generator}" },
+      })
+      local pf = PresetFile.try_from_file(vim.fs.joinpath(test_dir, "CMakePresets.json"))
+      assert.is_not_nil(pf)
+      ---@cast pf -nil
+      local expanded = preset:expanded(pf)
+      assert.are.equal("Ninja", expanded.environment.A)
+
+      vim.fn.delete(test_dir, "rf")
+    end)
+
+    it("returns nil environment when environment is nil", function()
+      local preset = BasePreset.new({ name = "my-preset" })
+      local expanded = preset:expanded()
+      assert.is_nil(expanded.environment)
+    end)
+
+    it("preserves base fields", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        hidden = true,
+        inherits = { "base" },
+        condition = { type = "const", value = false },
+        vendor = { ide = { setting = 1 } },
+        display_name = "My Preset",
+        description = "Desc",
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("my-preset", expanded.name)
+      assert.is_true(expanded.hidden)
+      assert.are.same({ "base" }, expanded.inherits)
+      assert.are.same({ type = "const", value = false }, expanded.condition)
+      assert.are.same({ ide = { setting = 1 } }, expanded.vendor)
+      assert.are.equal("My Preset", expanded.display_name)
+      assert.are.equal("Desc", expanded.description)
+
+      expanded.inherits[1] = "mutated"
+      expanded.condition.value = true
+      expanded.vendor.ide.setting = 2
+      assert.are.same({ "base" }, preset.inherits)
+      assert.are.same({ type = "const", value = false }, preset.condition)
+      assert.are.same({ ide = { setting = 1 } }, preset.vendor)
+    end)
+  end)
 end)

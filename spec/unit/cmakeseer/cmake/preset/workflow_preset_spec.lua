@@ -1,4 +1,6 @@
 local WorkflowPreset = require("cmakeseer.cmake.preset.workflow_preset")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.WorkflowPreset", function()
   describe("try_from_json", function()
@@ -114,6 +116,62 @@ describe("cmakeseer.cmake.preset.WorkflowPreset", function()
       })
       assert.is_nil(preset3)
       assert.are.equal("description must be a string", err3)
+    end)
+  end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("deep copies steps without macro expansion", function()
+      local preset = WorkflowPreset.new({
+        name = "my-workflow",
+        steps = {
+          { type = "configure", name = "${sourceDir}/config" },
+          { type = "build", name = "${sourceDir}/build" },
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.same({
+        { type = "configure", name = "${sourceDir}/config" },
+        { type = "build", name = "${sourceDir}/build" },
+      }, expanded.steps)
+    end)
+
+    it("preserves name, display_name, description, and vendor", function()
+      local preset = WorkflowPreset.new({
+        name = "my-workflow",
+        display_name = "Workflow 1",
+        description = "Run full workflow",
+        vendor = { ide = true },
+        steps = { { type = "configure", name = "config" } },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("my-workflow", expanded.name)
+      assert.are.equal("Workflow 1", expanded.display_name)
+      assert.are.equal("Run full workflow", expanded.description)
+      assert.are.same({ ide = true }, expanded.vendor)
+    end)
+
+    it("does not mutate the original", function()
+      local preset = WorkflowPreset.new({
+        name = "my-workflow",
+        steps = { { type = "configure", name = "config" } },
+      })
+      local expanded = preset:expanded()
+      expanded.steps[1].name = "mutated"
+      assert.are.equal("config", preset.steps[1].name)
     end)
   end)
 end)

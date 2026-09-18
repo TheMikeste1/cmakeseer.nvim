@@ -1,4 +1,7 @@
 local PackagePreset = require("cmakeseer.cmake.preset.package_preset")
+local PresetFile = require("cmakeseer.cmake.preset.preset_file")
+local CMakeSeer = require("cmakeseer")
+local stub = require("luassert.stub")
 
 describe("cmakeseer.cmake.preset.PackagePreset", function()
   describe("try_from_json", function()
@@ -140,6 +143,86 @@ describe("cmakeseer.cmake.preset.PackagePreset", function()
         assert.is_nil(err_ok)
         assert.are.equal("test-val", preset_val[f.lua_key])
       end
+    end)
+  end)
+
+  describe("expanded", function()
+    local get_config_stub
+
+    before_each(function()
+      get_config_stub = stub(CMakeSeer, "get_config", {
+        get_project_root = function()
+          return "/my/project"
+        end,
+      })
+    end)
+
+    after_each(function()
+      get_config_stub:revert()
+    end)
+
+    it("deep copies fields without macro expansion", function()
+      local preset = PackagePreset.new({
+        name = "my-package",
+        config_file = "${sourceDir}/CPackConfig.cmake",
+        package_directory = "${sourceDir}/pkg",
+        package_name = "${sourceDir}/name",
+        package_version = "${sourceDir}/version",
+        vendor_name = "${sourceDir}/vendor",
+        variables = { CPACK_VAR = "${sourceDir}/val" },
+        generators = { "${sourceDir}/TGZ" },
+        configurations = { "${sourceDir}/Release" },
+        output = { debug = true, verbose = false },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("${sourceDir}/CPackConfig.cmake", expanded.config_file)
+      assert.are.equal("${sourceDir}/pkg", expanded.package_directory)
+      assert.are.equal("${sourceDir}/name", expanded.package_name)
+      assert.are.equal("${sourceDir}/version", expanded.package_version)
+      assert.are.equal("${sourceDir}/vendor", expanded.vendor_name)
+      assert.are.same({ CPACK_VAR = "${sourceDir}/val" }, expanded.variables)
+      assert.are.same({ "${sourceDir}/TGZ" }, expanded.generators)
+      assert.are.same({ "${sourceDir}/Release" }, expanded.configurations)
+      assert.are.same({ debug = true, verbose = false }, expanded.output)
+    end)
+
+    it("expands environment values", function()
+      local preset = PackagePreset.new({
+        name = "my-package",
+        environment = { A = "${sourceDir}" },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.A)
+    end)
+
+    it("expands ${fileDir} in environment when a PresetFile is provided", function()
+      local preset = PackagePreset.new({
+        name = "my-package",
+        environment = { A = "${fileDir}/pkg" },
+      })
+      local pf = PresetFile.new({ path = "/some/dir/CMakePresets.json", version = 3 })
+      local expanded = preset:expanded(pf)
+      assert.are.equal("/some/dir/pkg", expanded.environment.A)
+    end)
+
+    it("deep copies nested tables", function()
+      local preset = PackagePreset.new({
+        name = "my-package",
+        variables = { CPACK_VAR = "val" },
+      })
+      local expanded = preset:expanded()
+      expanded.variables.CPACK_VAR = "mutated"
+      assert.are.equal("val", preset.variables.CPACK_VAR)
+    end)
+
+    it("returns nil for nil optional fields", function()
+      local preset = PackagePreset.new({ name = "my-package" })
+      local expanded = preset:expanded()
+      assert.is_nil(expanded.config_file)
+      assert.is_nil(expanded.variables)
+      assert.is_nil(expanded.generators)
+      assert.is_nil(expanded.output)
+      assert.is_nil(expanded.environment)
     end)
   end)
 end)
