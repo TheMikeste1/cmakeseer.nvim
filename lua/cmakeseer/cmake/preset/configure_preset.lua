@@ -110,7 +110,7 @@ end
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.ConfigurePreset expanded
 function ConfigurePreset:expanded(maybe_file)
-  local o = Preset.expanded(self)
+  local o = Preset.expanded(self, maybe_file)
   ---@cast o table
   o.generator = self.generator
   o.architecture = vim.deepcopy(self.architecture) ---@diagnostic disable-line: param-type-mismatch

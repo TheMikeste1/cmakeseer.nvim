@@ -93,7 +93,7 @@ end
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.TestPreset expanded
 function TestPreset:expanded(maybe_file)
-  local o = Preset.expanded(self)
+  local o = Preset.expanded(self, maybe_file)
   ---@cast o table
   o.configure_preset = self.configure_preset
   o.inherit_configure_environment = self.inherit_configure_environment

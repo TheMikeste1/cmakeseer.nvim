@@ -39,9 +39,10 @@ function PackagePreset.take(o)
 end
 
 --- Copies the preset, expanding its fields.
+---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.PackagePreset expanded
-function PackagePreset:expanded()
-  local o = Preset.expanded(self)
+function PackagePreset:expanded(maybe_file)
+  local o = Preset.expanded(self, maybe_file)
   ---@cast o table
   o.configure_preset = self.configure_preset
   o.inherit_configure_environment = self.inherit_configure_environment
