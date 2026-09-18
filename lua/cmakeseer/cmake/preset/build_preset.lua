@@ -37,7 +37,18 @@ function BuildPreset:expanded(maybe_file)
   o.configure_preset = self.configure_preset
   o.inherit_configure_environment = self.inherit_configure_environment
   o.jobs = self.jobs
-  o.targets = vim.deepcopy(self.targets) ---@diagnostic disable-line: param-type-mismatch
+  if type(self.targets) == "string" then
+    o.targets = self:expand_macros(self.targets, maybe_file) ---@diagnostic disable-line: param-type-mismatch
+  elseif self.targets ~= nil then
+    local targets = self.targets
+    ---@cast targets string[]
+    o.targets = vim
+      .iter(targets)
+      :map(function(target)
+        return self:expand_macros(target, maybe_file)
+      end)
+      :totable()
+  end
   o.configuration = self.configuration
   o.clean_first = self.clean_first
   o.resolve_package_references = self.resolve_package_references
