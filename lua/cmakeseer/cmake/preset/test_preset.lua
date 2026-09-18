@@ -103,7 +103,25 @@ function TestPreset:expanded(maybe_file)
       return self:expand_macros(option, maybe_file)
     end)
     :totable()
-  o.output = vim.deepcopy(self.output)
+  if self.output ~= nil then
+    local output = self.output
+    ---@cast output -nil
+    o.output = {
+      short_progress = output.short_progress,
+      verbosity = output.verbosity,
+      debug = output.debug,
+      output_on_failure = output.output_on_failure,
+      quiet = output.quiet,
+      output_log_file = self:expand_macros(output.output_log_file, maybe_file),
+      output_junit_file = self:expand_macros(output.output_junit_file, maybe_file),
+      label_summary = output.label_summary,
+      subproject_summary = output.subproject_summary,
+      max_passed_test_output_size = output.max_passed_test_output_size,
+      max_failed_test_output_size = output.max_failed_test_output_size,
+      test_output_truncation = output.test_output_truncation,
+      max_test_name_width = output.max_test_name_width,
+    }
+  end
   if o.filter ~= nil then
     o.filter = {}
     if self.filter.include ~= nil then
