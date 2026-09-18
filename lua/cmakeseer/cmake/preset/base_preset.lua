@@ -7,7 +7,7 @@
 ---@field vendor? table<string, any> Vendor-specific information.
 ---@field display_name? string Human-friendly name of the preset.
 ---@field description? string Human-friendly description of the preset.
----@field environment? table<string, string|nil> Environment variables to set.
+---@field environment? table<string, string|vim.NIL> Environment variables to set.
 local BasePreset = {}
 BasePreset.__index = BasePreset
 
@@ -124,6 +124,16 @@ end
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.BasePreset expanded
 function BasePreset:expanded(maybe_file)
+  local environment = nil
+  if self.environment ~= nil then
+    environment = {}
+    for key, value in pairs(self.environment) do
+      if value ~= nil and value ~= vim.NIL then
+        value = self:expand_macros(value, maybe_file)
+      end
+      environment[key] = value
+    end
+  end
   local o = {
     name = self.name,
     hidden = self.hidden,
@@ -132,15 +142,7 @@ function BasePreset:expanded(maybe_file)
     vendor = vim.deepcopy(self.vendor),
     display_name = self.display_name,
     description = self.description,
-    environment = vim
-      .iter(self.environment)
-      :map(function(key, value)
-        if value ~= nil then
-          value = self:expand_macros(value, maybe_file)
-        end
-        return key, value
-      end)
-      :totable(),
+    environment = environment,
   }
   return BasePreset.take(o)
 end
@@ -189,7 +191,7 @@ function BasePreset:expand_macros(str, maybe_file)
   })
 
   str = str:gsub("%$env{([^}]+)}", function(var)
-    if self.environment ~= nil and self.environment[var] ~= nil then
+    if self.environment ~= nil and self.environment[var] ~= nil and self.environment[var] ~= vim.NIL then
       return self.environment[var]
     end
 

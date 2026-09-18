@@ -11,7 +11,8 @@ local Preset = require("cmakeseer.cmake.preset.base_preset")
 ---@field execution? cmakeseer.cmake.preset.TestPreset.Execution Test execution options.
 ---@field test_passthrough_arguments? string[] Arguments forwarded to every test executable.
 local TestPreset = {}
-TestPreset.__index = Preset
+TestPreset.__index = TestPreset
+setmetatable(TestPreset, { __index = Preset })
 
 ---@class cmakeseer.cmake.preset.TestPreset.Output
 ---@field short_progress? boolean Whether to output test results in a compact format.
@@ -112,8 +113,8 @@ function TestPreset:expanded(maybe_file)
       debug = output.debug,
       output_on_failure = output.output_on_failure,
       quiet = output.quiet,
-      output_log_file = self:expand_macros(output.output_log_file, maybe_file),
-      output_junit_file = self:expand_macros(output.output_junit_file, maybe_file),
+      output_log_file = output.output_log_file and self:expand_macros(output.output_log_file, maybe_file),
+      output_junit_file = output.output_junit_file and self:expand_macros(output.output_junit_file, maybe_file),
       label_summary = output.label_summary,
       subproject_summary = output.subproject_summary,
       max_passed_test_output_size = output.max_passed_test_output_size,
@@ -122,7 +123,7 @@ function TestPreset:expanded(maybe_file)
       max_test_name_width = output.max_test_name_width,
     }
   end
-  if o.filter ~= nil then
+  if self.filter ~= nil then
     o.filter = {}
     if self.filter.include ~= nil then
       local include = self.filter.include

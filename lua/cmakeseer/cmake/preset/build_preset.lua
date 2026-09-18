@@ -12,7 +12,8 @@ local Preset = require("cmakeseer.cmake.preset.base_preset")
 ---@field verbose? boolean Whether to execute verbose build output.
 ---@field native_tool_options? string[] Native build tool options passed to the underlying build tool.
 local BuildPreset = {}
-BuildPreset.__index = Preset
+BuildPreset.__index = BuildPreset
+setmetatable(BuildPreset, { __index = Preset })
 
 --- Creates a new BuildPreset instance.
 ---@param o cmakeseer.cmake.preset.BuildPreset Initial values.
@@ -53,7 +54,7 @@ function BuildPreset:expanded(maybe_file)
   o.clean_first = self.clean_first
   o.resolve_package_references = self.resolve_package_references
   o.verbose = self.verbose
-  o.native_tool_options = vim
+  o.native_tool_options = self.native_tool_options and vim
     .iter(self.native_tool_options)
     :map(function(option)
       return self:expand_macros(option, maybe_file)

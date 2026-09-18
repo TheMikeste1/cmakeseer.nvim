@@ -14,7 +14,8 @@ local Preset = require("cmakeseer.cmake.preset.base_preset")
 ---@field package_directory? string The directory in which to place the package.
 ---@field vendor_name? string The vendor name.
 local PackagePreset = {}
-PackagePreset.__index = Preset
+PackagePreset.__index = PackagePreset
+setmetatable(PackagePreset, { __index = Preset })
 
 ---@class cmakeseer.cmake.preset.PackagePreset.Output
 ---@field debug? boolean Whether to print debug output from CPack.

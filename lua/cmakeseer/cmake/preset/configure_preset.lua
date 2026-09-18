@@ -10,13 +10,14 @@ local Preset = require("cmakeseer.cmake.preset.base_preset")
 ---@field binary_dir? string Path to the output binary directory.
 ---@field install_dir? string Path to the installation directory (CMAKE_INSTALL_PREFIX).
 ---@field cmake_executable? string Path to the CMake executable to use for this preset.
----@field cache_variables? table<string, boolean|string|cmakeseer.cmake.preset.ConfigurePreset.CacheVariable|nil> Cache variables to set.
+---@field cache_variables? table<string, boolean|string|cmakeseer.cmake.preset.ConfigurePreset.CacheVariable|vim.NIL> Cache variables to set.
 ---@field warnings? cmakeseer.cmake.preset.ConfigurePreset.Warnings Warnings to enable.
 ---@field errors? cmakeseer.cmake.preset.ConfigurePreset.Errors Errors to enable.
 ---@field debug? cmakeseer.cmake.preset.ConfigurePreset.Debug Debug options.
 ---@field trace? cmakeseer.cmake.preset.ConfigurePreset.Trace Trace options.
 local ConfigurePreset = {}
-ConfigurePreset.__index = Preset
+ConfigurePreset.__index = ConfigurePreset
+setmetatable(ConfigurePreset, { __index = Preset })
 
 ---@alias cmakeseer.cmake.preset.ConfigurePresetField
 ---| "generator"
@@ -119,23 +120,22 @@ function ConfigurePreset:expanded(maybe_file)
   o.binary_dir = self.binary_dir and self:expand_macros(self.binary_dir, maybe_file)
   o.install_dir = self.install_dir and self:expand_macros(self.install_dir, maybe_file)
   o.cmake_executable = self.cmake_executable and self:expand_macros(self.cmake_executable, maybe_file)
-  o.cache_variables = self.cache_variables
-    and vim
-      .iter(self.cache_variables)
-      :map(function(key, value)
-        if type(value) == "table" then
-          ---@cast value cmakeseer.cmake.preset.ConfigurePreset.CacheVariable
-          local subvalue = value.value
-          if type(subvalue) == "string" then
-            subvalue = self:expand_macros(subvalue, maybe_file)
-          end
-          value = { type = value.type, value = subvalue }
-        elseif type(value) == "string" then
-          value = self:expand_macros(value, maybe_file)
+  if self.cache_variables ~= nil then
+    o.cache_variables = {}
+    for key, value in pairs(self.cache_variables) do
+      if type(value) == "table" then
+        ---@cast value cmakeseer.cmake.preset.ConfigurePreset.CacheVariable
+        local subvalue = value.value
+        if type(subvalue) == "string" then
+          subvalue = self:expand_macros(subvalue, maybe_file)
         end
-        return key, value
-      end)
-      :totable()
+        value = { type = value.type, value = subvalue }
+      elseif type(value) == "string" then
+        value = self:expand_macros(value, maybe_file)
+      end
+      o.cache_variables[key] = value
+    end
+  end
   o.warnings = vim.deepcopy(self.warnings)
   o.errors = vim.deepcopy(self.errors)
   o.debug = vim.deepcopy(self.debug)
