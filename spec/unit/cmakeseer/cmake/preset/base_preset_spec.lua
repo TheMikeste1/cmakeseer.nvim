@@ -175,8 +175,12 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
 
   describe("expand_macros", function()
     local get_config_stub
+    local test_dir
 
     before_each(function()
+      vim.env.MY_TEST_VAR = nil
+      test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
       get_config_stub = stub(CMakeSeer, "get_config", {
         get_project_root = function()
           return "/my/project"
@@ -186,6 +190,8 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
 
     after_each(function()
       get_config_stub:revert()
+      vim.fn.delete(test_dir, "rf")
+      vim.env.MY_TEST_VAR = nil
     end)
 
     it("expands ${presetName}", function()
@@ -201,8 +207,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
     end)
 
     it("expands ${generator} from the configure preset", function()
-      local test_dir = vim.fn.tempname()
-      vim.fn.mkdir(test_dir, "p")
       local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
       assert.is_not_nil(file)
       ---@cast file -nil
@@ -220,8 +224,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       ---@cast pf -nil
       local res = preset:expand_macros("/path/${generator}", pf)
       assert.are.equal("/path/Ninja", res)
-
-      vim.fn.delete(test_dir, "rf")
     end)
 
     it("expands ${fileDir} when a PresetFile is provided", function()
@@ -242,11 +244,9 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       local preset = BasePreset.new({ name = "my-preset" })
       local res = preset:expand_macros("/out/$env{MY_TEST_VAR}")
       assert.are.equal("/out/env_val", res)
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("expands $env{VAR} from self.environment when not in vim.env", function()
-      vim.env.MY_TEST_VAR = nil
       local preset = BasePreset.new({ name = "my-preset", environment = { MY_TEST_VAR = "preset_env_val" } })
       local res = preset:expand_macros("/out/$env{MY_TEST_VAR}")
       assert.are.equal("/out/preset_env_val", res)
@@ -257,11 +257,9 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       local preset = BasePreset.new({ name = "my-preset", environment = { MY_TEST_VAR = "preset_env_val" } })
       local res = preset:expand_macros("/out/$env{MY_TEST_VAR}")
       assert.are.equal("/out/preset_env_val", res)
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("expands $env{VAR} to empty string when variable is not in vim.env or environment", function()
-      vim.env.MY_TEST_VAR = nil
       local preset = BasePreset.new({ name = "my-preset" })
       local res = preset:expand_macros("/out/$env{MY_TEST_VAR}")
       assert.are.equal("/out/", res)
@@ -272,11 +270,9 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       local preset = BasePreset.new({ name = "my-preset" })
       local res = preset:expand_macros("/out/$penv{MY_TEST_VAR}")
       assert.are.equal("/out/penv_val", res)
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("does not expand $penv{VAR} from self.environment", function()
-      vim.env.MY_TEST_VAR = nil
       local preset = BasePreset.new({ name = "my-preset", environment = { MY_TEST_VAR = "preset_env_val" } })
       local res = preset:expand_macros("/out/$penv{MY_TEST_VAR}")
       assert.are.equal("/out/", res)
@@ -297,8 +293,12 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
 
   describe("expanded", function()
     local get_config_stub
+    local test_dir
 
     before_each(function()
+      vim.env.MY_TEST_VAR = nil
+      test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
       get_config_stub = stub(CMakeSeer, "get_config", {
         get_project_root = function()
           return "/my/project"
@@ -308,6 +308,8 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
 
     after_each(function()
       get_config_stub:revert()
+      vim.fn.delete(test_dir, "rf")
+      vim.env.MY_TEST_VAR = nil
     end)
 
     it("expands environment values with common macros", function()
@@ -349,7 +351,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       })
       local expanded = preset:expanded()
       assert.are.equal("preset_env_val", expanded.environment.OTHER)
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("expands $penv{VAR} from the parent environment only", function()
@@ -363,7 +364,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       })
       local expanded = preset:expanded()
       assert.are.equal("env_val", expanded.environment.OTHER)
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("preserves vim.NIL environment values", function()
@@ -435,8 +435,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
     end)
 
     it("expands ${generator} from the configure preset", function()
-      local test_dir = vim.fn.tempname()
-      vim.fn.mkdir(test_dir, "p")
       local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
       assert.is_not_nil(file)
       ---@cast file -nil
@@ -457,8 +455,6 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       ---@cast pf -nil
       local expanded = preset:expanded(pf)
       assert.are.equal("Ninja", expanded.environment.A)
-
-      vim.fn.delete(test_dir, "rf")
     end)
 
     it("returns nil environment when environment is nil", function()

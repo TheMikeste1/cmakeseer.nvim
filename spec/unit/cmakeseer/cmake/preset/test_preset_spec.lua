@@ -227,8 +227,11 @@ describe("cmakeseer.cmake.preset.TestPreset", function()
 
   describe("expanded", function()
     local get_config_stub
+    local test_dir
 
     before_each(function()
+      test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
       get_config_stub = stub(CMakeSeer, "get_config", {
         get_project_root = function()
           return "/my/project"
@@ -238,6 +241,7 @@ describe("cmakeseer.cmake.preset.TestPreset", function()
 
     after_each(function()
       get_config_stub:revert()
+      vim.fn.delete(test_dir, "rf")
     end)
 
     it("expands overwrite_configuration_file", function()
@@ -349,8 +353,6 @@ describe("cmakeseer.cmake.preset.TestPreset", function()
     end)
 
     it("expands ${generator} via the associated configure preset", function()
-      local test_dir = vim.fn.tempname()
-      vim.fn.mkdir(test_dir, "p")
       local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
       assert.is_not_nil(file)
       ---@cast file -nil
@@ -375,8 +377,6 @@ describe("cmakeseer.cmake.preset.TestPreset", function()
       ---@cast pf -nil
       local expanded = preset:expanded(pf)
       assert.are.equal("Ninja", expanded.environment.A)
-
-      vim.fn.delete(test_dir, "rf")
     end)
 
     it("preserves filter when set", function()

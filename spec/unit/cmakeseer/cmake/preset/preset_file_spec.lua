@@ -356,6 +356,7 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
     local get_config_stub
 
     before_each(function()
+      vim.env.MY_TEST_VAR = nil
       get_config_stub = stub(CMakeSeer, "get_config", {
         get_project_root = function()
           return "/my/project"
@@ -365,6 +366,7 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
 
     after_each(function()
       get_config_stub:revert()
+      vim.env.MY_TEST_VAR = nil
     end)
 
     local function make_preset_file(path)
@@ -430,8 +432,6 @@ describe("cmakeseer.cmake.preset.PresetFile", function()
 
       local res3 = pf:expand_macros("/out/$penv{NONEXISTENT_VAR_XYZ}")
       assert.are.equal("/out/", res3)
-
-      vim.env.MY_TEST_VAR = nil
     end)
 
     it("leaves unrecognized variable unchanged", function()

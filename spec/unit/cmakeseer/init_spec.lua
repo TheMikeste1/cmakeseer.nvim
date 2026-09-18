@@ -297,6 +297,16 @@ describe("cmakeseer.init", function()
   end)
 
   describe("scan_for_kits", function()
+    local old_path
+
+    before_each(function()
+      old_path = vim.env.PATH
+    end)
+
+    after_each(function()
+      vim.env.PATH = old_path
+    end)
+
     it("scans paths and discovered kits", function()
       local kit_mod = require("cmakeseer.kit")
       local scan_stub = stub(kit_mod, "scan_for_kits", function()
@@ -333,7 +343,6 @@ describe("cmakeseer.init", function()
         return {}
       end)
 
-      local old_path = vim.env.PATH
       vim.env.PATH = "/bin:/usr/bin"
 
       main.setup({ should_scan_path = true, scan_paths = { "/test" }, persist_file = nil })
@@ -343,7 +352,6 @@ describe("cmakeseer.init", function()
       assert.stub(scan_stub).was.called_with("/bin")
       assert.stub(scan_stub).was.called_with("/usr/bin")
 
-      vim.env.PATH = old_path
       scan_stub:revert()
       persist_stub:revert()
       notify_stub:revert()

@@ -160,8 +160,11 @@ describe("cmakeseer.cmake.preset.BuildPreset", function()
 
   describe("expanded", function()
     local get_config_stub
+    local test_dir
 
     before_each(function()
+      test_dir = vim.fn.tempname()
+      vim.fn.mkdir(test_dir, "p")
       get_config_stub = stub(CMakeSeer, "get_config", {
         get_project_root = function()
           return "/my/project"
@@ -171,6 +174,7 @@ describe("cmakeseer.cmake.preset.BuildPreset", function()
 
     after_each(function()
       get_config_stub:revert()
+      vim.fn.delete(test_dir, "rf")
     end)
 
     it("expands string targets", function()
@@ -201,8 +205,6 @@ describe("cmakeseer.cmake.preset.BuildPreset", function()
     end)
 
     it("expands ${generator} from the associated configure preset", function()
-      local test_dir = vim.fn.tempname()
-      vim.fn.mkdir(test_dir, "p")
       local file = io.open(vim.fs.joinpath(test_dir, "CMakePresets.json"), "w")
       assert.is_not_nil(file)
       ---@cast file -nil
@@ -227,8 +229,6 @@ describe("cmakeseer.cmake.preset.BuildPreset", function()
       ---@cast pf -nil
       local expanded = preset:expanded(pf)
       assert.are.equal("Ninja", expanded.environment.A)
-
-      vim.fn.delete(test_dir, "rf")
     end)
 
     it("preserves non-expandable fields", function()
