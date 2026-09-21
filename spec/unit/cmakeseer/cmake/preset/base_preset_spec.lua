@@ -366,6 +366,77 @@ describe("cmakeseer.cmake.preset.BasePreset", function()
       assert.are.equal("env_val", expanded.environment.OTHER)
     end)
 
+    it("expands macros inside a sibling value referenced by $env{VAR}", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          A = "${sourceDir}",
+          B = "$env{A}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.B)
+    end)
+
+    it("resolves chained sibling references", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          A = "${sourceDir}",
+          B = "$env{A}",
+          C = "$env{B}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.C)
+    end)
+
+    it("does not flag a diamond reference as a cycle", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          B = "${sourceDir}",
+          C = "$env{B}",
+          A = "$env{B}$env{C}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project/my/project", expanded.environment.A)
+    end)
+
+    it("breaks $env{VAR} cycles with an empty string instead of crashing", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          X = "$env{Y}",
+          Y = "$env{X}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("", expanded.environment.X)
+      assert.are.equal("", expanded.environment.Y)
+    end)
+
+    it("expands a deep multi-step chain with multiple $env in a single value", function()
+      local preset = BasePreset.new({
+        name = "my-preset",
+        environment = {
+          ROOT = "${sourceDir}",
+          BUILD = "$env{ROOT}/build",
+          SRC = "$env{BUILD}/src",
+          ALL = "$env{ROOT}/$env{BUILD}/$env{SRC}",
+        },
+      })
+      local expanded = preset:expanded()
+      assert.are.equal("/my/project", expanded.environment.ROOT)
+      assert.are.equal("/my/project/build", expanded.environment.BUILD)
+      assert.are.equal("/my/project/build/src", expanded.environment.SRC)
+      assert.are.equal(
+        "/my/project//my/project/build//my/project/build/src",
+        expanded.environment.ALL
+      )
+    end)
+
     it("preserves vim.NIL environment values", function()
       local preset = BasePreset.new({
         name = "my-preset",

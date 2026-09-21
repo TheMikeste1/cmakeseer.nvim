@@ -21,6 +21,14 @@ local M = {
 ---@return string str The expanded string.
 function M.expand_macros(str, additional_matchers)
   additional_matchers = additional_matchers or {}
+
+  str = str:gsub("%$penv{([^}]+)}", function(var)
+    local maybe_env = vim.env[var]
+    if maybe_env == nil then
+      return ""
+    end
+    return maybe_env
+  end)
   str = str:gsub("(%${([^}]+)})", function(match, var)
     if var == "sourceDir" then
       return require("cmakeseer").get_config():get_project_root()
@@ -52,13 +60,6 @@ function M.expand_macros(str, additional_matchers)
     return match
   end)
 
-  str = str:gsub("%$penv{([^}]+)}", function(var)
-    local maybe_env = vim.env[var]
-    if maybe_env == nil then
-      return ""
-    end
-    return maybe_env
-  end)
   return str
 end
 

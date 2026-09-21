@@ -129,6 +129,7 @@ function BasePreset:expanded(maybe_file)
     environment = {}
     for key, value in pairs(self.environment) do
       if value ~= nil and value ~= vim.NIL then
+        ---@cast value string
         value = self:expand_macros(value, maybe_file)
       end
       environment[key] = value
@@ -165,6 +166,38 @@ local function preset_type_of(preset)
   return nil
 end
 
+--- Expands environment variables.
+---@param str string The string to expand.
+---@param visited? string[] The already visited variables. Used for cycle detection.
+---@return string str The expanded string.
+function BasePreset:expand_environment_variable(str, visited)
+  visited = visited or {}
+
+  if vim.list_contains(visited, str) then
+    local cycle = table.concat(visited, " -> ") .. " -> " .. str
+    vim.notify("Cycle detected in environment variables. Defaulting to empty string.\nCycle: " .. cycle, vim.log.error)
+    return ""
+  end
+
+  table.insert(visited, str)
+  local value = nil
+  if self.environment ~= nil and self.environment[str] ~= nil and self.environment[str] ~= vim.NIL then
+    value = self.environment[str]
+  else
+    value = vim.env[str]
+  end
+  ---@cast value -vim.NIL
+
+  if value ~= nil and value:sub(1, 1) == "$" then
+    value = value:gsub("%$env{([^}]+)}", function(var)
+      return self:expand_environment_variable(var, visited)
+    end)
+  end
+
+  table.remove(visited)
+  return value or ""
+end
+
 --- Expands macros. Will also expand file-level macros if a PresetFile is provided.
 --- Look for "preset-specific" to see which macros this does NOT expand:
 --- <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#macro-expansion>
@@ -172,6 +205,10 @@ end
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return string str The expanded string.
 function BasePreset:expand_macros(str, maybe_file)
+  str = str:gsub("%$env{([^}]+)}", function(var)
+    return self:expand_environment_variable(var)
+  end)
+
   str = require("cmakeseer.cmake.preset").expand_macros(str, {
     fileDir = maybe_file and function()
       return vim.fs.dirname(maybe_file.path)
@@ -189,18 +226,6 @@ function BasePreset:expand_macros(str, maybe_file)
       return require("cmakeseer.cmake.preset").try_determine_generator(self.name, dir, preset_type)
     end,
   })
-
-  str = str:gsub("%$env{([^}]+)}", function(var)
-    if self.environment ~= nil and self.environment[var] ~= nil and self.environment[var] ~= vim.NIL then
-      return self.environment[var]
-    end
-
-    local maybe_env = vim.env[var]
-    if maybe_env == nil then
-      return ""
-    end
-    return maybe_env
-  end)
   return str
 end
 
