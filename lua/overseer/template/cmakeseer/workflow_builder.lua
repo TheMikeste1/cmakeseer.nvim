@@ -10,6 +10,7 @@ function M.build_template_for(preset)
   local Presets = require("cmakeseer.cmake.preset")
 
   local entry = Presets.entry_for(preset, CMakeSeer.get_config().project_root(), Presets.Types.Workflow)
+  assert(entry ~= nil, "Entry must exist for preset")
   ---@cast entry cmakeseer.cmake.preset.WorkflowPreset
   local name = entry.display_name or entry.name
   local desc = entry.description or ("Runs the `%s` workflow"):format(preset)

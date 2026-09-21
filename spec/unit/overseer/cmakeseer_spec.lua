@@ -64,6 +64,7 @@ describe("overseer templates", function()
     local workflow_builder = require("overseer.template.cmakeseer.workflow_builder")
 
     it("builds template definition for a workflow preset", function()
+      local entry_stub = stub(CMakePreset, "entry_for", { name = "ci-workflow" })
       local t_def = workflow_builder.build_template_for("ci-workflow")
       assert.are.equal("CMake Workflow ci-workflow", t_def.name)
       assert.are.equal("Runs the `ci-workflow` workflow", t_def.desc)
@@ -72,6 +73,7 @@ describe("overseer templates", function()
       assert.are.equal("CMake Workflow ci-workflow", task.name)
       assert.are.equal("cmake", task.cmd)
       assert.are.same({ "--workflow", "--preset", "ci-workflow" }, task.args)
+      entry_stub:revert()
     end)
   end)
 
@@ -90,6 +92,7 @@ describe("overseer templates", function()
     it("invokes callback with templates list if project is a CMake project", function()
       local is_proj_stub = stub(CMakeSeer, "is_cmake_project", true)
       local fetch_stub = stub(CMakePreset, "fetch_presets", { "wf1" })
+      local entry_stub = stub(CMakePreset, "entry_for", { name = "wf1" })
       local is_configured_stub = stub(CMakeSeer, "project_is_configured", false)
 
       local returned_templates = nil
@@ -102,6 +105,7 @@ describe("overseer templates", function()
 
       is_proj_stub:revert()
       fetch_stub:revert()
+      entry_stub:revert()
       is_configured_stub:revert()
     end)
 
