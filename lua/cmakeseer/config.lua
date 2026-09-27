@@ -1,12 +1,83 @@
+---@param path string The directory to look in.
+---@param name string The name of the entry to look for.
+---@return boolean exists Whether `path` contains an entry named `name`.
+local function has(path, name)
+  return vim.uv.fs_stat(vim.fs.joinpath(path, name)) ~= nil
+end
+
+---@param path string The path to look at.
+---@return boolean is_file Whether `path` is an existing file.
+local function is_file(path)
+  local stat = vim.uv.fs_stat(path)
+  return stat ~= nil and stat.type == "file"
+end
+
+---@return string project_root
 local function project_root()
-  return vim.fs.root(assert(vim.uv.cwd()), {
-    "CMakePresets.json",
-    "CMakeUserPresets.json",
-    -- TODO: We might want this to be more nuanced by finding the git root,
-    -- then working our way back down to the current file's directory to find a CMakeLists.txt
-    ".git",
-    "CMakeLists.txt", -- fallback to nearest CMakeLists. It's probably be better to keep going up until there are no more.
-  }) or vim.uv.cwd() or vim.fn.getcwd()
+  --- Whether `path` is the root of a CMake project.
+  --- We want whichever comes first, from the path:
+  --- - Preset files
+  --- - Top level CMakeLists.txt
+  --- - CMakeLists.txt with a .git (folder or file) that contains a
+  ---  `cmake_minimum_required` as the first command and a `project` soon after
+  ---@param path string The directory to check.
+  ---@return boolean
+  local function is_root(path)
+    if is_file(vim.fs.joinpath(path, "CMakePresets.json")) or is_file(vim.fs.joinpath(path, "CMakeUserPresets.json")) then
+      return true
+    end
+
+    local path_list_path = vim.fs.joinpath(path, "CMakeLists.txt")
+    local path_list_path_exists = is_file(path_list_path)
+    if path_list_path_exists and not is_file(vim.fs.joinpath(vim.fs.dirname(path), "CMakeLists.txt")) then
+      return true
+    end
+
+    if not path_list_path_exists or not has(path, ".git") then
+      return false
+    end
+
+    local fin = io.open(path_list_path, "r")
+    if fin == nil then
+      return false
+    end
+
+    local is_project_list = false
+    local got_cmake_minimum_required = false
+    for line in fin:lines() do
+      line = line:match("^%s*(.*)")
+      if line ~= "" and line:sub(1, 1) ~= "#" then
+        if got_cmake_minimum_required then
+          if line:match("^project%s*%(") ~= nil then
+            is_project_list = true
+            break
+          end
+        elseif line:match("^cmake_minimum_required%s*%(") ~= nil then
+          got_cmake_minimum_required = true
+        else
+          -- `cmake_minimum_required` is not the first command, so this
+          -- `CMakeLists.txt` belongs to a project rooted further up.
+          break
+        end
+      end
+    end
+    fin:close()
+
+    return is_project_list
+  end
+
+  local cwd = vim.uv.cwd() or vim.fn.getcwd()
+  if is_root(cwd) then
+    return cwd
+  end
+
+  for dir in vim.fs.parents(cwd) do
+    if is_root(dir) then
+      return dir
+    end
+  end
+
+  return cwd
 end
 
 ---@private
