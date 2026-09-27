@@ -95,4 +95,121 @@ describe("cmakeseer.config", function()
       assert.is_string(config:get_project_root())
     end)
   end)
+
+  describe("default project_root", function()
+    local CMAKE_LISTS = "cmake_minimum_required(VERSION 3.20)\nproject(Foo)\n"
+
+    local root
+    local cwd_stub
+
+    --- Creates a directory under the temporary root.
+    ---@param rel string The path, relative to the root.
+    ---@return string dir The absolute path that was created.
+    local function mkdir(rel)
+      local dir = vim.fs.joinpath(root, rel)
+      vim.fn.mkdir(dir, "p")
+      return dir
+    end
+
+    --- Writes a file under the temporary root, creating its parent directory.
+    ---@param rel string The path, relative to the root.
+    ---@param contents string The contents to write.
+    ---@return string dir The absolute path of the directory holding the file.
+    local function write(rel, contents)
+      local path = vim.fs.joinpath(root, rel)
+      local dir = vim.fs.dirname(path)
+      vim.fn.mkdir(dir, "p")
+      local f = assert(io.open(path, "w"))
+      f:write(contents)
+      f:close()
+      return dir
+    end
+
+    --- Resolves the project root from a directory relative to the root.
+    ---@param rel string The cwd, relative to the root.
+    ---@return string project_root
+    local function resolve(rel)
+      cwd_stub.returns(vim.fs.joinpath(root, rel))
+      return Configuration.new():get_project_root()
+    end
+
+    before_each(function()
+      root = vim.fn.tempname()
+      vim.fn.mkdir(root, "p")
+      cwd_stub = stub(vim.uv, "cwd")
+    end)
+
+    after_each(function()
+      cwd_stub:revert()
+      vim.fn.delete(root, "rf")
+    end)
+
+    it("returns the cwd when it holds the preset files", function()
+      local project = write("r/CMakePresets.json", "{}")
+      assert.are.equal(project, resolve("r"))
+    end)
+
+    it("returns the root from a directory directly below it", function()
+      local project = write("r/CMakePresets.json", "{}")
+      mkdir("r/a")
+      assert.are.equal(project, resolve("r/a"))
+    end)
+
+    it("walks past nested directories that hold no CMakeLists.txt", function()
+      local project = write("r/CMakePresets.json", "{}")
+      write("r/CMakeLists.txt", CMAKE_LISTS)
+      mkdir("r/a/b")
+      assert.are.equal(project, resolve("r/a/b"))
+    end)
+
+    it("walks past a nested build directory", function()
+      local project = write("r/CMakePresets.json", "{}")
+      write("r/CMakeLists.txt", CMAKE_LISTS)
+      mkdir("r/build/debug")
+      assert.are.equal(project, resolve("r/build/debug"))
+    end)
+
+    it("returns the top level CMakeLists.txt when there is no .git", function()
+      local project = write("r/CMakeLists.txt", CMAKE_LISTS)
+      assert.are.equal(project, resolve("r"))
+    end)
+
+    it("returns the nearest nested repository declaring its own project", function()
+      write("r/CMakePresets.json", "{}")
+      write("r/CMakeLists.txt", CMAKE_LISTS)
+      local nested = write("r/inner/CMakeLists.txt", CMAKE_LISTS)
+      mkdir("r/inner/.git")
+      mkdir("r/inner/src")
+      assert.are.equal(nested, resolve("r/inner/src"))
+    end)
+
+    it("keeps walking up when a nested repository declares no project first", function()
+      local project = write("r/CMakePresets.json", "{}")
+      write("r/CMakeLists.txt", CMAKE_LISTS)
+      write("r/inner/CMakeLists.txt", "add_subdirectory(deps)\n" .. CMAKE_LISTS)
+      mkdir("r/inner/.git")
+      mkdir("r/inner/src")
+      assert.are.equal(project, resolve("r/inner/src"))
+    end)
+
+    it("ignores a .git without a CMakeLists.txt", function()
+      local project = write("r/CMakePresets.json", "{}")
+      write("r/CMakeLists.txt", CMAKE_LISTS)
+      mkdir("r/inner/.git")
+      mkdir("r/inner/src")
+      assert.are.equal(project, resolve("r/inner/src"))
+    end)
+
+    it("does not read a CMakeLists.txt that is a directory", function()
+      local project = write("r/CMakeLists.txt", CMAKE_LISTS)
+      mkdir("r/inner/CMakeLists.txt")
+      mkdir("r/inner/.git")
+      assert.are.equal(project, resolve("r/inner"))
+    end)
+
+    it("falls back to the cwd when nothing is found", function()
+      local dir = mkdir("empty")
+      assert.are.equal(dir, resolve("empty"))
+    end)
+  end)
 end)
