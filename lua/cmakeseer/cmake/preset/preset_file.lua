@@ -18,10 +18,6 @@ PresetFile.__index = PresetFile
 ---@field minor? integer The minor version.
 ---@field patch? integer The patch version.
 
--- TODO: When resolving includes:
--- > If CMakePresets.json and CMakeUserPresets.json are both present, CMakeUserPresets.json implicitly includes CMakePresets.json, even with no include field, in all versions of the format.
--- > <https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html#includes>
-
 --- Creates a new PresetFile instance.
 ---@param o cmakeseer.cmake.preset.PresetFile Initial values.
 ---@return cmakeseer.cmake.preset.PresetFile obj The new instance.
@@ -86,7 +82,16 @@ function PresetFile.try_from_file(path)
         return nil, ("include object at index %d should be a string"):format(i)
       end
     end
-    ---@cast include string[]
+  end
+  ---@cast include string[]?
+
+  if vim.fs.basename(path) == "CMakeUserPresets.json" then
+    local presets_path = vim.fs.joinpath(vim.fs.dirname(path), "CMakePresets.json")
+    local stat = vim.uv.fs_stat(presets_path)
+    if stat and stat.type == "file" then
+      include = include or {}
+      table.insert(include, presets_path)
+    end
   end
 
   local configure_presets = preset_json["configurePresets"]
