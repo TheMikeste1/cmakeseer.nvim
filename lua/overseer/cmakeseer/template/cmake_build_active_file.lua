@@ -1,8 +1,13 @@
 ---@module "overseer"
 
 local function get_active_file()
-  -- TODO: This should be the absolute with the project root trimmed off
-  return vim.fn.expand("%:.")
+  local current_file = vim.fn.expand("%:p")
+  local project_root = require("cmakeseer").get_config():get_project_root()
+  if current_file:sub(1, #project_root) == project_root then
+    return current_file:sub(#project_root + 2) -- +2 to trim the last letter and the /
+  end
+
+  return current_file
 end
 
 ---@private
