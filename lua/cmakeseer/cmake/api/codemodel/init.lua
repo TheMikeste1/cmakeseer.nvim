@@ -8,11 +8,11 @@
 --- @field source string The path to the top-level source directory for the CMake project.
 --- @field build string The path to the top-level build directory for the CMake project.
 
---- @class cmakeseer.cmake.api.codemodel.CMakeVersion
+--- @class cmakeseer.cmake.api.codemodel.CMakeVersion Represents a CMake version object reported by the File API.
 --- @field string string
 --- TODO: Add methods to get major/minor/etc.
 
---- @class cmakeseer.cmake.api.codemodel.DirectoryReference
+--- @class cmakeseer.cmake.api.codemodel.DirectoryReference Represents a directory in the codemodel and its relationships to projects, targets, and child directories.
 --- @field source string
 --- @field parentIndex integer?
 --- @field childIndexes integer[]?
@@ -22,26 +22,26 @@
 --- @field hasInstallRule boolean?
 --- @field jsonFile string
 
---- @class cmakeseer.cmake.api.codemodel.Project
+--- @class cmakeseer.cmake.api.codemodel.Project Represents a project defined within the CMake codemodel.
 --- @field name string
 --- @field parentIndex integer?
 --- @field childIndexes integer[]?
 --- @field directoryIndexes integer[]
 --- @field targetIndexes integer[]?
-
+--- @class cmakeseer.cmake.api.codemodel.TargetReference Represents a target reference within a configuration.
 --- @class cmakeseer.cmake.api.codemodel.TargetReference
 --- @field name string
 --- @field id string?
 --- @field directoryIndex integer
 --- @field projectIndex integer
 --- @field jsonFile string
-
+--- @class cmakeseer.cmake.api.codemodel.Configuration Represents a build configuration containing directories, projects, and targets.
 --- @class cmakeseer.cmake.api.codemodel.Configuration
 --- @field name string
 --- @field directories cmakeseer.cmake.api.codemodel.DirectoryReference[]
 --- @field projects cmakeseer.cmake.api.codemodel.Project[]
 --- @field targets cmakeseer.cmake.api.codemodel.TargetReference[]
-
+--- @class cmakeseer.cmake.api.codemodel.CodeModel: cmakeseer.cmake.api.ObjectKind Represents the top-level codemodel object returned by the CMake File API.
 --- @class cmakeseer.cmake.api.codemodel.CodeModel: cmakeseer.cmake.api.ObjectKind
 --- @field paths cmakeseer.cmake.api.codemodel.Paths The Paths used by the project.
 --- @field configurations cmakeseer.cmake.api.codemodel.Configuration[] Contains the different configurations for the project. In the case of a single-configuration generators there will only ever be one entry.
