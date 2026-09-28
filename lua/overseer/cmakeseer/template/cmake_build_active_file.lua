@@ -3,11 +3,7 @@
 local function get_active_file()
   local current_file = vim.fn.expand("%:p")
   local project_root = require("cmakeseer").get_config():get_project_root()
-  if current_file:sub(1, #project_root) == project_root then
-    return current_file:sub(#project_root + 2) -- +2 to trim the last letter and the /
-  end
-
-  return current_file
+  return vim.fs.relpath(project_root, current_file) or current_file
 end
 
 ---@private
