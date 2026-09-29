@@ -5,18 +5,17 @@ title: "[Story] "
 labels: enhancement
 ---
 
-## Context
+## What Needs to Happen
 <!-- Why does this exist? Who benefits and how? -->
 
-## What Needs to Happen
 - 
 
 ## Acceptance Criteria
 - [ ] 
-- [ ] 
+- [ ] Tests are written
 
 ## Out of Scope
 - 
 
-## Implementation Notes (optional, not prescriptive)
+## Implementation Notes
 <!-- Ideas, not requirements. Delete if you don't have any. -->
