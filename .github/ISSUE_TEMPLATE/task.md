@@ -5,12 +5,8 @@ title: "[Task] "
 labels: task
 ---
 
-## Context
-
 ## What Needs to Happen
 <!-- Why is this task needed? Link to parent story/epic if any. -->
-
-- 
 
 ## Acceptance Criteria
 - [ ] 
