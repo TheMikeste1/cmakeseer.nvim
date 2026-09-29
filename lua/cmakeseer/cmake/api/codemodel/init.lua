@@ -28,21 +28,21 @@
 --- @field childIndexes integer[]?
 --- @field directoryIndexes integer[]
 --- @field targetIndexes integer[]?
+
 --- @class cmakeseer.cmake.api.codemodel.TargetReference Represents a target reference within a configuration.
---- @class cmakeseer.cmake.api.codemodel.TargetReference
 --- @field name string
 --- @field id string?
 --- @field directoryIndex integer
 --- @field projectIndex integer
 --- @field jsonFile string
+
 --- @class cmakeseer.cmake.api.codemodel.Configuration Represents a build configuration containing directories, projects, and targets.
---- @class cmakeseer.cmake.api.codemodel.Configuration
 --- @field name string
 --- @field directories cmakeseer.cmake.api.codemodel.DirectoryReference[]
 --- @field projects cmakeseer.cmake.api.codemodel.Project[]
 --- @field targets cmakeseer.cmake.api.codemodel.TargetReference[]
+
 --- @class cmakeseer.cmake.api.codemodel.CodeModel: cmakeseer.cmake.api.ObjectKind Represents the top-level codemodel object returned by the CMake File API.
---- @class cmakeseer.cmake.api.codemodel.CodeModel: cmakeseer.cmake.api.ObjectKind
 --- @field paths cmakeseer.cmake.api.codemodel.Paths The Paths used by the project.
 --- @field configurations cmakeseer.cmake.api.codemodel.Configuration[] Contains the different configurations for the project. In the case of a single-configuration generators there will only ever be one entry.
 
