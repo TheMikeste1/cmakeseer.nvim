@@ -6,9 +6,10 @@ labels: task
 ---
 
 ## Context
-<!-- Why is this task needed? Link to parent story/epic if any. -->
 
 ## What Needs to Happen
+<!-- Why is this task needed? Link to parent story/epic if any. -->
+
 - 
 
 ## Acceptance Criteria
@@ -17,4 +18,5 @@ labels: task
 ## Out of Scope
 - 
 
-## Implementation Notes (optional, not prescriptive)
+## Implementation Notes
+<!-- Ideas, not requirements. Delete if you don't have any -->
