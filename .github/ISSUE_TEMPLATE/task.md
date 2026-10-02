@@ -1,18 +1,20 @@
 ---
 name: Task
-about: A discrete piece of work, usually part of a story or epic
-title: "[Task] "
+about: A discrete piece of work not directly user-facing
+title: ""
 labels: task
 ---
 
 ## What Needs to Happen
-<!-- Why is this task needed? Link to parent story/epic if any. -->
+<!-- Why is this task needed? -->
 
 ## Acceptance Criteria
+
 - [ ] 
 
 ## Out of Scope
+
 - 
 
 ## Implementation Notes
-<!-- Ideas, not requirements. Delete if you don't have any -->
+<!-- Ideas and caveats. Delete if you don't have any. -->

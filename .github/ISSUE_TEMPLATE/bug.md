@@ -1,7 +1,7 @@
 ---
 name: Bug
 about: Something doesn't work as expected
-title: "[Bug] "
+title: "Bug: "
 labels: bug
 ---
 
@@ -12,22 +12,22 @@ labels: bug
 <!-- OS, browser/hardware rev, build/commit, etc. -->
 
 ## Steps to Reproduce
+
 1. 
 2. 
 3. 
 
 ## Expected Behavior
 
-
 ## Actual Behavior
-
 
 ## Evidence
 <!-- Logs, screenshots, stack traces. -->
 
-## Suspected Area (optional)
+## Suspected Area (Optional)
 <!-- File, module, or component if you have a hunch. -->
 
 ## Acceptance Criteria
+
 - [ ] Bug no longer reproduces via steps above
 - [ ] Regression test added covering this case

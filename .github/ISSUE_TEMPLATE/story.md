@@ -1,7 +1,7 @@
 ---
-name: Story
-about: A user- or customer-visible capability usually delivered within an epic
-title: "[Story] "
+name: Story / Feature
+about: A user- or customer-visible capability
+title: ""
 labels: enhancement
 ---
 
@@ -11,11 +11,13 @@ labels: enhancement
 - 
 
 ## Acceptance Criteria
+
 - [ ] 
-- [ ] Tests are written
+- [ ] Tests are written and passing
 
 ## Out of Scope
+
 - 
 
 ## Implementation Notes
-<!-- Ideas, not requirements. Delete if you don't have any. -->
+<!-- Ideas and caveats. Delete if you don't have any. -->
