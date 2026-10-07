@@ -236,10 +236,9 @@ function M.persist_kits(filepath, kits)
   end
 
   local kits_as_json = vim.json.encode(kits)
-  _, maybe_err = file:write(kits_as_json)
-  file:close()
-  if maybe_err then
-    vim.notify("Unable to write to file `" .. filepath .. "`: " .. maybe_err, vim.log.levels.ERROR)
+
+  if not file:write(kits_as_json) then
+    vim.notify("Unable to write to file `" .. filepath .. "`", vim.log.levels.ERROR)
   end
 end
 

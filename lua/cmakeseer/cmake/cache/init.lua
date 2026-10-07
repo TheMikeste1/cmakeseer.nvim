@@ -76,6 +76,7 @@ function M.parse_cache_string(cache_string)
   ---@type table<string, cmakeseer.cmake.cache.Variable>
   local vars = {}
   local lines = vim.iter(vim.gsplit(cache_string, "\n", { plain = true, trimempty = true })):filter(function(line)
+    ---@cast line string
     return not vim.startswith(line, "#") and line ~= ""
   end)
   local working_description = {}

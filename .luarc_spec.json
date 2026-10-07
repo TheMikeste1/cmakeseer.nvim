@@ -5,7 +5,7 @@
   "runtime.version": "LuaJIT",
   "runtime.path": ["lua/?.lua", "lua/?/init.lua", "?.lua", "?/init.lua"],
   "workspace.checkThirdParty": "Disable",
-  "workspace.ignoreDir": [".dependencies", "spec"],
+  "workspace.ignoreDir": [".dependencies", "lua", "plugin"],
   "workspace.library": [
     "$PWD/lua",
     "$PWD/.dependencies/busted/library",
@@ -54,8 +54,5 @@
     "unbalanced": "Any",
     "unused": "Any"
   },
-  "diagnostics.disable": [
-    // TODO: Fix?
-    "no-unknown",
-  ]
+  "diagnostics.disable": ["need-check-nil"]
 }

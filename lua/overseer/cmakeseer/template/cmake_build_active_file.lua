@@ -50,7 +50,7 @@ local function builder(params)
       vim
         .iter(potential_targets)
         :map(function(t)
-          return t.name
+          return t.name ---@diagnostic disable-line: undefined-field,missing-return-value
         end)
         :totable(),
       ", "

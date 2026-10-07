@@ -18,11 +18,7 @@ end
 
 ---@param testsuite table<string, any> The GTest testsuite associated with the suite.
 ---@param files table<string> The set of files to populate with files from this suite.
----@param prefix string? The prefix for the test.
----@param postfix string? The postfix for the test.
-function Basic:parse_add_gtests(testsuite, files, prefix, postfix)
-  _ = prefix
-  _ = postfix
+function Basic:parse_add_gtests(testsuite, files)
   for _, test in ipairs(testsuite) do
     files[test.file] = true
     self.tests[test.name] = true

@@ -24,7 +24,7 @@ local g_test_executables_suites = {}
 -- TODO: Have the plugin subscribe to build events
 local M
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
----@field setup fun(opts: cmakeseer.CTestAdapterOpts?): neotest.Adapter
+---@field setup fun(opts: table?): neotest.Adapter
 M = {
   name = "CMakeSeer GTest",
   opts = {
@@ -303,7 +303,7 @@ function M.build_spec(args)
     id = id,
     output_file = output_file,
   }
-  local spec = nil
+  local spec
   if #id_parts == 1 then
     -- This is a file
     spec = {

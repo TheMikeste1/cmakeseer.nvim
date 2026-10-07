@@ -24,8 +24,7 @@ end
 --- Loads targets if the project is configured.
 function M.load_if_configured()
   if M.project_is_configured() then
-    vim.uv.fs_stat(require("cmakeseer.cmake.api").get_query_directory(M.resolve_build_directory()), function(err, stat)
-      _ = stat
+    vim.uv.fs_stat(require("cmakeseer.cmake.api").get_query_directory(M.resolve_build_directory()), function(err)
       if err ~= nil then
         vim.notify("Project is already configured, but CMakeSeer is not a client. Targets won't be available until the project is reconfigured.")
         return
@@ -198,7 +197,7 @@ function M.scan_for_kits()
   local paths = current_config.scan_paths or {}
   if current_config.should_scan_path then
     local env_paths = vim.split(vim.env.PATH, ":", { trimempty = true })
-    paths = vim.iter({ paths, env_paths }):flatten():unique():totable()
+    paths = vim.iter({ paths, env_paths }):flatten():unique():totable() ---@diagnostic disable-line: undefined-field
   end
 
   for _, path in ipairs(paths) do

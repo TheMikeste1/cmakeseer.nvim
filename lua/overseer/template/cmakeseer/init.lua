@@ -76,8 +76,8 @@ return {
     templates = vim
       .iter(templates)
       :filter(function(t)
-        if t.condition and t.condition.callback then
-          return t.condition.callback()
+        if t.condition and t.condition.callback then ---@diagnostic disable-line: undefined-field
+          return t.condition.callback() ---@diagnostic disable-line: undefined-field
         end
         return true
       end)

@@ -27,6 +27,7 @@ end, {
   nargs = "+",
   complete = function(ArgLead, CmdLine)
     local command_parts = vim.split(CmdLine, " ")
+    ---@type string[]
     local possibilities = {}
     if #command_parts < 3 then
       for key, _ in pairs(API_COMMAND_HANDLERS) do
