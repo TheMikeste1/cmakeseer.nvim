@@ -2,7 +2,7 @@ export PATH := $(HOME)/.luarocks/bin:$(PATH)
 export LUA_PATH := $(HOME)/.luarocks/share/lua/5.1/?.lua;$(HOME)/.luarocks/share/lua/5.1/?/init.lua;$(HOME)/.luarocks/share/lua/5.4/?.lua;$(HOME)/.luarocks/share/lua/5.4/?/init.lua;;
 export LUA_CPATH := $(HOME)/.luarocks/lib/lua/5.1/?.so;$(HOME)/.luarocks/lib64/lua/5.1/?.so;$(HOME)/.luarocks/lib/lua/5.4/?.so;$(HOME)/.luarocks/lib64/lua/5.4/?.so;;
 
-.PHONY: download-types install-busted llscheck check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop
+.PHONY: download-types install-busted llscheck-all llscheck llscheck-spec check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop
 
 ifeq ($(OS),Windows_NT)
     IGNORE_EXISTING =
@@ -11,6 +11,7 @@ else
 endif
 
 CONFIGURATION = .luarc.json
+SPEC_CONFIGURATION = .luarc_spec.json
 
 install-busted:
 	@which busted > /dev/null 2>&1 || luarocks --lua-version=5.1 install --local busted $(IGNORE_EXISTING) || luarocks install --local busted $(IGNORE_EXISTING)
@@ -25,22 +26,32 @@ download-types:
 	@git clone git@github.com:stevearc/overseer.nvim.git .dependencies/overseer.nvim $(IGNORE_EXISTING)
 	@git clone git@github.com:MunifTanjim/nui.nvim.git   .dependencies/nui.nvim      $(IGNORE_EXISTING)
 
+llscheck-spec: download-types
+	@echo "Running llscheck-spec. . ."
+	@VIMRUNTIME="`nvim --clean --headless --cmd 'lua io.write(os.getenv("VIMRUNTIME"))' --cmd 'quit'`" llscheck --configpath $(SPEC_CONFIGURATION) .
 
 llscheck: download-types
-	VIMRUNTIME="`nvim --clean --headless --cmd 'lua io.write(os.getenv("VIMRUNTIME"))' --cmd 'quit'`" llscheck --configpath $(CONFIGURATION) .
+	@echo "Running llscheck. . ."
+	@VIMRUNTIME="`nvim --clean --headless --cmd 'lua io.write(os.getenv("VIMRUNTIME"))' --cmd 'quit'`" llscheck --configpath $(CONFIGURATION) .
+
+llscheck-all: llscheck-spec llscheck
 
 luacheck:
-	luacheck lua plugin scripts spec
+	@echo "Running luacheck. . ."
+	@luacheck lua plugin scripts spec
 
 check-stylua:
-	stylua lua plugin scripts spec --color always --check
+	@echo "Running check-stylua. . ."
+	@stylua lua plugin scripts spec --color always --check
 
 stylua:
-	stylua lua plugin scripts spec
+	@echo "Running stylua. . ."
+	@stylua lua plugin scripts spec
 
 # standard test
 test: install-busted
-	busted .
+	@echo "Running tests. . ."
+	@busted .
 
 # Run tests under instrumenting profiler (profile.nvim)
 # Best for: Finding logic-based bottlenecks and redundant calls.
@@ -111,4 +122,4 @@ clean-test:
 clean: clean-test
 	rm -rf .dependencies
 
-all: test llscheck luacheck check-stylua
+all: test llscheck-all luacheck check-stylua

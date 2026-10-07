@@ -98,12 +98,14 @@ function TestPreset:expanded(maybe_file)
   o.configure_preset = self.configure_preset
   o.inherit_configure_environment = self.inherit_configure_environment
   o.configuration = self.configuration
-  o.overwrite_configuration_file = self.overwrite_configuration_file and vim
-    .iter(self.overwrite_configuration_file)
-    :map(function(option)
-      return self:expand_macros(option, maybe_file)
-    end)
-    :totable()
+  o.overwrite_configuration_file = self.overwrite_configuration_file
+    and vim
+      .iter(self.overwrite_configuration_file)
+      :map(function(option)
+        ---@cast option string
+        return self:expand_macros(option, maybe_file) ---@diagnostic disable-line: missing-return-value
+      end)
+      :totable()
   if self.output ~= nil then
     local output = self.output
     ---@cast output -nil

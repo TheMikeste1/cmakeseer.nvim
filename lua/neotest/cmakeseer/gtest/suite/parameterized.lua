@@ -16,9 +16,7 @@ end
 ---@param testsuite table<string, any> The GTest testsuite associated with the suite.
 ---@param files table<string> The set of files to populate with files from this suite.
 ---@param prefix string? The prefix for the test.
----@param postfix string? The postfix for the test.
-function Parameterized:parse_add_gtests(testsuite, files, prefix, postfix)
-  _ = postfix
+function Parameterized:parse_add_gtests(testsuite, files, prefix)
   if prefix == nil then
     vim.notify("Parameterized suite parse called with invalid nil prefix", vim.log.levels.ERROR)
     return

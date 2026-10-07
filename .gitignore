@@ -46,5 +46,6 @@ luac.out
 luacov_html/
 luacov.report.out.index
 */build/
+.luacheckcache/
 
 luajit.p.report

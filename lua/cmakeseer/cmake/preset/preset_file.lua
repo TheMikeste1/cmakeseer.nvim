@@ -212,17 +212,18 @@ function PresetFile:expand_includes()
   return vim
     .iter(self.include)
     :map(function(path)
-      return self:expand_macros(path)
+      ---@cast path string
+      return self:expand_macros(path) ---@diagnostic disable-line: missing-return-value
     end)
     :map(function(path)
       -- TODO: Support Windows?
       if path[1] == "/" then
-        return path
+        return path ---@diagnostic disable-line: missing-return-value
       end
 
       -- Must be relative
       local parent_dir = vim.fn.fnamemodify(self.path, ":p:h")
-      return vim.fs.joinpath(parent_dir, path)
+      return vim.fs.joinpath(parent_dir, path) ---@diagnostic disable-line: missing-return-value
     end)
     :totable()
 end
@@ -239,7 +240,8 @@ local function expand_presets(file, presets)
   return vim
     .iter(presets)
     :map(function(preset)
-      return preset:expanded(file)
+      ---@cast preset cmakeseer.cmake.preset.BasePreset
+      return preset:expanded(file) ---@diagnostic disable-line: missing-return-value
     end)
     :totable()
 end

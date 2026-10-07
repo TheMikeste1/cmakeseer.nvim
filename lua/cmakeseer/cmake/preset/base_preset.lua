@@ -180,7 +180,7 @@ function BasePreset:expand_environment_variable(str, visited)
   end
 
   table.insert(visited, str)
-  local value = nil
+  local value
   if self.environment ~= nil and self.environment[str] ~= nil and self.environment[str] ~= vim.NIL then
     value = self.environment[str]
   else

@@ -46,7 +46,8 @@ function BuildPreset:expanded(maybe_file)
     o.targets = vim
       .iter(targets)
       :map(function(target)
-        return self:expand_macros(target, maybe_file)
+        ---@cast target string
+        return self:expand_macros(target, maybe_file) ---@diagnostic disable-line: missing-return-value
       end)
       :totable()
   end
@@ -54,12 +55,14 @@ function BuildPreset:expanded(maybe_file)
   o.clean_first = self.clean_first
   o.resolve_package_references = self.resolve_package_references
   o.verbose = self.verbose
-  o.native_tool_options = self.native_tool_options and vim
-    .iter(self.native_tool_options)
-    :map(function(option)
-      return self:expand_macros(option, maybe_file)
-    end)
-    :totable()
+  o.native_tool_options = self.native_tool_options
+    and vim
+      .iter(self.native_tool_options)
+      :map(function(option)
+        ---@cast option string
+        return self:expand_macros(option, maybe_file) ---@diagnostic disable-line: missing-return-value
+      end)
+      :totable()
   return BuildPreset.take(o)
 end
 

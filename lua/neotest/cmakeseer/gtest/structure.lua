@@ -278,7 +278,7 @@ function M.build(executable, queried_tests, suites)
 
       for suite_type, suite_definition in pairs(suite_definitions) do
         local suite_tests = tests_by_type[suite_type]
-        local suite_positions = {}
+        local suite_positions
         if suite_type == Suite.Type.Basic then
           suite_positions = build_basic_suite_structure(executable, suite_definition, suite_tests)
         elseif suite_type == Suite.Type.Parameterized then
