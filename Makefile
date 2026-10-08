@@ -48,17 +48,19 @@ stylua:
 	@echo "Running stylua. . ."
 	@stylua lua plugin scripts spec
 
+TEST ?= .
+
 # standard test
 test: install-busted
 	@echo "Running tests. . ."
-	@busted .
+	@busted $(TEST)
 
 # Run tests under instrumenting profiler (profile.nvim)
 # Best for: Finding logic-based bottlenecks and redundant calls.
 # Output: profile.json
 test-profile:
 	@echo "Starting tests with instrumenting profiler. . ."
-	TEST_PROFILE=1 busted --helper spec/minimal_init.lua .
+	TEST_PROFILE=1 busted --helper spec/minimal_init.lua $(TEST)
 	@echo "Tests finished. Trace saved to profile.json"
 
 # Run tests under sampling profiler (jit.p)
@@ -66,7 +68,7 @@ test-profile:
 # Output: luajit.p.report
 test-jit:
 	@echo "Starting tests with sampling profiler. . ."
-	TEST_JIT=1 busted --helper spec/minimal_init.lua .
+	TEST_JIT=1 busted --helper spec/minimal_init.lua $(TEST)
 	@echo "Tests finished. Results in luajit.p.report"
 
 # luarocks install luacov

@@ -46,6 +46,12 @@ function Stateful.default()
   return self
 end
 
+--- Adds a request.
+---@param query cmakeseer.cmake.file_api.query.ObjectKind
+function Stateful:add_request(query)
+  table.insert(self.requests, query)
+end
+
 --- Converts the query to a file.
 ---@param path string
 ---@return string? err
