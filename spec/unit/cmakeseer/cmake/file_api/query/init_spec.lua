@@ -6,21 +6,38 @@ local write_file = spec_utils.write_file
 local read_file = spec_utils.read_file
 
 describe("file_api.query", function()
-  describe("issue_shared_stateless_query", function()
-    ---@type string
-    local tmp_dir
-    before_each(function()
-      tmp_dir = require("spec.utils").make_tmp_dir()
-    end)
-    after_each(function()
-      spec_utils.delete_dir(tmp_dir)
-    end)
+  local tmp = require("spec.fixtures.tmpdir")()
+  local client = "cmakeseer"
 
+  ---@return string query_path
+  local function get_query_path()
+    local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
+    return vim.fs.joinpath(query_dir, ("client-%s"):format(client), "query.json")
+  end
+
+  ---@return cmakeseer.cmake.file_api.query.Stateful
+  local function read_query()
+    local contents = read_file(get_query_path())
+    return vim.json.decode(contents)
+  end
+
+  ---@return string contents
+  local function read_raw_query()
+    return read_file(get_query_path())
+  end
+
+  ---Writes a preexisting query.json, bypassing the API under test.
+  ---@param contents string The exact bytes to write.
+  local function seed_query(contents)
+    write_file(get_query_path(), contents)
+  end
+
+  describe("issue_shared_stateless_query", function()
     for key, value in pairs(object_kind.ObjectKindType) do
       it(("creates the correct query for %s"):format(key), function()
-        local err = file_api_query.issue_shared_stateless_query(tmp_dir, value, 123)
+        local err = file_api_query.issue_shared_stateless_query(tmp.path, value, 123)
         assert.is_nil(err)
-        local expected_path = vim.fs.joinpath(tmp_dir, ".cmake", "api", "v1", "query", ("%s-v123"):format(value))
+        local expected_path = vim.fs.joinpath(tmp.path, ".cmake", "api", "v1", "query", ("%s-v123"):format(value))
         local stat = vim.uv.fs_stat(expected_path)
         assert.is_not_nil(stat)
         assert.equal("file", assert(stat).type)
@@ -28,19 +45,19 @@ describe("file_api.query", function()
     end
 
     it("handles directory already existing", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       vim.fs.mkdir(query_dir, { parents = true })
 
-      local err = file_api_query.issue_shared_stateless_query(tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_nil(err)
-      local expected_path = vim.fs.joinpath(tmp_dir, ".cmake", "api", "v1", "query", ("%s-v123"):format(object_kind.ObjectKindType.Codemodel))
+      local expected_path = vim.fs.joinpath(tmp.path, ".cmake", "api", "v1", "query", ("%s-v123"):format(object_kind.ObjectKindType.Codemodel))
       local stat = vim.uv.fs_stat(expected_path)
       assert.is_not_nil(stat)
       assert.equal("file", assert(stat).type)
     end)
 
     it("handles directory creation errors", function()
-      local file_path = vim.fs.joinpath(tmp_dir, "i-am-a-file")
+      local file_path = vim.fs.joinpath(tmp.path, "i-am-a-file")
       local f = assert(io.open(file_path, "w"))
       f:close()
 
@@ -49,33 +66,22 @@ describe("file_api.query", function()
     end)
 
     it("handles file creation errors", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       local query_file = ("%s-v%d"):format(object_kind.ObjectKindType.Codemodel, 123)
       local query_path = vim.fs.joinpath(query_dir, query_file)
       vim.fs.mkdir(query_path, { parents = true })
 
-      local err = file_api_query.issue_shared_stateless_query(tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_not_nil(err)
     end)
   end)
 
   describe("issue_client_stateless_query", function()
-    local client = "cmakeseer"
-
-    ---@type string
-    local tmp_dir
-    before_each(function()
-      tmp_dir = require("spec.utils").make_tmp_dir()
-    end)
-    after_each(function()
-      spec_utils.delete_dir(tmp_dir)
-    end)
-
     for key, value in pairs(object_kind.ObjectKindType) do
       it(("creates the correct query for %s"):format(key), function()
-        local err = file_api_query.issue_client_stateless_query(client, tmp_dir, value, 123)
+        local err = file_api_query.issue_client_stateless_query(client, tmp.path, value, 123)
         assert.is_nil(err)
-        local expected_path = vim.fs.joinpath(tmp_dir, ".cmake", "api", "v1", "query", ("client-%s"):format(client), ("%s-v123"):format(value))
+        local expected_path = vim.fs.joinpath(tmp.path, ".cmake", "api", "v1", "query", ("client-%s"):format(client), ("%s-v123"):format(value))
         local stat = vim.uv.fs_stat(expected_path)
         assert.is_not_nil(stat)
         assert.equal("file", assert(stat).type)
@@ -83,10 +89,10 @@ describe("file_api.query", function()
     end
 
     it("creates the query in a client specific directory", function()
-      local err = file_api_query.issue_client_stateless_query(client, tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_nil(err)
 
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       local client_stat = vim.uv.fs_stat(vim.fs.joinpath(query_dir, ("client-%s"):format(client)))
       assert.is_not_nil(client_stat)
       assert.equal("directory", assert(client_stat).type)
@@ -97,12 +103,12 @@ describe("file_api.query", function()
 
     it("does not share queries between clients", function()
       local other_client = "cmakeoracle"
-      local err = file_api_query.issue_client_stateless_query(client, tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_nil(err)
-      err = file_api_query.issue_client_stateless_query(other_client, tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      err = file_api_query.issue_client_stateless_query(other_client, tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_nil(err)
 
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       for _, name in ipairs({ client, other_client }) do
         local expected_path = vim.fs.joinpath(query_dir, ("client-%s"):format(name), ("%s-v123"):format(object_kind.ObjectKindType.Codemodel))
         local stat = vim.uv.fs_stat(expected_path)
@@ -112,19 +118,19 @@ describe("file_api.query", function()
     end)
 
     it("handles directory already existing", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       vim.fs.mkdir(vim.fs.joinpath(query_dir, ("client-%s"):format(client)), { parents = true })
 
-      local err = file_api_query.issue_client_stateless_query(client, tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_nil(err)
-      local expected_path = vim.fs.joinpath(tmp_dir, ".cmake", "api", "v1", "query", ("client-%s"):format(client), ("%s-v123"):format(object_kind.ObjectKindType.Codemodel))
+      local expected_path = vim.fs.joinpath(tmp.path, ".cmake", "api", "v1", "query", ("client-%s"):format(client), ("%s-v123"):format(object_kind.ObjectKindType.Codemodel))
       local stat = vim.uv.fs_stat(expected_path)
       assert.is_not_nil(stat)
       assert.equal("file", assert(stat).type)
     end)
 
     it("handles directory creation errors", function()
-      local file_path = vim.fs.joinpath(tmp_dir, "i-am-a-file")
+      local file_path = vim.fs.joinpath(tmp.path, "i-am-a-file")
       local f = assert(io.open(file_path, "w"))
       f:close()
 
@@ -133,45 +139,22 @@ describe("file_api.query", function()
     end)
 
     it("handles file creation errors", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       local query_file = ("%s-v%d"):format(object_kind.ObjectKindType.Codemodel, 123)
       local query_path = vim.fs.joinpath(query_dir, ("client-%s"):format(client), query_file)
       vim.fs.mkdir(query_path, { parents = true })
 
-      local err = file_api_query.issue_client_stateless_query(client, tmp_dir, object_kind.ObjectKindType.Codemodel, 123)
+      local err = file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Codemodel, 123)
       assert.is_not_nil(err)
     end)
   end)
 
   describe("issue_client_stateful_query", function()
-    local client = "cmakeseer"
-
-    ---@type string
-    local tmp_dir
-    before_each(function()
-      tmp_dir = require("spec.utils").make_tmp_dir()
-    end)
-    after_each(function()
-      spec_utils.delete_dir(tmp_dir)
-    end)
-
-    ---@return string query_path
-    local function query_path()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
-      return vim.fs.joinpath(query_dir, ("client-%s"):format(client), "query.json")
-    end
-
-    ---@return cmakeseer.cmake.file_api.query.Stateful
-    local function read_query()
-      local contents = read_file(query_path())
-      return vim.json.decode(contents)
-    end
-
     it("creates the query in a client specific directory", function()
-      local err = file_api_query.issue_client_stateful_query(client, tmp_dir, Stateful.default())
+      local err = file_api_query.issue_client_stateful_query(client, tmp.path, Stateful.default())
       assert.is_nil(err)
 
-      local stat = vim.uv.fs_stat(query_path())
+      local stat = vim.uv.fs_stat(get_query_path())
       assert.is_not_nil(stat)
       assert.equal("file", assert(stat).type)
     end)
@@ -185,7 +168,7 @@ describe("file_api.query", function()
         client = { name = "cmakeseer" },
       })
 
-      local err = file_api_query.issue_client_stateful_query(client, tmp_dir, query)
+      local err = file_api_query.issue_client_stateful_query(client, tmp.path, query)
       assert.is_nil(err)
       assert.same(query, read_query())
     end)
@@ -193,7 +176,7 @@ describe("file_api.query", function()
     it("replaces any current query", function()
       local err = file_api_query.issue_client_stateful_query(
         client,
-        tmp_dir,
+        tmp.path,
         Stateful.new({
           requests = { { kind = object_kind.ObjectKindType.Codemodel, version = 2 } },
         })
@@ -203,7 +186,7 @@ describe("file_api.query", function()
       local replacement = Stateful.new({
         requests = { { kind = object_kind.ObjectKindType.Cache, version = 1 } },
       })
-      err = file_api_query.issue_client_stateful_query(client, tmp_dir, replacement)
+      err = file_api_query.issue_client_stateful_query(client, tmp.path, replacement)
       assert.is_nil(err)
       assert.same(replacement, read_query())
     end)
@@ -212,7 +195,7 @@ describe("file_api.query", function()
       local other_client = "cmakeoracle"
       local err = file_api_query.issue_client_stateful_query(
         client,
-        tmp_dir,
+        tmp.path,
         Stateful.new({
           requests = { { kind = object_kind.ObjectKindType.Codemodel, version = 2 } },
         })
@@ -220,14 +203,14 @@ describe("file_api.query", function()
       assert.is_nil(err)
       err = file_api_query.issue_client_stateful_query(
         other_client,
-        tmp_dir,
+        tmp.path,
         Stateful.new({
           requests = { { kind = object_kind.ObjectKindType.Cache, version = 1 } },
         })
       )
       assert.is_nil(err)
 
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       local other_query_path = vim.fs.joinpath(query_dir, ("client-%s"):format(other_client), "query.json")
       local f = assert(io.open(other_query_path, "r"))
       local contents = f:read("*a")
@@ -236,16 +219,16 @@ describe("file_api.query", function()
     end)
 
     it("handles directory already existing", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       vim.fs.mkdir(vim.fs.joinpath(query_dir, ("client-%s"):format(client)), { parents = true })
 
-      local err = file_api_query.issue_client_stateful_query(client, tmp_dir, Stateful.default())
+      local err = file_api_query.issue_client_stateful_query(client, tmp.path, Stateful.default())
       assert.is_nil(err)
       assert.same({ requests = {} }, read_query())
     end)
 
     it("handles directory creation errors", function()
-      local file_path = vim.fs.joinpath(tmp_dir, "i-am-a-file")
+      local file_path = vim.fs.joinpath(tmp.path, "i-am-a-file")
       local f = assert(io.open(file_path, "w"))
       f:close()
 
@@ -254,55 +237,16 @@ describe("file_api.query", function()
     end)
 
     it("handles file creation errors", function()
-      vim.fs.mkdir(query_path(), { parents = true })
+      vim.fs.mkdir(get_query_path(), { parents = true })
 
-      local err = file_api_query.issue_client_stateful_query(client, tmp_dir, Stateful.default())
+      local err = file_api_query.issue_client_stateful_query(client, tmp.path, Stateful.default())
       assert.is_not_nil(err)
     end)
   end)
 
   describe("add_client_stateful_query", function()
-    local client = "cmakeseer"
-
-    ---@type string
-    local tmp_dir
-    before_each(function()
-      tmp_dir = require("spec.utils").make_tmp_dir()
-    end)
-    after_each(function()
-      spec_utils.delete_dir(tmp_dir)
-    end)
-
-    ---@return string query_path
-    local function query_path()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
-      return vim.fs.joinpath(query_dir, ("client-%s"):format(client), "query.json")
-    end
-
-    ---@return cmakeseer.cmake.file_api.query.Stateful
-    local function read_query()
-      local f = assert(io.open(query_path(), "r"))
-      local contents = f:read("*a")
-      f:close()
-      return vim.json.decode(contents)
-    end
-
-    ---@return string contents
-    local function read_raw_query()
-      local f = assert(io.open(query_path(), "r"))
-      local contents = f:read("*a")
-      f:close()
-      return contents
-    end
-
-    ---Writes a preexisting query.json, bypassing the API under test.
-    ---@param contents string The exact bytes to write.
-    local function seed_query(contents)
-      write_file(query_path(), contents)
-    end
-
     it("creates the query if it does not exist", function()
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
@@ -313,12 +257,12 @@ describe("file_api.query", function()
     end)
 
     it("appends to an existing query", function()
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
       assert.is_nil(err)
-      err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Cache,
         version = { 2, 1 },
       })
@@ -335,7 +279,7 @@ describe("file_api.query", function()
     it("preserves request ordering across multiple additions", function()
       local kinds = { object_kind.ObjectKindType.Codemodel, object_kind.ObjectKindType.Cache, object_kind.ObjectKindType.Toolchains }
       for index, kind in ipairs(kinds) do
-        local err = file_api_query.add_client_stateful_query(client, tmp_dir, { kind = kind, version = index })
+        local err = file_api_query.add_client_stateful_query(client, tmp.path, { kind = kind, version = index })
         assert.is_nil(err)
       end
 
@@ -350,7 +294,7 @@ describe("file_api.query", function()
     it("preserves the client field of an existing query", function()
       local err = file_api_query.issue_client_stateful_query(
         client,
-        tmp_dir,
+        tmp.path,
         Stateful.new({
           requests = { { kind = object_kind.ObjectKindType.Codemodel, version = 2 } },
           client = { name = "cmakeseer" },
@@ -358,7 +302,7 @@ describe("file_api.query", function()
       )
       assert.is_nil(err)
 
-      err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Cache,
         version = 1,
       })
@@ -374,13 +318,13 @@ describe("file_api.query", function()
     end)
 
     it("prepends the query when append is false", function()
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
       assert.is_nil(err)
 
-      err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Cache,
         version = 1,
       }, { append = false })
@@ -395,13 +339,13 @@ describe("file_api.query", function()
     end)
 
     it("appends when append is explicitly true", function()
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
       assert.is_nil(err)
 
-      err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Cache,
         version = 1,
       }, { append = true })
@@ -418,7 +362,7 @@ describe("file_api.query", function()
     it("returns an error and leaves the query untouched when the existing query is malformed", function()
       seed_query("{not json")
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
@@ -429,7 +373,7 @@ describe("file_api.query", function()
     it("returns an error and leaves the query untouched when the existing query is empty", function()
       seed_query("")
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
@@ -440,7 +384,7 @@ describe("file_api.query", function()
     it("creates the request when the existing query omits it", function()
       seed_query(vim.json.encode({ client = { name = "cmakeseer" } }))
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
@@ -461,7 +405,7 @@ describe("file_api.query", function()
       it(("returns an error and leaves the query untouched when the existing query is a JSON %s"):format(name), function()
         seed_query(seed)
 
-        local ok, err = pcall(file_api_query.add_client_stateful_query, client, tmp_dir, {
+        local ok, err = pcall(file_api_query.add_client_stateful_query, client, tmp.path, {
           kind = object_kind.ObjectKindType.Codemodel,
           version = 2,
         })
@@ -480,7 +424,7 @@ describe("file_api.query", function()
         local seed = vim.json.encode({ requests = request })
         seed_query(seed)
 
-        local ok, err = pcall(file_api_query.add_client_stateful_query, client, tmp_dir, {
+        local ok, err = pcall(file_api_query.add_client_stateful_query, client, tmp.path, {
           kind = object_kind.ObjectKindType.Codemodel,
           version = 2,
         })
@@ -494,7 +438,7 @@ describe("file_api.query", function()
       -- A pretty-printed seed decodes fine but re-encodes to a shorter document.
       seed_query(vim.json.encode({ requests = { { kind = object_kind.ObjectKindType.Codemodel, version = 2 } } }, { indent = "  " }))
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Cache,
         version = 1,
       })
@@ -508,10 +452,10 @@ describe("file_api.query", function()
     end)
 
     it("handles directory already existing", function()
-      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp_dir)
+      local query_dir = require("cmakeseer.cmake.file_api").query_dir(tmp.path)
       vim.fs.mkdir(vim.fs.joinpath(query_dir, ("client-%s"):format(client)), { parents = true })
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
@@ -522,7 +466,7 @@ describe("file_api.query", function()
     end)
 
     it("handles directory creation errors", function()
-      local file_path = vim.fs.joinpath(tmp_dir, "i-am-a-file")
+      local file_path = vim.fs.joinpath(tmp.path, "i-am-a-file")
       local f = assert(io.open(file_path, "w"))
       f:close()
 
@@ -534,9 +478,9 @@ describe("file_api.query", function()
     end)
 
     it("handles file creation errors", function()
-      vim.fs.mkdir(query_path(), { parents = true })
+      vim.fs.mkdir(get_query_path(), { parents = true })
 
-      local err = file_api_query.add_client_stateful_query(client, tmp_dir, {
+      local err = file_api_query.add_client_stateful_query(client, tmp.path, {
         kind = object_kind.ObjectKindType.Codemodel,
         version = 2,
       })
