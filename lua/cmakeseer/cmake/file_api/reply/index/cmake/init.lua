@@ -6,6 +6,7 @@ local Paths = require("cmakeseer.cmake.file_api.reply.index.cmake.paths")
 ---@class cmakeseer.cmake.file_api.reply.index.CMake
 ---@field version cmakeseer.cmake.file_api.reply.index.cmake.CMakeVersion Version information for CMake.
 ---@field paths cmakeseer.cmake.file_api.reply.index.cmake.Paths Paths for CMake executables and modules.
+---@field generator cmakeseer.cmake.file_api.reply.index.cmake.Generator Information about the CMake generator in use.
 local CMake = {}
 CMake.__index = CMake
 

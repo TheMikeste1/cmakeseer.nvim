@@ -24,7 +24,7 @@ end
 
 describe("CMakeVersion", function()
   describe("new", function()
-    it("stores the provided fields", function()
+    it("initializes correctly", function()
       local version = CMakeVersion.new(3, 20, 1, "rc1", true)
       assert.are.equal(3, version.major)
       assert.are.equal(20, version.minor)

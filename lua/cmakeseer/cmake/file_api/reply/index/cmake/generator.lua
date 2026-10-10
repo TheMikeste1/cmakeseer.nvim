@@ -30,15 +30,15 @@ function Generator.try_from_json(json)
 
   local multi_config = json["multiConfig"]
   if type(multi_config) ~= "boolean" then
-    return nil, "major is wrong type: " .. type(multi_config)
+    return nil, "multiConfig is wrong type: " .. type(multi_config)
   end
   local name = json["name"]
   if type(name) ~= "string" then
-    return nil, "minor is wrong type: " .. type(name)
+    return nil, "name is wrong type: " .. type(name)
   end
   local platform = json["platform"]
   if platform ~= nil and type(platform) ~= "string" then
-    return nil, "suffix is wrong type: " .. type(platform)
+    return nil, "platform is wrong type: " .. type(platform)
   end
 
   return Generator.new(multi_config, name, platform), nil
