@@ -37,7 +37,7 @@ end
 
 --- Creates a new Generator instance from JSON.
 ---@param json any The json object from which values should be extracted.
----@param index_file_path string The path to the owning index file.
+---@param index_file_path string The path to the owning index file. Can be either absolute or relative.
 ---@return cmakeseer.cmake.file_api.reply.index.FileReference? obj, string? err The new instance if successful. Otherwise an error.
 function FileReference.try_from_json(json, index_file_path)
   if type(json) ~= "table" then
@@ -69,9 +69,11 @@ function FileReference.try_from_json(json, index_file_path)
   if json_file ~= nil and type(json_file) ~= "string" then
     return nil, "jsonFile is wrong type: " .. type(json_file)
   end
+  assert(vim.fn.isabsolutepath(json_file) == 0)
   json_file = vim.fs.joinpath(vim.fs.dirname(index_file_path), json_file)
+  json_file = vim.fn.fnamemodify(json_file, ":p")
 
-  return FileReference.new(kind, vim.deepcopy(version), json_file), nil
+  return FileReference.new_unchecked(kind, vim.deepcopy(version), json_file)
 end
 
 return FileReference

@@ -18,4 +18,18 @@ describe("object_kind", function()
       assert.are.equal("toolchains", object_kind.ObjectKindType.Toolchains)
     end)
   end)
+
+  describe("from_string", function()
+    for _, value in pairs(object_kind.ObjectKindType) do
+      it(("converts %q to an object kind"):format(value), function()
+        assert.are.equal(value, object_kind.from_string(value))
+      end)
+    end
+
+    for _, value in ipairs({ "", "Codemodel", "codemodel ", "cache2" }) do
+      it(("returns nil for %q"):format(value), function()
+        assert.is_nil(object_kind.from_string(value))
+      end)
+    end
+  end)
 end)
