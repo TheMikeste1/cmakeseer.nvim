@@ -22,12 +22,7 @@ File.__index = File
 ---@param replies table<string, cmakeseer.cmake.file_api.FileReply> The query replies.
 ---@return cmakeseer.cmake.file_api.reply.index.File obj The new instance.
 function File.new(cmake, objects, replies)
-  local self = setmetatable({
-    cmake = vim.deepcopy(cmake),
-    objects = vim.deepcopy(objects),
-    replies = vim.deepcopy(replies),
-  }, File)
-  return self
+  return File.take(vim.deepcopy(cmake), vim.deepcopy(objects), vim.deepcopy(replies))
 end
 
 --- Creates a new File instance, owning the objects passed in.
@@ -35,7 +30,7 @@ end
 ---@param objects cmakeseer.cmake.file_api.reply.FileReference[] The list of object kind file references.
 ---@param replies table<string, cmakeseer.cmake.file_api.FileReply> The query replies.
 ---@return cmakeseer.cmake.file_api.reply.index.File obj The new instance.
-function File.new_owning(cmake, objects, replies)
+function File.take(cmake, objects, replies)
   local self = setmetatable({
     cmake = cmake,
     objects = objects,
@@ -85,6 +80,9 @@ function File.try_from_json(json, index_file_path)
     local reply
     if key:sub(1, #"client-") == "client-" then
       reply, err = Client.try_from_json(reply_json, index_file_path)
+      if reply ~= nil then
+        reply = { kind = "client", client_reply = reply }
+      end
     else
       reply = Reply.from_json(reply_json, index_file_path)
     end
@@ -97,7 +95,7 @@ function File.try_from_json(json, index_file_path)
     replies[key] = reply
   end
 
-  return File.new_owning(cmake, objects, replies)
+  return File.take(cmake, objects, replies)
 end
 
 return File

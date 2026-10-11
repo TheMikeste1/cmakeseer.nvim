@@ -53,7 +53,7 @@ function Stateful.try_from_json(json, index_file_path)
   -- CMake doesn't care, so we won't either.
 
   local requests = json["requests"]
-  if type(requests) ~= "table" then
+  if requests ~= nil and type(requests) ~= "table" then
     return nil, "requests is wrong type: " .. type(requests)
   end
   -- I really should validate this, but I'm not going to right now. . .
