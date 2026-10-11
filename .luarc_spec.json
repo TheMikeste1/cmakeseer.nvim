@@ -53,6 +53,5 @@
     "type-check": "Any",
     "unbalanced": "Any",
     "unused": "Any"
-  },
-  "diagnostics.disable": ["need-check-nil"]
+  }
 }
