@@ -27,7 +27,7 @@ end
 ---@param stateless? table<string, cmakeseer.cmake.file_api.Reply> Replies to the stateless queries.
 ---@param stateful_error string The error message
 ---@return cmakeseer.cmake.file_api.reply.Client obj The new instance.
-function Client.new_with_err(stateless, stateful_error)
+function Client.new_with_error(stateless, stateful_error)
   local self = setmetatable({
     ---@diagnostic disable-next-line: param-type-mismatch
     stateless = vim.deepcopy(stateless),
@@ -46,16 +46,17 @@ function Client.try_from_json(json, index_file_path)
   end
 
   local raw_stateful = json["query.json"]
-  json = vim.deepcopy(json) -- Avoid mutating the caller
-  json["query.json"] = nil
 
   ---@type table<string, cmakeseer.cmake.file_api.Reply>?
-  local stateless
-  if next(json) ~= nil then
-    stateless = {}
-    for key, response in pairs(json) do
+  local stateless = {}
+  for key, response in pairs(json) do
+    if key ~= "query.json" then
       stateless[key] = Reply.from_json(response, index_file_path)
     end
+  end
+
+  if next(stateless) == nil then ---@diagnostic disable-line: param-type-mismatch
+    stateless = nil
   end
 
   ---@type cmakeseer.cmake.file_api.reply.Stateful?
@@ -66,7 +67,7 @@ function Client.try_from_json(json, index_file_path)
       return nil, "query.json is wrong type: " .. type(raw_stateful)
     end
     if raw_stateful.error then
-      return Client.new_with_err(stateless, raw_stateful.error)
+      return Client.new_with_error(stateless, raw_stateful.error)
     end
 
     stateful, err = Stateful.try_from_json(raw_stateful, index_file_path)

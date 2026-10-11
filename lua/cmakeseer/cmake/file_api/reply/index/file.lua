@@ -4,7 +4,7 @@ local FileReference = require("cmakeseer.cmake.file_api.reply.file_reference")
 local Reply = require("cmakeseer.cmake.file_api.reply.types")
 
 --- A reply in a file.
----@alias cmakeseer.cmake.file_api.FileReply
+---@alias cmakeseer.cmake.file_api.index.FileReply
 ---| cmakeseer.cmake.file_api.Reply
 ---| { kind: "client", client_reply: cmakeseer.cmake.file_api.reply.Client }
 
@@ -12,14 +12,14 @@ local Reply = require("cmakeseer.cmake.file_api.reply.types")
 ---@class cmakeseer.cmake.file_api.reply.index.File
 ---@field cmake cmakeseer.cmake.file_api.reply.index.CMake The CMake information.
 ---@field objects cmakeseer.cmake.file_api.reply.FileReference[] The list of object kind file references.
----@field replies table<string, cmakeseer.cmake.file_api.FileReply> The query replies.
+---@field replies table<string, cmakeseer.cmake.file_api.index.FileReply> The query replies.
 local File = {}
 File.__index = File
 
 --- Creates a new File instance.
 ---@param cmake cmakeseer.cmake.file_api.reply.index.CMake The CMake information.
 ---@param objects cmakeseer.cmake.file_api.reply.FileReference[] The list of object kind file references.
----@param replies table<string, cmakeseer.cmake.file_api.FileReply> The query replies.
+---@param replies table<string, cmakeseer.cmake.file_api.index.FileReply> The query replies.
 ---@return cmakeseer.cmake.file_api.reply.index.File obj The new instance.
 function File.new(cmake, objects, replies)
   return File.take(vim.deepcopy(cmake), vim.deepcopy(objects), vim.deepcopy(replies))
@@ -28,7 +28,7 @@ end
 --- Creates a new File instance, owning the objects passed in.
 ---@param cmake cmakeseer.cmake.file_api.reply.index.CMake The CMake information.
 ---@param objects cmakeseer.cmake.file_api.reply.FileReference[] The list of object kind file references.
----@param replies table<string, cmakeseer.cmake.file_api.FileReply> The query replies.
+---@param replies table<string, cmakeseer.cmake.file_api.index.FileReply> The query replies.
 ---@return cmakeseer.cmake.file_api.reply.index.File obj The new instance.
 function File.take(cmake, objects, replies)
   local self = setmetatable({
@@ -74,7 +74,7 @@ function File.try_from_json(json, index_file_path)
     table.insert(objects, object)
   end
 
-  ---@type table<string, cmakeseer.cmake.file_api.FileReply>
+  ---@type table<string, cmakeseer.cmake.file_api.index.FileReply>
   local replies = {}
   for key, reply_json in pairs(raw_replies) do
     local reply
