@@ -1,7 +1,7 @@
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 
 --- A reference to another file containing an object kind.
----@class cmakeseer.cmake.file_api.reply.index.FileReference
+---@class cmakeseer.cmake.file_api.reply.FileReference
 ---@field kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
 ---@field version { major: integer, minor: integer } The version of the object kind.
 ---@field json_file string Absolute path to the object kind file.
@@ -12,7 +12,7 @@ FileReference.__index = FileReference
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
 ---@param version { major: integer, minor: integer } The version of the object kind.
 ---@param json_file string Absolute path to the object kind file.
----@return cmakeseer.cmake.file_api.reply.index.FileReference? obj, string? err The new instance.
+---@return cmakeseer.cmake.file_api.reply.FileReference? obj, string? err The new instance.
 function FileReference.new(kind, version, json_file)
   if vim.fn.isabsolutepath(json_file) == 0 then
     return nil, ("`%s` is not an absolute path"):format(json_file)
@@ -25,7 +25,7 @@ end
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
 ---@param version { major: integer, minor: integer } The version of the object kind.
 ---@param json_file string Absolute path to the object kind file.
----@return cmakeseer.cmake.file_api.reply.index.FileReference obj The new instance.
+---@return cmakeseer.cmake.file_api.reply.FileReference obj The new instance.
 function FileReference.new_unchecked(kind, version, json_file)
   local self = setmetatable({
     kind = kind,
@@ -38,7 +38,7 @@ end
 --- Creates a new Generator instance from JSON.
 ---@param json any The json object from which values should be extracted.
 ---@param index_file_path string The path to the owning index file. Can be either absolute or relative.
----@return cmakeseer.cmake.file_api.reply.index.FileReference? obj, string? err The new instance if successful. Otherwise an error.
+---@return cmakeseer.cmake.file_api.reply.FileReference? obj, string? err The new instance if successful. Otherwise an error.
 function FileReference.try_from_json(json, index_file_path)
   if type(json) ~= "table" then
     return nil, "json is wrong type: " .. type(json)

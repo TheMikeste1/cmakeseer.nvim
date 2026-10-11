@@ -1,4 +1,4 @@
-local FileReference = require("cmakeseer.cmake.file_api.reply.index.file_reference")
+local FileReference = require("cmakeseer.cmake.file_api.reply.file_reference")
 
 ---A valid file reference object, with optional overrides.
 ---@param overrides? table<string, any> Values to override.
