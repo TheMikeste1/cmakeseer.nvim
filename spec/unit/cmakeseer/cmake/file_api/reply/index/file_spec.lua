@@ -46,6 +46,7 @@ local function json_without(field)
 end
 
 local INDEX_FILE_PATH = "/tmp/build/.cmake/api/v1/reply/index-2024-01-01.json"
+local ERROR_FILE_PATH = "/tmp/build/.cmake/api/v1/reply/error-2024-01-01.json"
 
 describe("index.File", function()
   describe("new", function()
@@ -53,10 +54,10 @@ describe("index.File", function()
       local cmake = assert(CMake.try_from_json(valid_cmake_json()))
       ---@type cmakeseer.cmake.file_api.reply.FileReference[]
       local objects = { assert(FileReference.try_from_json(valid_reference_json(), INDEX_FILE_PATH)) }
-      ---@type table<string, cmakeseer.cmake.file_api.index.FileReply>
+      ---@type table<string, cmakeseer.cmake.file_api.reply.index.FileReply>
       local replies = { codemodel = Reply.from_json(valid_reference_json(), INDEX_FILE_PATH) }
 
-      local file = File.new(cmake, objects, replies)
+      local file = File.new(true, cmake, objects, replies)
       cmake.version.major = 9
       objects[1].kind = "cache"
       local reply = assert(replies.codemodel)
@@ -78,10 +79,11 @@ describe("index.File", function()
       local cmake = assert(CMake.try_from_json(valid_cmake_json()))
       ---@type cmakeseer.cmake.file_api.reply.FileReference[]
       local objects = {}
-      ---@type table<string, cmakeseer.cmake.file_api.index.FileReply>
+      ---@type table<string, cmakeseer.cmake.file_api.reply.index.FileReply>
       local replies = {}
 
-      local file = File.take(cmake, objects, replies)
+      local file = File.take(false, cmake, objects, replies)
+      assert.are.equal(false, file.succeeded)
       assert.are.equal(cmake, file.cmake)
       assert.are.equal(objects, file.objects)
       assert.are.equal(replies, file.replies)
@@ -114,6 +116,26 @@ describe("index.File", function()
       assert.are.equal("valid", instance.replies.codemodel.kind)
     end)
 
+    it("marks a successful configure from an index file path", function()
+      local file, err = File.try_from_json(valid_json(), INDEX_FILE_PATH)
+      assert.is_nil(err)
+      assert.is_true(assert(file).succeeded)
+    end)
+
+    it("marks a failed configure from an error file path", function()
+      local file, err = File.try_from_json(valid_json(), ERROR_FILE_PATH)
+      assert.is_nil(err)
+      assert.is_false(assert(file).succeeded)
+    end)
+
+    it("returns an error when the path has neither prefix", function()
+      local file, err = File.try_from_json(valid_json(), "/tmp/build/.cmake/api/v1/reply/bogus-2024-01-01.json")
+      assert.is_nil(file)
+      assert.is_not_nil(err)
+      ---@cast err string
+      assert.matches("^index file name has neither an 'index%-' nor an 'error%-' prefix: bogus%-2024%-01%-01%.json$", err)
+    end)
+
     it("resolves object file references against the index file", function()
       local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
       assert.are.equal("/tmp/build/.cmake/api/v1/reply/codemodel-v2@hash.json", file.objects[1].json_file)
@@ -132,7 +154,7 @@ describe("index.File", function()
       local file = assert(File.try_from_json(json, INDEX_FILE_PATH))
       local reply = assert(file.replies["client-cmakeseer"])
       assert.are.equal("client", reply.kind)
-      ---@cast reply { kind: "client", client_reply: cmakeseer.cmake.file_api.reply.Client }
+      ---@cast reply cmakeseer.cmake.file_api.reply.ClientReply
       local stateless_reply = assert(reply.client_reply.stateless.codemodel)
       assert.are.equal("valid", stateless_reply.kind)
       ---@cast stateless_reply cmakeseer.cmake.file_api.reply.Valid
@@ -165,7 +187,7 @@ describe("index.File", function()
       local file = assert(File.try_from_json(json, INDEX_FILE_PATH))
       local reply = assert(file.replies["client-cmakeseer"])
       assert.are.equal("client", reply.kind)
-      ---@cast reply { kind: "client", client_reply: cmakeseer.cmake.file_api.reply.Client }
+      ---@cast reply cmakeseer.cmake.file_api.reply.ClientReply
       assert.are.equal("valid", reply.client_reply.stateless.codemodel.kind)
     end)
 

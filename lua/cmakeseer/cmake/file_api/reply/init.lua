@@ -1,95 +1,82 @@
 local IndexFile = require("cmakeseer.cmake.file_api.reply.index.file")
 local file_api = require("cmakeseer.cmake.file_api")
 
--- TODO(58): Implement reply error class
----@class ReplyError
-
 local M = {}
 
---- A query reply file, either the index or the error.
----@class cmakeseer.cmake.file_api.reply.File
----@field index? cmakeseer.cmake.file_api.reply.index.File The reply index if the configuration succeeded.
----@field error? { error: ReplyError, get_last_index?: fun(): cmakeseer.cmake.file_api.reply.index.File?,string? } The reply error if the configuration failed, as well as the last index if it exists.
+--- Reads and parses a reply index file.
+---@param path string The path to the index file.
+---@return cmakeseer.cmake.file_api.reply.index.File? obj, string? err The index if successful. Otherwise an error.
+local function read_reply_index(path)
+  local f, err = io.open(path, "r")
+  if f == nil then
+    return nil, "Failed to open index file: " .. err
+  end
+  local contents = f:read("*a")
+  f:close()
 
---- Finds the most recent reply file.
+  local ok, json = pcall(vim.json.decode, contents, { luanil = { object = true } })
+  if not ok then
+    return nil, "Failed to decode index file: " .. json
+  end
+
+  local index_file
+  index_file, err = IndexFile.try_from_json(json, path)
+  if index_file == nil then
+    return nil, "Failed to parse index file: " .. err
+  end
+  return index_file, nil
+end
+
+--- Finds the reply index file with the largest identifier. Identifiers are compared lexicographically with the
+--- file prefix excluded, as the file API specification requires.
 ---@param build_dir string The build directory for the API.
----@return cmakeseer.cmake.file_api.reply.File? reply_file, string? error
-function M.find_reply_file(build_dir)
+---@param prefix "index"|"error" The file prefix to look for.
+---@return string? identifier, string? path The identifier and path of the newest matching file, if there is one.
+local function newest_index_of_prefix(build_dir, prefix)
   local reply_dir = file_api.reply_dir(build_dir)
-  ---@type string[]
-  local reply_files = vim.fn.glob(vim.fs.joinpath(reply_dir, "{index,error}-*.json"), true, true)
-  if #reply_files == 0 then
+  local paths = vim.fn.glob(vim.fs.joinpath(reply_dir, ("%s-*.json"):format(prefix)), true, true)
+
+  local newest_identifier, newest_path = nil, nil
+  for _, path in ipairs(paths) do
+    local identifier = vim.fs.basename(path):sub(#prefix + 2, -#".json" - 1)
+    if newest_identifier == nil or identifier > newest_identifier then
+      newest_identifier, newest_path = identifier, path
+    end
+  end
+
+  return newest_identifier, newest_path
+end
+
+--- Finds the index of the most recent configure, successful or not. A failed configure yields an error index, whose
+--- `succeeded` field is false and which reports errors for every requested object kind but `configureLog`. A successful
+--- index has `succeeded` true but can still have error replies, so an individual error reply alone proves nothing.
+---@param build_dir string The build directory for the API.
+---@return cmakeseer.cmake.file_api.reply.index.File? index, string? err The index if there is one and it was successfully parsed. An error if it wasn't successfully parsed, and neither if an index doesn't exist.
+function M.find_latest_reply_index(build_dir)
+  local index_identifier, index_path = newest_index_of_prefix(build_dir, "index")
+  local error_identifier, error_path = newest_index_of_prefix(build_dir, "error")
+
+  local path = index_path
+  if error_identifier ~= nil and (index_identifier == nil or error_identifier > index_identifier) then
+    path = error_path
+  end
+  if path == nil then
     return nil
   end
 
-  local newest = {
-    index = "",
-    error = "",
-  }
-  for _, file in ipairs(reply_files) do
-    file = file:sub(#reply_dir + 2) -- +2 because Lua is 1-based, and we need to exclude the '/'
-    local reply_type = file:sub(1, #"index")
-    local identifier = file:sub(#"index-" + 1, #file - #".json")
-    if identifier > newest[reply_type] then
-      newest[reply_type] = identifier
-    end
+  return read_reply_index(path)
+end
+
+--- Finds the index of the most recent successful configure, ignoring any more recent failure.
+---@param build_dir string The build directory for the API.
+---@return cmakeseer.cmake.file_api.reply.index.File? index, string? err The index if there is one and it was successfully parsed. An error if it wasn't successfully parsed, and neither if an index doesn't exist.
+function M.find_last_successful_reply_index(build_dir)
+  local _, path = newest_index_of_prefix(build_dir, "index")
+  if path == nil then
+    return nil
   end
 
-  if newest.index > newest.error then
-    local path = vim.fs.joinpath(reply_dir, "index-" .. newest.index .. ".json")
-    local f, err = io.open(path, "r")
-    if f == nil then
-      return nil, "Failed to open index file: " .. err
-    end
-    local contents = f:read("*a")
-    f:close()
-    local ok, json = pcall(vim.json.decode, contents, { luanil = { object = true } })
-    if not ok then
-      return nil, "Failed to decode index file: " .. json
-    end
-
-    local index_file
-    index_file, err = IndexFile.try_from_json(json, path)
-    if index_file == nil then
-      return nil, "Failed to parse index file: " .. err
-    end
-    return { index = index_file }
-  end
-
-  assert(newest.error ~= "")
-  newest.error = vim.fs.joinpath(reply_dir, "error-" .. newest.error .. ".json")
-  -- TODO(58): Parse the error
-  if newest.index == "" then
-    return {
-      error = { error = newest.error },
-    }
-  end
-
-  return {
-    error = {
-      error = newest.error,
-      get_last_index = function()
-        local path = vim.fs.joinpath(reply_dir, "index-" .. newest.index .. ".json")
-        local f, err = io.open(path, "r")
-        if f == nil then
-          return nil, "Failed to open index file: " .. err
-        end
-        local contents = f:read("*a")
-        f:close()
-        local ok, json = pcall(vim.json.decode, contents, { luanil = { object = true } })
-        if not ok then
-          return nil, "Failed to decode index file: " .. json
-        end
-
-        local index_file
-        index_file, err = IndexFile.try_from_json(json, path)
-        if index_file == nil then
-          return nil, "Failed to parse index file: " .. err
-        end
-        return index_file, nil
-      end,
-    },
-  }
+  return read_reply_index(path)
 end
 
 return M

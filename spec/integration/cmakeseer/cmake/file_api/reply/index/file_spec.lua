@@ -46,6 +46,7 @@ describe("reply.index.File", function()
     assert.are.equal(1, #paths)
     local index, err = parse_index_file(paths[1])
     assert.is_nil(err)
+    assert.is_true(assert(index).succeeded)
     return assert(index)
   end
 
@@ -111,7 +112,7 @@ describe("reply.index.File", function()
 
       local reply = assert(parse_configured_index().replies[("client-%s"):format(client)])
       assert.are.equal("client", reply.kind)
-      ---@cast reply { kind: "client", client_reply: cmakeseer.cmake.file_api.reply.Client }
+      ---@cast reply cmakeseer.cmake.file_api.reply.ClientReply
       assert.is_nil(reply.client_reply.stateful_error)
 
       local cache_reply = assert(reply.client_reply.stateless["cache-v2"])
@@ -130,7 +131,7 @@ describe("reply.index.File", function()
 
       local reply = assert(parse_configured_index().replies[("client-%s"):format(client)])
       assert.are.equal("client", reply.kind)
-      ---@cast reply { kind: "client", client_reply: cmakeseer.cmake.file_api.reply.Client }
+      ---@cast reply cmakeseer.cmake.file_api.reply.ClientReply
 
       local stateful = assert(reply.client_reply.stateful)
       assert.are.same({ name = client }, stateful.client)

@@ -30,6 +30,7 @@ The project uses `make` targets for linting and testing.
 Install these tools before running the targets below:
 
 - **Neovim** - tests run in headless Neovim.
+- **CMake** - for the integration test suite. Newer is better.
 - **[LuaRocks](https://luarocks.org)** - package manager used for Lua tools.
 - `luarocks install luacheck` - Lua linter.
 - `luarocks install luacov` - coverage tracking (`luacov-multiple` enables the HTML report).
