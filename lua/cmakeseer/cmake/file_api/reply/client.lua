@@ -9,6 +9,11 @@ local Stateful = require("cmakeseer.cmake.file_api.reply.stateful")
 local Client = {}
 Client.__index = Client
 
+--- A reply to a client query, as it appears in a reply index file.
+---@class cmakeseer.cmake.file_api.reply.ClientReply
+---@field kind "client" The type delimiter for the reply type.
+---@field client_reply cmakeseer.cmake.file_api.reply.Client The reply to the client query.
+
 --- Creates a new Client instance.
 ---@param stateless? table<string, cmakeseer.cmake.file_api.Reply> Replies to the stateless queries.
 ---@param stateful? cmakeseer.cmake.file_api.reply.Stateful The stateful reply to the stateful query.
