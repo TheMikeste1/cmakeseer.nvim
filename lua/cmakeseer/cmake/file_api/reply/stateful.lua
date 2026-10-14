@@ -84,4 +84,30 @@ function Stateful.try_from_json(json, index_file_path)
   return Stateful.new(requests, responses, client)
 end
 
+---@param lhs cmakeseer.cmake.file_api.query.ObjectKind The lhs kind.
+---@param rhs cmakeseer.cmake.file_api.query.ObjectKind The rhs kind.
+---@return boolean
+local function object_kinds_same(lhs, rhs)
+  if lhs.kind ~= rhs.kind then
+    return false
+  end
+
+  return vim.deep_equal(lhs.version, rhs.version)
+end
+
+---Gets a response from the stateful query.
+---@param kind cmakeseer.cmake.file_api.query.ObjectKind The kind for the response to get.
+---@return cmakeseer.cmake.file_api.Reply? reply The reply, if it exists.
+function Stateful:get_response(kind)
+  if self.requests == nil or self.responses == nil then
+    return nil
+  end
+
+  for i, request in ipairs(self.requests) do
+    if object_kinds_same(request, kind) then
+      return self.responses[i]
+    end
+  end
+end
+
 return Stateful

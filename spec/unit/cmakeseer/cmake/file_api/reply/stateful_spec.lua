@@ -201,4 +201,124 @@ describe("reply.Stateful", function()
       assert.are.equal("responses is a dict instead of a list", err)
     end)
   end)
+
+  describe("get_response", function()
+    for _, entry in ipairs({
+      { "a major version number", 2 },
+      { "a list of version numbers", { 2, 1 } },
+      { "a major and minor version", { major = 2, minor = 6 } },
+    }) do
+      local label, version = entry[1], entry[2]
+      it(("matches a request for %s"):format(label), function()
+        local stateful = Stateful.new({ { kind = "codemodel", version = version } }, {
+          Reply.from_json(valid_json(), INDEX_FILE_PATH),
+        })
+
+        local response = assert(stateful:get_response({ kind = "codemodel", version = version }))
+        assert.are.equal("valid", response.kind)
+      end)
+    end
+
+    it("returns the response that matches each request", function()
+      local stateful = Stateful.new({
+        { kind = "codemodel", version = 2 },
+        { kind = "cache", version = 2 },
+      }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+        Reply.from_json(valid_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }), INDEX_FILE_PATH),
+      })
+
+      local codemodel = assert(stateful:get_response({ kind = "codemodel", version = 2 }))
+      assert.are.equal("valid", codemodel.kind)
+      ---@cast codemodel cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("codemodel", codemodel.reply.kind)
+
+      local cache = assert(stateful:get_response({ kind = "cache", version = 2 }))
+      assert.are.equal("valid", cache.kind)
+      ---@cast cache cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("cache", cache.reply.kind)
+    end)
+
+    it("distinguishes the same kind requested at different versions", function()
+      local stateful = Stateful.new({
+        { kind = "codemodel", version = 2 },
+        { kind = "codemodel", version = 1 },
+      }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+        Reply.from_json(valid_json({ version = { major = 1, minor = 4 }, jsonFile = "codemodel-v1@hash.json" }), INDEX_FILE_PATH),
+      })
+
+      local newest = assert(stateful:get_response({ kind = "codemodel", version = 2 }))
+      assert.are.equal("valid", newest.kind)
+      ---@cast newest cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal(2, newest.reply.version.major)
+
+      local oldest = assert(stateful:get_response({ kind = "codemodel", version = 1 }))
+      assert.are.equal("valid", oldest.kind)
+      ---@cast oldest cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal(1, oldest.reply.version.major)
+    end)
+
+    it("returns an error response rather than nothing", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = 99 } }, {
+        Reply.from_json({ error = "no supported version specified among: 99.0" }, INDEX_FILE_PATH),
+      })
+
+      local response = assert(stateful:get_response({ kind = "codemodel", version = 99 }))
+      assert.are.equal("error", response.kind)
+      ---@cast response cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("no supported version specified among: 99.0", response.error)
+    end)
+
+    it("returns nothing for a kind that was not requested", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = 2 } }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+      })
+      assert.is_nil(stateful:get_response({ kind = "cache", version = 2 }))
+    end)
+
+    it("returns nothing for a version that was not requested", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = 2 } }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+      })
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 1 }))
+    end)
+
+    it("returns nothing when the version is in a different form than the request", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = { major = 2, minor = 6 } } }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+      })
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 2 }))
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = { 2, 6 } }))
+    end)
+
+    it("returns the first response when the same kind and version is requested twice", function()
+      local stateful = Stateful.new({
+        { kind = "codemodel", version = 2 },
+        { kind = "codemodel", version = 2 },
+      }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+        Reply.from_json({ error = "second response" }, INDEX_FILE_PATH),
+      })
+
+      local response = assert(stateful:get_response({ kind = "codemodel", version = 2 }))
+      assert.are.equal("valid", response.kind)
+    end)
+
+    it("returns nothing when the requests are missing", function()
+      local stateful = Stateful.new(nil, { Reply.from_json(valid_json(), INDEX_FILE_PATH) })
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 2 }))
+    end)
+
+    it("returns nothing when the responses are missing", function()
+      local stateful = Stateful.new_with_error({ { kind = "codemodel", version = 2 } }, "bad request")
+      assert.are.equal("bad request", stateful.error)
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 2 }))
+    end)
+
+    it("returns nothing when there are fewer responses than requests", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = 2 } }, {})
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 2 }))
+    end)
+  end)
 end)

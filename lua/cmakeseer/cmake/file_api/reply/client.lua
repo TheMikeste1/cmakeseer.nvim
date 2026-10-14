@@ -1,5 +1,6 @@
 local Reply = require("cmakeseer.cmake.file_api.reply.types")
 local Stateful = require("cmakeseer.cmake.file_api.reply.stateful")
+local file_api = require("cmakeseer.cmake.file_api")
 
 --- A reply to a client query.
 ---@class cmakeseer.cmake.file_api.reply.Client
@@ -86,6 +87,19 @@ function Client.try_from_json(json, index_file_path)
   end
 
   return Client.new(stateless, stateful)
+end
+
+--- Gets the reply for a client stateless query.
+---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
+---@param major_version integer The desired major version.
+---@return cmakeseer.cmake.file_api.Reply? reply The reply, if the Client has it.
+function Client:get_stateless_reply(kind, major_version)
+  if self.stateless == nil then
+    return nil
+  end
+
+  local id = file_api.build_stateless_id(kind, major_version)
+  return self.stateless[id]
 end
 
 return Client

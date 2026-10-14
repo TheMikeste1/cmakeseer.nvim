@@ -5,6 +5,10 @@ local file_api = require("cmakeseer.cmake.file_api")
 local file_api_query = require("cmakeseer.cmake.file_api.query")
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 local read_file = require("spec.utils").read_file
+local write_file = require("spec.utils").write_file
+
+--- An object kind version no CMake release will ever support, to exercise the error replies.
+local UNSUPPORTED_VERSION = 99
 
 --- Gets a valid version for an Object Kind.
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType
@@ -32,6 +36,18 @@ local function assert_reference_is_on_disk(reference, major_version)
   assert.are.equal(major_version, reference.version.major)
   assert.is_true(vim.fn.isabsolutepath(reference.json_file) == 1)
   assert.are.equal(1, vim.fn.filereadable(reference.json_file), ("missing object kind file %s"):format(reference.json_file))
+end
+
+--- Groups the object kind references of an index file by kind.
+---@param index cmakeseer.cmake.file_api.reply.index.File
+---@return table<string, cmakeseer.cmake.file_api.reply.FileReference> objects
+local function objects_by_kind(index)
+  ---@type table<string, cmakeseer.cmake.file_api.reply.FileReference>
+  local objects = {}
+  for _, object in ipairs(index.objects) do
+    objects[object.kind] = object
+  end
+  return objects
 end
 
 describe("reply.index.File", function()
@@ -82,10 +98,8 @@ describe("reply.index.File", function()
 
       local index = parse_configured_index()
 
-      ---@type table<string, cmakeseer.cmake.file_api.reply.FileReference>
-      local objects = {}
+      local objects = objects_by_kind(index)
       for _, object in ipairs(index.objects) do
-        objects[object.kind] = object
         assert_reference_is_on_disk(object, get_valid_object_kind_version(object.kind))
       end
       for _, kind in pairs(object_kind.ObjectKindType) do
@@ -149,6 +163,253 @@ describe("reply.index.File", function()
       ---@cast cache_reply cmakeseer.cmake.file_api.reply.Valid
       assert_reference_is_on_disk(codemodel_reply.reply, 2)
       assert_reference_is_on_disk(cache_reply.reply, 2)
+    end)
+  end)
+
+  describe("get_shared_stateless_reply", function()
+    it("returns the reply CMake wrote for the queried kind", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local reply = assert(index:get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 2))
+
+      assert.are.equal("valid", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Valid
+      local objects = objects_by_kind(index)
+      assert.are.equal(objects[object_kind.ObjectKindType.Codemodel].json_file, reply.reply.json_file)
+      assert_reference_is_on_disk(reply.reply, 2)
+    end)
+
+    it("returns the error reply when CMake does not support the queried version", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, UNSUPPORTED_VERSION))
+      cmake_configure("object_kinds", tmp.path)
+
+      local reply = assert(parse_configured_index():get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, UNSUPPORTED_VERSION))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("unknown query file", reply.error)
+    end)
+
+    it("returns nothing when a different kind was queried", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_shared_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+    end)
+
+    it("returns nothing when a different version was queried", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 1))
+    end)
+  end)
+
+  describe("get_client_replies", function()
+    it("returns the stateless and stateful replies of the client", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      local query = QueryStateful.default()
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = 2 })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      local replies = assert(parse_configured_index():get_client_replies(client))
+      assert.is_nil(replies.stateful_error)
+
+      local stateless_id = file_api.build_stateless_id(object_kind.ObjectKindType.Cache, 2)
+      assert.are.equal("valid", assert(assert(replies.stateless)[stateless_id]).kind)
+      assert.are.equal("valid", assert(assert(replies.stateful).responses[1]).kind)
+    end)
+
+    it("returns nothing when no client queried", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_replies(client))
+    end)
+  end)
+
+  describe("get_client_stateless_reply", function()
+    it("returns the reply CMake wrote for the client", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local reply = assert(index:get_client_stateless_reply(client, object_kind.ObjectKindType.Cache, 2))
+
+      assert.are.equal("valid", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Valid
+      local objects = objects_by_kind(index)
+      assert.are.equal(objects[object_kind.ObjectKindType.Cache].json_file, reply.reply.json_file)
+      assert_reference_is_on_disk(reply.reply, 2)
+    end)
+
+    it("returns the error reply when CMake does not support the queried version", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Codemodel, UNSUPPORTED_VERSION))
+      cmake_configure("object_kinds", tmp.path)
+
+      local reply = assert(parse_configured_index():get_client_stateless_reply(client, object_kind.ObjectKindType.Codemodel, UNSUPPORTED_VERSION))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("unknown query file", reply.error)
+    end)
+
+    it("returns nothing when the client did not query that kind", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateless_reply(client, object_kind.ObjectKindType.Codemodel, 2))
+    end)
+
+    it("returns nothing when no client queried", function()
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Codemodel, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateless_reply(client, object_kind.ObjectKindType.Cache, 2))
+    end)
+  end)
+
+  describe("shared and client replies in one index", function()
+    it("resolves the same kind queried both ways", function()
+      -- CMake writes a single object kind file for a kind, so both replies point at the same file.
+      assert.is_nil(file_api_query.issue_shared_stateless_query(tmp.path, object_kind.ObjectKindType.Cache, 2))
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local shared = assert(index:get_shared_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+      local client_reply = assert(index:get_client_stateless_reply(client, object_kind.ObjectKindType.Cache, 2))
+
+      assert.are.equal("valid", shared.kind)
+      assert.are.equal("valid", client_reply.kind)
+      ---@cast shared cmakeseer.cmake.file_api.reply.Valid
+      ---@cast client_reply cmakeseer.cmake.file_api.reply.Valid
+      assert_reference_is_on_disk(shared.reply, 2)
+      assert.are.equal(shared.reply.json_file, client_reply.reply.json_file)
+    end)
+  end)
+
+  describe("get_client_stateful", function()
+    it("returns the stateful reply CMake echoed", function()
+      local query = QueryStateful.default()
+      query.client = { name = client }
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = 2 })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      local stateful = assert(parse_configured_index():get_client_stateful(client))
+      assert.are.same({ name = client }, stateful.client)
+      assert.are.same({ { kind = object_kind.ObjectKindType.Codemodel, version = 2 } }, stateful.requests)
+      assert.are.equal(1, #stateful.responses)
+      assert.are.equal("valid", stateful.responses[1].kind)
+    end)
+
+    it("returns nothing when the client made no stateful query", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateful(client))
+    end)
+
+    it("returns an errored stateful reply when CMake rejected the query", function()
+      -- A query.json without a `requests` member makes CMake answer with an error in place of the
+      -- responses. The stateless replies of the same client are still answered.
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, QueryStateful.default()))
+      local query_path = vim.fs.joinpath(file_api.query_dir(tmp.path), file_api.build_client_id(client), "query.json")
+      write_file(query_path, ('{"client":{"name":"%s"}}'):format(client))
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local stateful = assert(index:get_client_stateful(client))
+      assert.are.equal("'requests' member missing", stateful.error)
+      assert.is_nil(stateful.responses)
+      assert.is_nil(index:get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Cache, version = 2 }))
+
+      local stateless_reply = assert(index:get_client_stateless_reply(client, object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", stateless_reply.kind)
+    end)
+
+    it("returns nothing when CMake could not read the stateful query", function()
+      -- A query.json that is not a JSON object makes CMake report the error beside the query
+      -- itself rather than in place of its responses, so there is no stateful reply at all. The
+      -- stateless replies of the same client are still answered.
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, QueryStateful.default()))
+      local query_path = vim.fs.joinpath(file_api.query_dir(tmp.path), file_api.build_client_id(client), "query.json")
+      write_file(query_path, "not json at all")
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local replies = assert(index:get_client_replies(client))
+      -- The wording is CMake's JSON parser, so only assert that it reported something.
+      assert.is_string(replies.stateful_error)
+      assert.is_not.equal("", replies.stateful_error)
+      assert.is_nil(replies.stateful)
+      assert.is_nil(index:get_client_stateful(client))
+      assert.is_nil(index:get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Cache, version = 2 }))
+
+      local stateless_reply = assert(index:get_client_stateless_reply(client, object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", stateless_reply.kind)
+    end)
+  end)
+
+  describe("get_client_stateful_response", function()
+    it("returns the response of the requested kind", function()
+      local query = QueryStateful.default()
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = 2 })
+      query:add_request({ kind = object_kind.ObjectKindType.Cache, version = 2 })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      local index = parse_configured_index()
+      local objects = objects_by_kind(index)
+
+      for _, kind in ipairs({ object_kind.ObjectKindType.Codemodel, object_kind.ObjectKindType.Cache }) do
+        local reply = assert(index:get_client_stateful_response(client, { kind = kind, version = 2 }))
+        assert.are.equal("valid", reply.kind, ("no valid response for %s"):format(kind))
+        ---@cast reply cmakeseer.cmake.file_api.reply.Valid
+        assert.are.equal(objects[kind].json_file, reply.reply.json_file)
+        assert_reference_is_on_disk(reply.reply, 2)
+      end
+    end)
+
+    it("returns the error response when CMake does not support the requested version", function()
+      local query = QueryStateful.default()
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = UNSUPPORTED_VERSION })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      local reply = assert(parse_configured_index():get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Codemodel, version = UNSUPPORTED_VERSION }))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal(("no supported version specified among: %d.0"):format(UNSUPPORTED_VERSION), reply.error)
+    end)
+
+    it("returns nothing when the kind was not requested", function()
+      local query = QueryStateful.default()
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = 2 })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Cache, version = 2 }))
+    end)
+
+    it("returns nothing when the version was not requested", function()
+      local query = QueryStateful.default()
+      query:add_request({ kind = object_kind.ObjectKindType.Codemodel, version = 2 })
+      assert.is_nil(file_api_query.issue_client_stateful_query(client, tmp.path, query))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Codemodel, version = 1 }))
+    end)
+
+    it("returns nothing when the client made no stateful query", function()
+      assert.is_nil(file_api_query.issue_client_stateless_query(client, tmp.path, object_kind.ObjectKindType.Cache, 2))
+      cmake_configure("object_kinds", tmp.path)
+
+      assert.is_nil(parse_configured_index():get_client_stateful_response(client, { kind = object_kind.ObjectKindType.Cache, version = 2 }))
     end)
   end)
 end)
