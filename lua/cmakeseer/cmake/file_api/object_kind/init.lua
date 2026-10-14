@@ -1,3 +1,11 @@
+---@class cmakeseer.cmake.file_api.object_kind.ObjectKind
+---@field kind cmakeseer.cmake.file_api.object_kind.ObjectKindType
+---@field version cmakeseer.cmake.file_api.object_kind.Version
+
+---@class (exact) cmakeseer.cmake.file_api.object_kind.Version A CMake version object.
+---@field major number The major version number.
+---@field minor number The minor version number.
+
 local M = {
   ---@enum cmakeseer.cmake.file_api.object_kind.ObjectKindType The possible Object Kind types.
   ObjectKindType = {
