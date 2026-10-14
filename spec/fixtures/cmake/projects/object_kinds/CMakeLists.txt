@@ -6,3 +6,6 @@ set(MY_CUSTOM_CACHE_VAR "HelloWorld" CACHE STRING "A test variable")
 
 # A dummy target to populate the "codemodel" structure
 add_executable(mainApp main.cpp)
+
+# A message to populate the "configureLog" object kind
+message(CONFIGURE_LOG "CMAKESEER_CONFIGURE_LOG_MARKER")

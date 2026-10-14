@@ -3,14 +3,14 @@ local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 --- A reference to another file containing an object kind.
 ---@class cmakeseer.cmake.file_api.reply.FileReference
 ---@field kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
----@field version { major: integer, minor: integer } The version of the object kind.
+---@field version cmakeseer.cmake.file_api.object_kind.Version The version of the object kind.
 ---@field json_file string Absolute path to the object kind file.
 local FileReference = {}
 FileReference.__index = FileReference
 
 --- Creates a new FileReference instance.
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
----@param version { major: integer, minor: integer } The version of the object kind.
+---@param version cmakeseer.cmake.file_api.object_kind.Version The version of the object kind.
 ---@param json_file string Absolute path to the object kind file.
 ---@return cmakeseer.cmake.file_api.reply.FileReference? obj, string? err The new instance.
 function FileReference.new(kind, version, json_file)
@@ -23,7 +23,7 @@ end
 
 --- Creates a new FileReference instance without checking invariants.
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The kind of the reference.
----@param version { major: integer, minor: integer } The version of the object kind.
+---@param version cmakeseer.cmake.file_api.object_kind.Version The version of the object kind.
 ---@param json_file string Absolute path to the object kind file.
 ---@return cmakeseer.cmake.file_api.reply.FileReference obj The new instance.
 function FileReference.new_unchecked(kind, version, json_file)
