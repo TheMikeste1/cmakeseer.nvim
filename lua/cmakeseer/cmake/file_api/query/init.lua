@@ -7,7 +7,7 @@ local M = {}
 --- <https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html#v1-shared-stateless-query-files>
 ---@param build_dir string The build directory for the API.
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
----@param major_version integer
+---@param major_version integer The desired major version.
 ---@return string? err Any error if one occurs.
 function M.issue_shared_stateless_query(build_dir, kind, major_version)
   local query_dir = file_api.query_dir(build_dir)
@@ -17,7 +17,7 @@ function M.issue_shared_stateless_query(build_dir, kind, major_version)
     return mkdir_error
   end
 
-  local query_file = ("%s-v%d"):format(kind, major_version)
+  local query_file = file_api.build_stateless_id(kind, major_version)
   local query_path = vim.fs.joinpath(query_dir, query_file)
   local f, err = io.open(query_path, "w")
   if f ~= nil then
@@ -31,11 +31,11 @@ end
 ---@param client string The name or ID of the client.
 ---@param build_dir string The build directory for the API.
 ---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
----@param major_version integer
+---@param major_version integer The desired major version.
 ---@return string? err Any error if one occurs.
 function M.issue_client_stateless_query(client, build_dir, kind, major_version)
   local query_dir = file_api.query_dir(build_dir)
-  local client_dir = ("client-%s"):format(client)
+  local client_dir = file_api.build_client_id(client)
   local client_path = vim.fs.joinpath(query_dir, client_dir)
   local query_dir_exists, mkdir_error = pcall(vim.fs.mkdir, client_path, { parents = true })
   if not query_dir_exists then
@@ -43,7 +43,7 @@ function M.issue_client_stateless_query(client, build_dir, kind, major_version)
     return mkdir_error
   end
 
-  local query_file = ("%s-v%d"):format(kind, major_version)
+  local query_file = file_api.build_stateless_id(kind, major_version)
   local query_path = vim.fs.joinpath(client_path, query_file)
   local f, err = io.open(query_path, "w")
   if f ~= nil then
@@ -61,7 +61,7 @@ end
 ---@return string? err Any error if one occurs.
 function M.issue_client_stateful_query(client, build_dir, query)
   local query_dir = file_api.query_dir(build_dir)
-  local client_dir = ("client-%s"):format(client)
+  local client_dir = file_api.build_client_id(client)
   local client_path = vim.fs.joinpath(query_dir, client_dir)
   local query_dir_exists, mkdir_error = pcall(vim.fs.mkdir, client_path, { parents = true })
   if not query_dir_exists then
@@ -86,7 +86,7 @@ function M.add_client_stateful_query(client, build_dir, query, opts)
   ---@cast opts table<string, any>
 
   local query_dir = file_api.query_dir(build_dir)
-  local client_dir = ("client-%s"):format(client)
+  local client_dir = file_api.build_client_id(client)
   local client_path = vim.fs.joinpath(query_dir, client_dir)
   local query_dir_exists, mkdir_error = pcall(vim.fs.mkdir, client_path, { parents = true })
   if not query_dir_exists then

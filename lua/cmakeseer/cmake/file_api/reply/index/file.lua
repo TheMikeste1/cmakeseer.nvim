@@ -2,6 +2,7 @@ local CMake = require("cmakeseer.cmake.file_api.reply.index.cmake")
 local Client = require("cmakeseer.cmake.file_api.reply.client")
 local FileReference = require("cmakeseer.cmake.file_api.reply.file_reference")
 local Reply = require("cmakeseer.cmake.file_api.reply.types")
+local file_api = require("cmakeseer.cmake.file_api")
 
 --- A reply in a file.
 ---@alias cmakeseer.cmake.file_api.reply.index.FileReply
@@ -123,6 +124,70 @@ function File.try_from_json(json, index_file_path)
   end
 
   return File.take(succeeded, cmake, objects, replies)
+end
+
+--- Gets the reply for a shared stateless query.
+---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
+---@param major_version integer The desired major version.
+---@return cmakeseer.cmake.file_api.Reply? reply The reply, if the file has it.
+function File:get_shared_stateless_reply(kind, major_version)
+  local id = file_api.build_stateless_id(kind, major_version)
+  local maybe_reply = self.replies[id]
+  assert(maybe_reply == nil or maybe_reply.kind ~= "client")
+  return maybe_reply
+end
+
+--- Gets the replies for a client's queries.
+---@param client string The name or ID of the client.
+---@return cmakeseer.cmake.file_api.reply.Client? reply The reply, if the file has it.
+function File:get_client_replies(client)
+  local client_id = file_api.build_client_id(client)
+  local reply = self.replies[client_id]
+  if reply == nil then
+    return nil
+  end
+  assert(reply.kind == "client")
+  local client_reply = reply.client_reply
+  return client_reply
+end
+
+--- Gets the reply for a client stateless query.
+---@param client string The name or ID of the client.
+---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
+---@param major_version integer The desired major version.
+---@return cmakeseer.cmake.file_api.Reply? reply The reply, if the file has it.
+function File:get_client_stateless_reply(client, kind, major_version)
+  local client_reply = self:get_client_replies(client)
+  if client_reply == nil then
+    return nil
+  end
+
+  return client_reply:get_stateless_reply(kind, major_version)
+end
+
+--- Gets the reply for a client stateful query.
+---@param client string The name or ID of the client.
+---@return cmakeseer.cmake.file_api.reply.Stateful? stateful The stateful, if the file has it.
+function File:get_client_stateful(client)
+  local client_reply = self:get_client_replies(client)
+  if client_reply == nil then
+    return nil
+  end
+
+  return client_reply.stateful
+end
+
+--- Gets the response to a specific stateful query.
+---@param client string The name or ID of the client.
+---@param kind cmakeseer.cmake.file_api.query.ObjectKind The kind for the response to get.
+---@return cmakeseer.cmake.file_api.Reply? reply The reply, if the file has it.
+function File:get_client_stateful_response(client, kind)
+  local stateful = self:get_client_stateful(client)
+  if stateful == nil then
+    return nil
+  end
+
+  return stateful:get_response(kind)
 end
 
 return File

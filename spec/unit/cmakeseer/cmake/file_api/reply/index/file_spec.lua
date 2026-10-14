@@ -1,7 +1,9 @@
 local CMake = require("cmakeseer.cmake.file_api.reply.index.cmake")
+local Client = require("cmakeseer.cmake.file_api.reply.client")
 local File = require("cmakeseer.cmake.file_api.reply.index.file")
 local FileReference = require("cmakeseer.cmake.file_api.reply.file_reference")
 local Reply = require("cmakeseer.cmake.file_api.reply.types")
+local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 
 ---A valid cmake object, with optional overrides.
 ---@param overrides? table<string, any> Values to override.
@@ -47,6 +49,37 @@ end
 
 local INDEX_FILE_PATH = "/tmp/build/.cmake/api/v1/reply/index-2024-01-01.json"
 local ERROR_FILE_PATH = "/tmp/build/.cmake/api/v1/reply/error-2024-01-01.json"
+
+---Builds an index file around the given replies, bypassing JSON parsing.
+---@param replies table<string, cmakeseer.cmake.file_api.reply.index.FileReply>
+---@return cmakeseer.cmake.file_api.reply.index.File file
+local function file_with_replies(replies)
+  return File.take(true, assert(CMake.try_from_json(valid_cmake_json())), {}, replies)
+end
+
+---Builds an index file whose only client reply holds the given stateless replies.
+---@param replies table<string, table<string, any>> The replies, keyed the way CMake keys them.
+---@return cmakeseer.cmake.file_api.reply.index.File file
+local function file_with_client_stateless(replies)
+  return assert(File.try_from_json(
+    valid_json({
+      reply = { ["client-cmakeseer"] = replies },
+    }),
+    INDEX_FILE_PATH
+  ))
+end
+
+---Builds an index file whose only client reply is the given stateful `query.json` reply object.
+---@param query_json table<string, any> The `query.json` reply object.
+---@return cmakeseer.cmake.file_api.reply.index.File file
+local function file_with_client_stateful(query_json)
+  return assert(File.try_from_json(
+    valid_json({
+      reply = { ["client-cmakeseer"] = { ["query.json"] = query_json } },
+    }),
+    INDEX_FILE_PATH
+  ))
+end
 
 describe("index.File", function()
   describe("new", function()
@@ -261,6 +294,271 @@ describe("index.File", function()
       local file, err = File.try_from_json(json, INDEX_FILE_PATH)
       assert.is_nil(file)
       assert.are.equal("reply for client-cmakeseer: query.json is wrong type: string", err)
+    end)
+  end)
+
+  describe("get_shared_stateless_reply", function()
+    it("returns the reply for the requested kind and version", function()
+      local json = valid_json({
+        reply = {
+          ["codemodel-v2"] = valid_reference_json(),
+          ["cache-v2"] = valid_reference_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }),
+        },
+      })
+      local file = assert(File.try_from_json(json, INDEX_FILE_PATH))
+
+      local codemodel = assert(file:get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 2))
+      assert.are.equal("valid", codemodel.kind)
+      ---@cast codemodel cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/codemodel-v2@hash.json", codemodel.reply.json_file)
+
+      local cache = assert(file:get_shared_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", cache.kind)
+      ---@cast cache cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/cache-v2@hash.json", cache.reply.json_file)
+    end)
+
+    it("returns an error reply rather than nothing", function()
+      local file = assert(File.try_from_json(valid_json({ reply = { ["codemodel-v99"] = { error = "unknown query file" } } }), INDEX_FILE_PATH))
+
+      local reply = assert(file:get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 99))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("unknown query file", reply.error)
+    end)
+
+    it("returns nothing for a kind that was not queried", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_shared_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+    end)
+
+    it("returns nothing for a version that was not queried", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 1))
+    end)
+
+    -- Unreachable through `try_from_json`: an object kind id never starts with "client-", so the
+    -- parser never stores a client reply under one. Guards the invariant if that dispatch changes.
+    it("refuses to return a client reply", function()
+      local file = file_with_replies({
+        ["codemodel-v2"] = { kind = "client", client_reply = Client.new() },
+      })
+
+      assert.has_error(function()
+        file:get_shared_stateless_reply(object_kind.ObjectKindType.Codemodel, 2)
+      end)
+    end)
+  end)
+
+  describe("shared and client replies are kept apart", function()
+    --- An index in which the same kind was queried both shared and per-client, each answering
+    --- with a different object kind file.
+    ---@return cmakeseer.cmake.file_api.reply.index.File file
+    local function file_with_both_namespaces()
+      return assert(File.try_from_json(
+        valid_json({
+          reply = {
+            ["cache-v2"] = valid_reference_json({ kind = "cache", jsonFile = "shared-cache-v2.json" }),
+            ["client-cmakeseer"] = {
+              ["cache-v2"] = valid_reference_json({ kind = "cache", jsonFile = "client-cache-v2.json" }),
+            },
+          },
+        }),
+        INDEX_FILE_PATH
+      ))
+    end
+
+    it("returns the shared reply for the shared lookup", function()
+      local shared = assert(file_with_both_namespaces():get_shared_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", shared.kind)
+      ---@cast shared cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/shared-cache-v2.json", shared.reply.json_file)
+    end)
+
+    it("returns the client reply for the client lookup", function()
+      local client = assert(file_with_both_namespaces():get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", client.kind)
+      ---@cast client cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/client-cache-v2.json", client.reply.json_file)
+    end)
+  end)
+
+  describe("get_client_replies", function()
+    it("returns the replies of the client", function()
+      local file = assert(File.try_from_json(
+        valid_json({
+          reply = {
+            ["client-cmakeseer"] = {
+              ["cache-v2"] = valid_reference_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }),
+              ["query.json"] = { responses = { valid_reference_json() } },
+            },
+          },
+        }),
+        INDEX_FILE_PATH
+      ))
+
+      local replies = assert(file:get_client_replies("cmakeseer"))
+      assert.is_nil(replies.stateful_error)
+      assert.are.equal("valid", assert(replies.stateless["cache-v2"]).kind)
+      assert.is_not_nil(replies.stateful)
+    end)
+
+    it("returns nothing when the client did not query", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_client_replies("cmakeseer"))
+    end)
+
+    it("does not return the replies of another client", function()
+      local file = file_with_client_stateless({ ["cache-v2"] = valid_reference_json() })
+      assert.is_nil(file:get_client_replies("another-client"))
+    end)
+
+    it("refuses to return a reply that is not a client reply", function()
+      local file = file_with_replies({
+        ["client-cmakeseer"] = Reply.from_json(valid_reference_json(), INDEX_FILE_PATH),
+      })
+
+      assert.has_error(function()
+        file:get_client_replies("cmakeseer")
+      end)
+    end)
+
+    -- CMake reports a rejected stateful query inside `responses.error`, but the parser also accepts
+    -- a `query.json.error`, which drops the stateful reply while keeping the stateless ones.
+    it("reports an error that replaced the stateful reply", function()
+      local file = assert(File.try_from_json(
+        valid_json({
+          reply = {
+            ["client-cmakeseer"] = {
+              ["cache-v2"] = valid_reference_json(),
+              ["query.json"] = { error = "bad request" },
+            },
+          },
+        }),
+        INDEX_FILE_PATH
+      ))
+
+      local replies = assert(file:get_client_replies("cmakeseer"))
+      assert.are.equal("bad request", replies.stateful_error)
+      assert.is_nil(replies.stateful)
+      assert.is_nil(file:get_client_stateful("cmakeseer"))
+      assert.is_not_nil(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Cache, 2))
+    end)
+  end)
+
+  describe("get_client_stateless_reply", function()
+    it("returns the reply for the requested kind and version", function()
+      local file = file_with_client_stateless({
+        ["cache-v2"] = valid_reference_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }),
+      })
+
+      local reply = assert(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/cache-v2@hash.json", reply.reply.json_file)
+    end)
+
+    it("returns an error reply rather than nothing", function()
+      local file = file_with_client_stateless({ ["codemodel-v99"] = { error = "unknown query file" } })
+
+      local reply = assert(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Codemodel, 99))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("unknown query file", reply.error)
+    end)
+
+    it("returns nothing for a kind that was not queried", function()
+      local file = file_with_client_stateless({ ["cache-v2"] = valid_reference_json() })
+      assert.is_nil(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Codemodel, 2))
+    end)
+
+    it("returns nothing when the client did not query", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Cache, 2))
+    end)
+
+    it("returns nothing when the client only made a stateful query", function()
+      local file = file_with_client_stateful({ responses = {} })
+      assert.is_nil(file:get_client_stateless_reply("cmakeseer", object_kind.ObjectKindType.Cache, 2))
+    end)
+  end)
+
+  describe("get_client_stateful", function()
+    it("returns the stateful reply of the client", function()
+      local file = file_with_client_stateful({
+        requests = { { kind = "codemodel", version = 2 } },
+        responses = { valid_reference_json() },
+      })
+
+      local stateful = assert(file:get_client_stateful("cmakeseer"))
+      assert.are.same({ { kind = "codemodel", version = 2 } }, stateful.requests)
+      assert.are.equal("valid", assert(stateful.responses[1]).kind)
+    end)
+
+    it("returns the errored stateful reply when the query was rejected", function()
+      local file = file_with_client_stateful({ responses = { error = "'requests' member missing" } })
+
+      local stateful = assert(file:get_client_stateful("cmakeseer"))
+      assert.are.equal("'requests' member missing", stateful.error)
+      assert.is_nil(stateful.responses)
+    end)
+
+    it("returns nothing when the client did not make a stateful query", function()
+      local file = file_with_client_stateless({ ["cache-v2"] = valid_reference_json() })
+      assert.is_nil(file:get_client_stateful("cmakeseer"))
+    end)
+
+    it("returns nothing when the client did not query", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_client_stateful("cmakeseer"))
+    end)
+  end)
+
+  describe("get_client_stateful_response", function()
+    it("returns the response of the requested kind", function()
+      local file = file_with_client_stateful({
+        requests = {
+          { kind = "codemodel", version = 2 },
+          { kind = "cache", version = 2 },
+        },
+        responses = {
+          valid_reference_json(),
+          valid_reference_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }),
+        },
+      })
+
+      local codemodel = assert(file:get_client_stateful_response("cmakeseer", { kind = "codemodel", version = 2 }))
+      assert.are.equal("valid", codemodel.kind)
+      ---@cast codemodel cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/codemodel-v2@hash.json", codemodel.reply.json_file)
+
+      local cache = assert(file:get_client_stateful_response("cmakeseer", { kind = "cache", version = 2 }))
+      assert.are.equal("valid", cache.kind)
+      ---@cast cache cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/cache-v2@hash.json", cache.reply.json_file)
+    end)
+
+    it("returns nothing for a kind that was not requested", function()
+      local file = file_with_client_stateful({
+        requests = { { kind = "codemodel", version = 2 } },
+        responses = { valid_reference_json() },
+      })
+      assert.is_nil(file:get_client_stateful_response("cmakeseer", { kind = "cache", version = 2 }))
+    end)
+
+    it("returns nothing when the stateful query was rejected", function()
+      local file = file_with_client_stateful({ responses = { error = "'requests' member missing" } })
+      assert.is_nil(file:get_client_stateful_response("cmakeseer", { kind = "codemodel", version = 2 }))
+    end)
+
+    it("returns nothing when the client did not make a stateful query", function()
+      local file = file_with_client_stateless({ ["cache-v2"] = valid_reference_json() })
+      assert.is_nil(file:get_client_stateful_response("cmakeseer", { kind = "cache", version = 2 }))
+    end)
+
+    it("returns nothing when the client did not query", function()
+      local file = assert(File.try_from_json(valid_json(), INDEX_FILE_PATH))
+      assert.is_nil(file:get_client_stateful_response("cmakeseer", { kind = "codemodel", version = 2 }))
     end)
   end)
 end)

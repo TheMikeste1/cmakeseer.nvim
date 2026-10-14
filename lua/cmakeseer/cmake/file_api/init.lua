@@ -21,4 +21,19 @@ function M.reply_dir(build_dir)
   return vim.fs.joinpath(api_dir(build_dir), "reply")
 end
 
+--- Builds the ID for a stateless query or reply.
+---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
+---@param major_version integer The desired major version.
+---@return string id
+function M.build_stateless_id(kind, major_version)
+  return ("%s-v%d"):format(kind, major_version)
+end
+
+--- Builds the ID for a client query or reply.
+---@param client string The name or ID of the client.
+---@return string id
+function M.build_client_id(client)
+  return ("client-%s"):format(client)
+end
+
 return M

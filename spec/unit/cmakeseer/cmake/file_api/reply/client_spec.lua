@@ -1,6 +1,7 @@
 local Client = require("cmakeseer.cmake.file_api.reply.client")
 local Reply = require("cmakeseer.cmake.file_api.reply.types")
 local Stateful = require("cmakeseer.cmake.file_api.reply.stateful")
+local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 
 ---A valid file reference object, with optional overrides.
 ---@param overrides? table<string, any> Values to override.
@@ -216,6 +217,55 @@ describe("reply.Client", function()
       local client, err = Client.try_from_json({ ["query.json"] = {} }, INDEX_FILE_PATH)
       assert.is_nil(client)
       assert.are.equal("query.json responses is wrong type: nil", err)
+    end)
+  end)
+
+  describe("get_stateless_reply", function()
+    it("returns the reply for the requested kind and version", function()
+      local client = assert(Client.try_from_json({
+        ["codemodel-v2"] = valid_json(),
+        ["cache-v2"] = valid_json({ kind = "cache", jsonFile = "cache-v2@hash.json" }),
+      }, INDEX_FILE_PATH))
+
+      local codemodel = assert(client:get_stateless_reply(object_kind.ObjectKindType.Codemodel, 2))
+      assert.are.equal("valid", codemodel.kind)
+      ---@cast codemodel cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/codemodel-v2@hash.json", codemodel.reply.json_file)
+
+      local cache = assert(client:get_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+      assert.are.equal("valid", cache.kind)
+      ---@cast cache cmakeseer.cmake.file_api.reply.Valid
+      assert.are.equal("/tmp/build/.cmake/api/v1/reply/cache-v2@hash.json", cache.reply.json_file)
+    end)
+
+    it("returns an error reply rather than nothing", function()
+      local client = assert(Client.try_from_json({ ["codemodel-v99"] = { error = "unknown query file" } }, INDEX_FILE_PATH))
+
+      local reply = assert(client:get_stateless_reply(object_kind.ObjectKindType.Codemodel, 99))
+      assert.are.equal("error", reply.kind)
+      ---@cast reply cmakeseer.cmake.file_api.reply.Error
+      assert.are.equal("unknown query file", reply.error)
+    end)
+
+    it("returns nothing for a kind that was not queried", function()
+      local client = assert(Client.try_from_json({ ["codemodel-v2"] = valid_json() }, INDEX_FILE_PATH))
+      assert.is_nil(client:get_stateless_reply(object_kind.ObjectKindType.Cache, 2))
+    end)
+
+    it("returns nothing for a version that was not queried", function()
+      local client = assert(Client.try_from_json({ ["codemodel-v2"] = valid_json() }, INDEX_FILE_PATH))
+      assert.is_nil(client:get_stateless_reply(object_kind.ObjectKindType.Codemodel, 1))
+    end)
+
+    it("returns nothing when the client only made a stateful query", function()
+      local client = assert(Client.try_from_json({ ["query.json"] = { responses = {} } }, INDEX_FILE_PATH))
+      assert.is_nil(client.stateless)
+      assert.is_nil(client:get_stateless_reply(object_kind.ObjectKindType.Codemodel, 2))
+    end)
+
+    it("returns nothing when the stateful query was rejected", function()
+      local client = Client.new_with_error(nil, "'requests' member missing")
+      assert.is_nil(client:get_stateless_reply(object_kind.ObjectKindType.Codemodel, 2))
     end)
   end)
 end)
