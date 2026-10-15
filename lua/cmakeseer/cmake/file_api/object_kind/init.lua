@@ -29,4 +29,23 @@ function M.from_string(str)
   return nil
 end
 
+--- Tries to extract a Version from a JSON object.
+---@param json any The json object from which values should be extracted.
+---@return cmakeseer.cmake.file_api.object_kind.Version? version, string? err The version, if successful. Otherwise an error.
+function M.try_version_from_json(json)
+  if type(json) ~= "table" then
+    return nil, "version is wrong type: " .. type(json)
+  end
+  if type(json.major) ~= "number" then
+    return nil, "version.major is wrong type: " .. type(json.major)
+  end
+  if type(json.minor) ~= "number" then
+    return nil, "version.minor is wrong type: " .. type(json.minor)
+  end
+  return {
+    major = json.major,
+    minor = json.minor,
+  }
+end
+
 return M

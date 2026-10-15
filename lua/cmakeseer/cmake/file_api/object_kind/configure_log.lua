@@ -1,4 +1,5 @@
-local ObjectKindType = require("cmakeseer.cmake.file_api.object_kind").ObjectKindType
+local object_kind = require("cmakeseer.cmake.file_api.object_kind")
+local ObjectKindType = object_kind.ObjectKindType
 
 ---Type and version information for an event kind. See <https://cmake.org/cmake/help/latest/manual/cmake-configure-log.7.html#event-kinds>.
 ---@class cmakeseer.cmake.file_api.object_kind.ConfigureLog.EventKind
@@ -71,15 +72,9 @@ function ConfigureLog.try_from_json(json)
     return nil, "Incorrect kind: " .. vim.inspect(json.kind)
   end
 
-  local version = json.version
-  if type(version) ~= "table" then
-    return nil, "version is wrong type: " .. type(version)
-  end
-  if type(version.major) ~= "number" then
-    return nil, "version.major is wrong type: " .. type(version.major)
-  end
-  if type(version.minor) ~= "number" then
-    return nil, "version.minor is wrong type: " .. type(version.minor)
+  local version, err = object_kind.try_version_from_json(json.version)
+  if version == nil then
+    return nil, err
   end
 
   local path = json.path
