@@ -133,7 +133,7 @@ function Cache.try_from_json(json)
     local parsed_entry
     parsed_entry, err = try_entry_from_json(entry)
     if parsed_entry == nil then
-      return nil, ("entry at %d: %s"):format(i, err)
+      return nil, ("entry at index %d: %s"):format(i, err)
     end
     table.insert(entries, parsed_entry)
   end
