@@ -115,6 +115,13 @@ describe("ConfigureLog", function()
       assert.are.same(valid_event_kinds(), instance.event_kinds)
     end)
 
+    it("does not share the version table with the json", function()
+      local json = valid_json()
+      local configure_log = assert(ConfigureLog.try_from_json(json))
+      json.version.major = 9
+      assert.are.equal(1, configure_log.version.major)
+    end)
+
     it("accepts an empty list of event kinds", function()
       local configure_log, err = ConfigureLog.try_from_json(valid_json({ eventKindNames = {} }))
       assert.is_nil(err)

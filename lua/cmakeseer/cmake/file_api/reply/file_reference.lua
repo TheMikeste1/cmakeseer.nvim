@@ -54,26 +54,21 @@ function FileReference.try_from_json(json, index_file_path)
     return nil, "kind was an invalid object kind: " .. kind_value
   end
 
-  local version = json["version"]
-  if type(version) ~= "table" then
-    return nil, "version is wrong type: " .. type(version)
-  end
-  if type(version.major) ~= "number" then
-    return nil, "version.major is wrong type: " .. type(version.major)
-  end
-  if type(version.minor) ~= "number" then
-    return nil, "version.minor is wrong type: " .. type(version.minor)
+  local version, err = object_kind.try_version_from_json(json.version)
+  if version == nil then
+    return nil, err
   end
 
   local json_file = json["jsonFile"]
   if type(json_file) ~= "string" then
     return nil, "jsonFile is wrong type: " .. type(json_file)
   end
-  assert(vim.fn.isabsolutepath(json_file) == 0)
-  json_file = vim.fs.joinpath(vim.fs.dirname(index_file_path), json_file)
-  json_file = vim.fn.fnamemodify(json_file, ":p")
+  if vim.fn.isabsolutepath(json_file) == 0 then
+    json_file = vim.fs.joinpath(vim.fs.dirname(index_file_path), json_file)
+    json_file = vim.fn.fnamemodify(json_file, ":p")
+  end
 
-  return FileReference.new_unchecked(kind, vim.deepcopy(version), json_file)
+  return FileReference.new_unchecked(kind, version, json_file)
 end
 
 return FileReference

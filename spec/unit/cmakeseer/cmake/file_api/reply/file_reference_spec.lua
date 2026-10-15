@@ -165,15 +165,9 @@ describe("FileReference", function()
       assert.are.equal(expected, reference.json_file)
     end)
 
-    it("raises when jsonFile is absolute", function()
-      -- The CMake file API guarantees `jsonFile` is relative to the index file, so an
-      -- absolute path is malformed input rather than a recoverable error.
-      local json = valid_json({ jsonFile = "/other/codemodel-v2@hash.json" })
-      local ok, err = pcall(function()
-        FileReference.try_from_json(json, INDEX_FILE_PATH)
-      end)
-      assert.is_false(ok)
-      assert.matches("assertion failed", tostring(err))
+    it("leaves an absolute jsonFile untouched", function()
+      local reference = assert(FileReference.try_from_json(valid_json({ jsonFile = "/other/codemodel-v2@hash.json" }), INDEX_FILE_PATH))
+      assert.are.equal("/other/codemodel-v2@hash.json", reference.json_file)
     end)
   end)
 end)
