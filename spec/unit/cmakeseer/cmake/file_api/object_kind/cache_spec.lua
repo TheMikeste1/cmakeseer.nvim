@@ -302,7 +302,7 @@ describe("Cache", function()
       it(("returns an error when an entry is a %s"):format(label), function()
         local cache, err = Cache.try_from_json(valid_json({ entries = { valid_json().entries[1], value } }))
         assert.is_nil(cache)
-        assert.are.equal(("entry at 2: json is wrong type: %s"):format(type(value)), err)
+        assert.are.equal(("entry at index 2: json is wrong type: %s"):format(type(value)), err)
       end)
     end
 
@@ -312,7 +312,7 @@ describe("Cache", function()
 
       local cache, err = Cache.try_from_json(json)
       assert.is_nil(cache)
-      assert.are.equal("entry at 3: json is wrong type: number", err)
+      assert.are.equal("entry at index 3: json is wrong type: number", err)
     end)
 
     for _, entry in ipairs({
@@ -340,7 +340,7 @@ describe("Cache", function()
         local cache, err = Cache.try_from_json(json)
         assert.is_nil(cache)
         local reported_label = field == "properties" and label or (label == "nil" and "nil" or "number")
-        assert.are.equal(("entry at 1: %s is wrong type: %s"):format(field, reported_label), err)
+        assert.are.equal(("entry at index 1: %s is wrong type: %s"):format(field, reported_label), err)
       end)
     end
 
@@ -349,7 +349,7 @@ describe("Cache", function()
         entries = { { name = "A", value = "1", type = "BOOL", properties = { HELPSTRING = "help" } } },
       }))
       assert.is_nil(cache)
-      assert.are.equal("entry at 1: properties is wrong type: table", err)
+      assert.are.equal("entry at index 1: properties is wrong type: table", err)
     end)
 
     for _, entry in ipairs({
@@ -365,7 +365,7 @@ describe("Cache", function()
 
         local cache, err = Cache.try_from_json(json)
         assert.is_nil(cache)
-        assert.are.equal(("entry at 1: property at 2: json is wrong type: %s"):format(type(value)), err)
+        assert.are.equal(("entry at index 1: property at index 2: json is wrong type: %s"):format(type(value)), err)
       end)
     end
 
@@ -375,7 +375,7 @@ describe("Cache", function()
 
       local cache, err = Cache.try_from_json(json)
       assert.is_nil(cache)
-      assert.are.equal("entry at 2: property at 2: value is wrong type: nil", err)
+      assert.are.equal("entry at index 2: property at index 2: value is wrong type: nil", err)
     end)
 
     it("reports the entry a property error belongs to", function()
@@ -384,7 +384,7 @@ describe("Cache", function()
 
       local cache, err = Cache.try_from_json(json)
       assert.is_nil(cache)
-      assert.are.equal("entry at 2: property at 3: name is wrong type: nil", err)
+      assert.are.equal("entry at index 2: property at index 3: name is wrong type: nil", err)
     end)
 
     it("validates the entries before their properties", function()
@@ -394,7 +394,7 @@ describe("Cache", function()
 
       local cache, err = Cache.try_from_json(json)
       assert.is_nil(cache)
-      assert.are.equal("entry at 1: type is wrong type: nil", err)
+      assert.are.equal("entry at index 1: type is wrong type: nil", err)
     end)
   end)
 
@@ -425,7 +425,7 @@ describe("Cache", function()
 
       local cache, err = Cache.try_from_file(write(json))
       assert.is_nil(cache)
-      assert.are.equal("entry at 1: properties is wrong type: nil", err)
+      assert.are.equal("entry at index 1: properties is wrong type: nil", err)
     end)
 
     it("returns an error when the file does not exist", function()
