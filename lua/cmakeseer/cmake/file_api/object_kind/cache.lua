@@ -93,7 +93,7 @@ local function try_entry_from_json(json)
   for i, prop in ipairs(raw_properties) do
     local parsed_entry, err = try_property_from_json(prop)
     if parsed_entry == nil then
-      return nil, ("property at %d: %s"):format(i, err)
+      return nil, ("property at index %d: %s"):format(i, err)
     end
     table.insert(properties, parsed_entry)
   end
