@@ -1,30 +1,26 @@
 local CMakeFiles = require("cmakeseer.cmake.file_api.object_kind.cmake_files")
-local cmake_configure = require("spec.fixtures.cmake.projects.configure")
+local configured_build = require("spec.fixtures.configured_build")
 local file_api = require("cmakeseer.cmake.file_api")
 local file_api_query = require("cmakeseer.cmake.file_api.query")
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 
---- The path of the cmakeFiles object file written by the last configure.
----@param build_dir string
----@return string? path
-local function cmake_files_object_path(build_dir)
+--- The path of the cmakeFiles object file CMake wrote for a fixture project.
+---@param project string
+---@return string path
+local function configured_object_path(project)
+  local build_dir = configured_build.of_project(project, function(dir)
+    assert.is_nil(file_api_query.issue_shared_stateless_query(dir, object_kind.ObjectKindType.CMakeFiles, 1))
+  end)
+
   local pattern = vim.fs.joinpath(file_api.reply_dir(build_dir), "cmakeFiles-*.json")
-  local matches = vim.fn.glob(pattern, true, true)
-  return matches[1]
+  return assert(vim.fn.glob(pattern, true, true)[1])
 end
 
---- Configures a CMake fixture project with a cmakeFiles query issued.
----@param project string The fixture project to configure.
----@param build_dir string
+--- Parses the cmakeFiles object CMake wrote for a fixture project, so that every test reads its own copy.
+---@param project string
 ---@return cmakeseer.cmake.file_api.object_kind.CMakeFiles obj
-local function configure_with_cmake_files_query(project, build_dir)
-  assert.is_nil(file_api_query.issue_shared_stateless_query(build_dir, object_kind.ObjectKindType.CMakeFiles, 1))
-  cmake_configure(project, build_dir)
-
-  local path = cmake_files_object_path(build_dir)
-  assert.is_not_nil(path)
-
-  local cmake_files, err = CMakeFiles.try_from_file(assert(path))
+local function configured_cmake_files(project)
+  local cmake_files, err = CMakeFiles.try_from_file(configured_object_path(project))
   assert.is_nil(err)
   return assert(cmake_files)
 end
@@ -101,25 +97,33 @@ local function find_glob(cmake_files, suffix)
 end
 
 describe("object_kind.CMakeFiles", function()
-  local tmp = require("spec.fixtures.tmpdir")()
+  --- The build directory the `object_kinds` project was configured into, which its paths are relative to.
+  ---@type string
+  local object_kinds_build_dir
+
+  lazy_setup(function()
+    object_kinds_build_dir = configured_build.of_project("object_kinds", function(dir)
+      assert.is_nil(file_api_query.issue_shared_stateless_query(dir, object_kind.ObjectKindType.CMakeFiles, 1))
+    end)
+  end)
 
   describe("try_from_file", function()
     it("parses the cmakeFiles object CMake writes", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
       assert.are.equal(object_kind.ObjectKindType.CMakeFiles, cmake_files.kind)
       assert.are.equal(1, cmake_files.version.major)
       assert.is_true(#cmake_files.inputs > 0)
     end)
 
     it("records the source and build directories the configure used", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
-      assert.are.equal(realpath(assert(configured_source_dir(tmp.path))), realpath(cmake_files.source))
-      assert.are.equal(realpath(tmp.path), realpath(cmake_files.build))
+      local cmake_files = configured_cmake_files("object_kinds")
+      assert.are.equal(realpath(assert(configured_source_dir(object_kinds_build_dir))), realpath(cmake_files.source))
+      assert.are.equal(realpath(object_kinds_build_dir), realpath(cmake_files.build))
     end)
 
     -- CMake reports a file inside the top-level source directory by its path relative to that directory.
     it("records CMakeLists.txt as an input relative to the source directory", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
 
       local input = assert(find_input(cmake_files, "CMakeLists.txt"))
       assert.is_false(input.generated)
@@ -128,16 +132,16 @@ describe("object_kind.CMakeFiles", function()
     end)
 
     it("records a generated input as an absolute path under the build directory", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
 
       local input = assert(find_generated_input(cmake_files))
       assert.is_false(input.external)
       assert.is_false(input.is_cmake)
-      assert.are.equal(input.path:sub(1, #tmp.path), tmp.path)
+      assert.are.equal(input.path:sub(1, #object_kinds_build_dir), object_kinds_build_dir)
     end)
 
     it("records a file from the CMake installation as an external CMake input", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
 
       local input = assert(find_cmake_input(cmake_files))
       assert.is_true(input.external)
@@ -147,7 +151,7 @@ describe("object_kind.CMakeFiles", function()
 
     -- CMake writes an input with only the flags that are true, so assert the shape rather than CMake's output.
     it("parses a boolean and a string for every input", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
       assert.is_true(#cmake_files.inputs > 0)
       for _, input in ipairs(cmake_files.inputs) do
         assert.are.equal("string", type(input.path))
@@ -158,17 +162,17 @@ describe("object_kind.CMakeFiles", function()
     end)
 
     it("records no globs for a project that never globs", function()
-      local cmake_files = configure_with_cmake_files_query("object_kinds", tmp.path)
+      local cmake_files = configured_cmake_files("object_kinds")
       assert.is_nil(cmake_files.globs)
     end)
 
     it("records every glob a project globs with CONFIGURE_DEPENDS", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
       assert.are.equal(3, #assert(cmake_files.globs))
     end)
 
     it("records the paths a recursive glob matched, with recurse set", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
 
       local glob = assert(find_glob(cmake_files, "/headers/*.hpp"))
       assert.is_true(glob.recurse)
@@ -184,7 +188,7 @@ describe("object_kind.CMakeFiles", function()
 
     -- A glob written with LIST_DIRECTORIES false is the only kind CMake reports without "listDirectories".
     it("leaves list_directories false for a glob written with LIST_DIRECTORIES false", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
 
       local glob = assert(find_glob(cmake_files, "/headers/nested/*.hpp"))
       assert.is_false(glob.list_directories)
@@ -192,17 +196,17 @@ describe("object_kind.CMakeFiles", function()
     end)
 
     it("records the relative path of a glob written with RELATIVE", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
       assert.are.equal("headers", assert(find_glob(cmake_files, "/headers/nested/*.hpp")).relative)
     end)
 
     it("records no relative path for a glob written without RELATIVE", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
       assert.is_nil(assert(find_glob(cmake_files, "/headers/*.txt")).relative)
     end)
 
     it("parses a string for every glob member and every glob path", function()
-      local cmake_files = configure_with_cmake_files_query("globs", tmp.path)
+      local cmake_files = configured_cmake_files("globs")
       assert.is_true(#assert(cmake_files.globs) > 0)
       for _, glob in ipairs(assert(cmake_files.globs)) do
         assert.are.equal("string", type(glob.expression))

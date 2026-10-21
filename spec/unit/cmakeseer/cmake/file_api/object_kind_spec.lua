@@ -107,4 +107,56 @@ describe("object_kind", function()
       assert.are.equal(2, version.major)
     end)
   end)
+
+  describe("try_decode_file", function()
+    local tmp = require("spec.fixtures.tmpdir")()
+
+    --- Writes contents to a file in the test's temporary directory.
+    ---@param contents string The exact bytes to write.
+    ---@return string path The path to the written file.
+    local function write(contents)
+      local path = vim.fs.joinpath(tmp.path, "codemodel-v2-0123456789abcdef.json")
+      require("spec.utils").write_file(path, contents)
+      return path
+    end
+
+    it("decodes an object", function()
+      local json, err = object_kind.try_decode_file(write('{"kind":"codemodel","version":{"major":2,"minor":11}}'))
+      assert.is_nil(err)
+      assert.are.same({ kind = "codemodel", version = { major = 2, minor = 11 } }, json)
+    end)
+
+    it("returns an error when the file does not exist", function()
+      local json, err = object_kind.try_decode_file(vim.fs.joinpath(tmp.path, "missing.json"))
+      assert.is_nil(json)
+      assert.is_not_nil(err)
+      ---@cast err string
+      assert.matches("missing%.json", err)
+    end)
+
+    it("returns an error when the path is a directory", function()
+      local dir = vim.fs.joinpath(tmp.path, "directory")
+      vim.fn.mkdir(dir, "p")
+
+      local json, err = object_kind.try_decode_file(dir)
+      assert.is_nil(json)
+      assert.are.equal(("Failed to read %s: Is a directory"):format(dir), err)
+    end)
+
+    it("returns an error when the file is empty", function()
+      local json, err = object_kind.try_decode_file(write(""))
+      assert.is_nil(json)
+      assert.is_not_nil(err)
+      ---@cast err string
+      assert.matches("^vim%.json%.decode: ", err)
+    end)
+
+    it("returns an error when the file is not JSON", function()
+      local json, err = object_kind.try_decode_file(write("not json"))
+      assert.is_nil(json)
+      assert.is_not_nil(err)
+      ---@cast err string
+      assert.matches("^vim%.json%.decode: ", err)
+    end)
+  end)
 end)

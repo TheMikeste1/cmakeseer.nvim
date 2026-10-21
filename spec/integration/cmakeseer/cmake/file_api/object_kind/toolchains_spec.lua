@@ -1,32 +1,8 @@
 local Toolchains = require("cmakeseer.cmake.file_api.object_kind.toolchains")
-local cmake_configure = require("spec.fixtures.cmake.projects.configure")
+local configured_build = require("spec.fixtures.configured_build")
 local file_api = require("cmakeseer.cmake.file_api")
 local file_api_query = require("cmakeseer.cmake.file_api.query")
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
-
---- The path of the toolchains object file written by the last configure.
----@param build_dir string
----@return string? path
-local function toolchains_object_path(build_dir)
-  local pattern = vim.fs.joinpath(file_api.reply_dir(build_dir), "toolchains-*.json")
-  local matches = vim.fn.glob(pattern, true, true)
-  return matches[1]
-end
-
---- Configures the `object_kinds` project with a toolchains query issued.
----@param build_dir string
----@return cmakeseer.cmake.file_api.object_kind.Toolchains obj
-local function configure_with_toolchains_query(build_dir)
-  assert.is_nil(file_api_query.issue_shared_stateless_query(build_dir, object_kind.ObjectKindType.Toolchains, 1))
-  cmake_configure("object_kinds", build_dir)
-
-  local path = toolchains_object_path(build_dir)
-  assert.is_not_nil(path)
-
-  local toolchains, err = Toolchains.try_from_file(assert(path))
-  assert.is_nil(err)
-  return assert(toolchains)
-end
 
 --- Finds a toolchain entry for the given language, if present.
 ---@param toolchains cmakeseer.cmake.file_api.object_kind.Toolchains
@@ -42,11 +18,30 @@ local function find_toolchain(toolchains, language)
 end
 
 describe("object_kind.Toolchains", function()
-  local tmp = require("spec.fixtures.tmpdir")()
+  --- The path of the toolchains object file CMake wrote into the build directory.
+  ---@type string
+  local object_path
+
+  lazy_setup(function()
+    local build_dir = configured_build.of_project("object_kinds", function(dir)
+      assert.is_nil(file_api_query.issue_shared_stateless_query(dir, object_kind.ObjectKindType.Toolchains, 1))
+    end)
+
+    local pattern = vim.fs.joinpath(file_api.reply_dir(build_dir), "toolchains-*.json")
+    object_path = assert(vim.fn.glob(pattern, true, true)[1])
+  end)
+
+  --- Parses the toolchains object CMake wrote, so that every test reads the same reply file of its own.
+  ---@return cmakeseer.cmake.file_api.object_kind.Toolchains toolchains
+  local function configured_toolchains()
+    local toolchains, err = Toolchains.try_from_file(object_path)
+    assert.is_nil(err)
+    return assert(toolchains)
+  end
 
   describe("try_from_file", function()
     it("parses the toolchains object CMake writes", function()
-      local toolchains = configure_with_toolchains_query(tmp.path)
+      local toolchains = configured_toolchains()
       assert.are.equal(object_kind.ObjectKindType.Toolchains, toolchains.kind)
       assert.are.equal(1, toolchains.version.major)
       assert.is_true(#toolchains.toolchains > 0)
@@ -54,7 +49,7 @@ describe("object_kind.Toolchains", function()
 
     -- The fixture enables CXX, so CMake must report at least a CXX toolchain.
     it("records the CXX toolchain the fixture declares", function()
-      local toolchains = configure_with_toolchains_query(tmp.path)
+      local toolchains = configured_toolchains()
       local cxx = assert(find_toolchain(toolchains, "CXX"))
       assert.are.equal("CXX", cxx.language)
     end)
@@ -62,7 +57,7 @@ describe("object_kind.Toolchains", function()
     -- CMake writes only the compiler fields that are defined; assert the shape rather than
     -- the exact compiler paths and IDs, which vary by host.
     it("parses only strings for every compiler field that is present", function()
-      local toolchains = configure_with_toolchains_query(tmp.path)
+      local toolchains = configured_toolchains()
       assert.is_true(#toolchains.toolchains > 0)
       for _, entry in ipairs(toolchains.toolchains) do
         assert.are.equal("string", type(entry.language))
@@ -76,7 +71,7 @@ describe("object_kind.Toolchains", function()
     end)
 
     it("parses only strings inside every implicit directory and library list", function()
-      local toolchains = configure_with_toolchains_query(tmp.path)
+      local toolchains = configured_toolchains()
       for _, entry in ipairs(toolchains.toolchains) do
         local implicit = entry.compiler.implicit
         for _, list in ipairs({
@@ -93,7 +88,7 @@ describe("object_kind.Toolchains", function()
     end)
 
     it("parses only strings for sourceFileExtensions when present", function()
-      local toolchains = configure_with_toolchains_query(tmp.path)
+      local toolchains = configured_toolchains()
       for _, entry in ipairs(toolchains.toolchains) do
         if entry.source_file_extensions ~= nil then
           assert.is_true(#entry.source_file_extensions > 0)
