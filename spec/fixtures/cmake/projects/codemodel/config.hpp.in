@@ -1,0 +1,3 @@
+#pragma once
+
+#define CMAKESEER_CONFIGURED_VERSION "@PROJECT_VERSION@"

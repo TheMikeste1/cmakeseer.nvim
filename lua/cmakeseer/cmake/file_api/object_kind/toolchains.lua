@@ -237,26 +237,11 @@ end
 ---@param path string The path to the file to load.
 ---@return cmakeseer.cmake.file_api.object_kind.Toolchains? obj, string? err The new instance if successful. Otherwise an error.
 function Toolchains.try_from_file(path)
-  local f, err = io.open(path, "r")
-  if f == nil then
+  local json, err = object_kind.try_decode_file(path)
+  if json == nil then
     return nil, err
   end
-
-  ---@type string?
-  local json = f:read("*a")
-  f:close()
-  if json == nil then
-    return nil, "Failed to read " .. path .. ": Is a directory"
-  end
-
-  ---@type boolean, table<string>|string
-  local success, object_or_err = pcall(vim.json.decode, json, { luanil = { object = true, array = true } })
-  if not success then
-    ---@cast object_or_err string
-    return nil, "vim.json.decode: " .. object_or_err
-  end
-
-  return Toolchains.try_from_json(object_or_err)
+  return Toolchains.try_from_json(json)
 end
 
 return Toolchains

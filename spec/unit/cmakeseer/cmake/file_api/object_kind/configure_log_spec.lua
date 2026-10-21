@@ -277,6 +277,7 @@ describe("ConfigureLog", function()
       { "number", 42 },
       { "boolean", true },
       { "table", {} },
+      { "null", vim.NIL },
     }) do
       local label, value = entry[1], entry[2]
       it(("returns an error when an event kind is a %s"):format(label), function()
@@ -322,6 +323,29 @@ describe("ConfigureLog", function()
       local configure_log, err = ConfigureLog.try_from_file(write(json))
       assert.is_nil(configure_log)
       assert.are.equal("Invalid event kind at index 1: bogus-v1", err)
+    end)
+
+    for _, entry in ipairs({
+      { "the first", { vim.NIL, "try_compile-v1" } },
+      { "a later one", { "message-v1", vim.NIL, "try_compile-v1" } },
+    }) do
+      local label, event_kind_names = entry[1], entry[2]
+      it(("returns an error when the json writes null as %s event kind name"):format(label), function()
+        local json = vim.json.encode(valid_json({ eventKindNames = event_kind_names }))
+
+        local configure_log, err = ConfigureLog.try_from_file(write(json))
+        assert.is_nil(configure_log)
+        assert.is_not_nil(err)
+      end)
+    end
+
+    -- A trailing null leaves no hole, so the list stays a list and the log parses without that entry.
+    it("leaves out the event kind name the json writes as a trailing null", function()
+      local json = vim.json.encode(valid_json({ eventKindNames = { "message-v1", vim.NIL } }))
+
+      local configure_log, err = ConfigureLog.try_from_file(write(json))
+      assert.is_nil(err)
+      assert.are.same({ { kind = ConfigureLog.EventKind.Message, version = 1 } }, assert(configure_log).event_kinds)
     end)
 
     it("returns an error when the file does not exist", function()

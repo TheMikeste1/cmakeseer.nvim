@@ -48,4 +48,31 @@ function M.try_version_from_json(json)
   }
 end
 
+--- Attempts to decode a file as a JSON.
+---@param path string The path to the file to load.
+---@return table<string, any>? obj, string? err The decoded JSON, if successful. Otherwise an error.
+function M.try_decode_file(path)
+  local f, err = io.open(path, "r")
+  if f == nil then
+    return nil, err
+  end
+
+  ---@type string?
+  local json = f:read("*a")
+  f:close()
+  if json == nil then
+    return nil, "Failed to read " .. path .. ": Is a directory"
+  end
+
+  ---@type boolean, table<string>|string
+  local success, object_or_err = pcall(vim.json.decode, json, { luanil = { object = true, array = true } })
+  if not success then
+    ---@cast object_or_err string
+    return nil, "vim.json.decode: " .. object_or_err
+  end
+  ---@cast object_or_err table<string, any>
+
+  return object_or_err, nil
+end
+
 return M
