@@ -13,14 +13,14 @@ local function find_active_targets()
   local active_file = get_active_file()
 
   -- TODO: Look into caching. Note that is will need to be refreshed whenever the project is reconfigured.
-  ---@type cmakeseer.cmake.api.codemodel.Target[]
+  ---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
   return vim
     .iter(targets)
     :filter(
-      ---@param t cmakeseer.cmake.api.codemodel.Target
+      ---@param t cmakeseer.cmake.file_api.object_kind.Codemodel.Target
       ---@return boolean
       function(t)
-        ---@param s cmakeseer.cmake.api.codemodel.Source
+        ---@param s cmakeseer.cmake.file_api.object_kind.Codemodel.Target.Source
         ---@return boolean
         return vim.iter(t.sources):any(function(s)
           return s.path == active_file
