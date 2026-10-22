@@ -1,75 +1,72 @@
-local CMakeApi = require("cmakeseer.cmake.api")
-local CMakeSeer = require("cmakeseer")
-local ObjectKind = require("cmakeseer.cmake.api.object_kind").Kind
+local CMakeQuery = require("cmakeseer.cmake.file_api.query")
+local cmake_reply = require("cmakeseer.cmake.file_api.reply")
+local cmakeseer = require("cmakeseer")
+local object_kind = require("cmakeseer.cmake.file_api.object_kind")
+local ObjectKindType = object_kind.ObjectKindType
 
 local function load_targets()
-  local build_dir = CMakeSeer.resolve_build_directory()
-  local responses = CMakeApi.read_responses(build_dir)
-  local codemodel_reference = nil
-  for _, response in ipairs(responses) do
-    if response.kind == ObjectKind.codemodel then
-      codemodel_reference = response
-      break
-    end
-  end
+  local state = require("cmakeseer.state")
+  state.set_targets({})
 
-  if codemodel_reference == nil then
+  local build_dir = cmakeseer.resolve_build_directory()
+  local latest_reply, err = cmake_reply.get_client_stateless_reply(build_dir, cmakeseer.CLIENT_ID, ObjectKindType.Codemodel, 2)
+  if latest_reply == nil then
+    vim.notify("Unable to load targets: " .. err, vim.log.levels.ERROR)
     return
   end
 
-  ---@cast codemodel_reference cmakeseer.cmake.api.ReplyFileReference
+  if latest_reply.kind ~= "valid" then
+    vim.notify("Unable to load targets: reply was " .. latest_reply.kind, vim.log.levels.ERROR)
+    return
+  end
 
-  local codemodel = CMakeApi.parse_object_kind_file(codemodel_reference, build_dir)
+  local codemodel
+  codemodel, err = latest_reply.reply:try_load()
   if codemodel == nil then
-    vim.notify("Codemodel file invalid. Cannot find targets. File: `" .. codemodel_reference.jsonFile .. "`", vim.log.levels.ERROR)
+    vim.notify("Unable to load targets: codemodel was invalid: " .. err, vim.log.levels.ERROR)
     return
   end
+  assert(codemodel.kind == ObjectKindType.Codemodel, "Response should only be able to be a codemodel")
+  ---@cast codemodel cmakeseer.cmake.file_api.object_kind.Codemodel
 
-  assert(codemodel.kind == ObjectKind.codemodel)
-  ---@cast codemodel cmakeseer.cmake.api.codemodel.CodeModel
-
-  if #codemodel.configurations == 0 then
-    vim.notify("No configurations exist in CMake codemodel: `" .. codemodel_reference.jsonFile .. "`", vim.log.levels.ERROR)
+  if vim.tbl_isempty(codemodel.configurations) then
+    vim.notify("No configurations exist in CMake codemodel: `" .. latest_reply.reply.json_file .. "`", vim.log.levels.ERROR)
     return
   end
 
   -- TODO: Support multiple configurations
-  local configuration = codemodel.configurations[1]
+  ---@type string,cmakeseer.cmake.file_api.object_kind.Codemodel.Configuration
+  local _, configuration = assert(next(codemodel.configurations))
   local target_references = configuration.targets
-  ---@type cmakeseer.cmake.api.codemodel.Target[]
-  local parsed_targets = {}
-  for _, reference in ipairs(target_references) do
-    local target = require("cmakeseer.cmake.api.codemodel.target").parse(reference, build_dir)
-    if target == nil then
-      vim.notify(string.format("JSON file for %s target not valid", reference.name), vim.log.levels.WARN)
+  ---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
+  local targets = {}
+  local num_failed_parse = 0
+  for _, target in pairs(target_references) do
+    local target_codemodel = target:try_read_codemodel()
+    if target_codemodel == nil then
+      num_failed_parse = num_failed_parse + 1
     else
-      table.insert(parsed_targets, target)
+      table.insert(targets, target_codemodel)
     end
   end
 
-  local state = require("cmakeseer.state")
-  if #parsed_targets ~= #state.targets() then
-    vim.notify(string.format("Found %i targets", #parsed_targets))
+  if #targets ~= #state.targets() then
+    vim.notify(string.format("Found %i targets", #targets))
+  end
+  if num_failed_parse > 0 then
+    vim.notify(("Failed to parse %d targets"):format(num_failed_parse), vim.log.levels.WARN)
   end
 
-  state.set_targets(parsed_targets)
+  state.set_targets(targets)
 end
 
 local M = {}
 
 --- Called before the project is configured.
 function M.on_pre_configure()
-  local maybe_error = CMakeApi.issue_query(ObjectKind.codemodel, CMakeSeer.resolve_build_directory())
+  local maybe_error = CMakeQuery.issue_client_stateless_query(cmakeseer.CLIENT_ID, cmakeseer.resolve_build_directory(), ObjectKindType.Codemodel, 2)
   if maybe_error ~= nil then
-    local error_str = "Unknown error"
-    if maybe_error == CMakeApi.IssueQueryError.FailedToMakeQueryFile then
-      error_str = "Failed to make query file"
-    elseif maybe_error == CMakeApi.IssueQueryError.FailedToMakeDirectory then
-      error_str = "Failed to make query directory"
-    end
-
-    vim.notify("Failed to issue CMake query: " .. error_str, vim.log.levels.ERROR)
-    return
+    vim.notify("Failed to issue CMake query: " .. maybe_error, vim.log.levels.ERROR)
   end
 end
 

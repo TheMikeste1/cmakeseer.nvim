@@ -59,7 +59,7 @@ function Target.try_from_json_object(json_target, projects, directories)
 end
 
 --- Attempts to read the associated codemodel file.
----@return table<string, any>? json, string? err The decoded JSON, if successful. Otherwise an error.
+---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Target? json, string? err The decoded JSON, if successful. Otherwise an error.
 function Target:try_read_codemodel()
   local codemodel_target, err = CodemodelTarget.try_from_file(self.json_file)
   if codemodel_target == nil then

@@ -1,5 +1,5 @@
 local CMakeSeer = require("cmakeseer")
-local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
+local TargetType = require("cmakeseer.cmake.file_api.object_kind.codemodel.target").Type
 
 ---@private
 ---@class neotest.cmakeseer.gtest.Context
@@ -29,7 +29,7 @@ M = {
   name = "CMakeSeer GTest",
   opts = {
     --- Filter out targets when looking for tests.
-    ---@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+    ---@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The target to test. Will be an executable.
     ---@return boolean keep If the target should be kept.
     target_filter = function(target)
       return string.match(target.name, "[tT]est") and not M.is_gtest_test(target)
@@ -63,7 +63,7 @@ local function compares_times(a, b)
 end
 
 --- Generates all the test commands to check if an executable is a GTest executable.
----@param targets cmakeseer.cmake.api.codemodel.Target[] The targets to check.
+---@param targets cmakeseer.cmake.file_api.object_kind.Codemodel.Target[] The targets to check.
 ---@return table<string, {cmd: vim.SystemObj?, cache: string}> test_cmds The executable paired with the commands to check each target.
 local function generate_executable_commands(targets)
   local test_cmds = {}
@@ -72,7 +72,7 @@ local function generate_executable_commands(targets)
     assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
     assert(#target.artifacts == 1, "Should only have one artifact for executable")
 
-    local executable = vim.fs.joinpath(CMakeSeer.resolve_build_directory(), target.artifacts[1].path)
+    local executable = vim.fs.joinpath(CMakeSeer.resolve_build_directory(), target.artifacts[1])
     local cache = vim.fs.joinpath(M.opts.cache_directory(), string.format("%s.json", target.name))
 
     local skip = false
@@ -148,7 +148,7 @@ function M.setup(opts)
 end
 
 --- Determines if a target relies on GTest.
----@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+---@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The target to test. Will be an executable.
 ---@return boolean does_depend If the target depends on GTest.
 function M.depends_on_gtest(target)
   for _, dependency in ipairs(target.dependencies) do
@@ -161,7 +161,7 @@ end
 
 --- Determines if a target is a test from GTest, as in a test for the GTest library.
 ---@see depends_on_gtest
----@param target cmakeseer.cmake.api.codemodel.Target The target to test. Will be an executable.
+---@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The target to test. Will be an executable.
 ---@return boolean is_gtest_test If the target is a GTest test.
 function M.is_gtest_test(target)
   return target.name:match("_gtest$") ~= nil
@@ -169,7 +169,7 @@ end
 
 --- Refreshes the list of test executables.
 function M.refresh_test_executables()
-  ---@type cmakeseer.cmake.api.codemodel.Target[]
+  ---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
   local targets = vim.tbl_filter(function(target)
     return target.type == TargetType.Executable and M.opts.target_filter(target) and M.depends_on_gtest(target)
   end, CMakeSeer.state.get_targets())

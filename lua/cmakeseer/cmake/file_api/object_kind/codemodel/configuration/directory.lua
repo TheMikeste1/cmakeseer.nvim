@@ -110,7 +110,7 @@ function Directory.take(source, build, minimum_cmake_version, has_install_rule, 
 end
 
 --- Attempts to read the associated codemodel file.
----@return table<string, any>? json, string? err The decoded JSON, if successful. Otherwise an error.
+---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Directory? json, string? err The decoded JSON, if successful. Otherwise an error.
 function Directory:try_read_codemodel()
   local codemodel_directory, err = CodemodelDirectory.try_from_file(self.json_file)
   if codemodel_directory == nil then

@@ -4,12 +4,12 @@ local M = {}
 
 --- Builds a TaskTemplate for the provided target.
 ---@param target_name string The target to build.
----@param target_type cmakeseer.cmake.api.codemodel.TargetType The type of the target.
+---@param target_type cmakeseer.cmake.file_api.object_kind.Codemodel.Target.Type The type of the target.
 ---@return overseer.TemplateFileDefinition
 function M.build_template_for(target_name, target_type)
   local CMakeSeer = require("cmakeseer")
   local CmakeseerOverseerBuild = require("overseer.cmakeseer.template.cmake_build")
-  local TargetType = require("cmakeseer.cmake.api.codemodel.target").TargetType
+  local TargetType = require("cmakeseer.cmake.file_api.object_kind.codemodel.target").Type
 
   local run_verb = "Build"
   if target_type == TargetType.Utility then

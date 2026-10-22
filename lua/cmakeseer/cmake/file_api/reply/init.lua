@@ -61,7 +61,7 @@ function M.find_latest_reply_index(build_dir)
     path = error_path
   end
   if path == nil then
-    return nil
+    return nil, "Could not find index"
   end
 
   return read_reply_index(path)
@@ -77,6 +77,41 @@ function M.find_last_successful_reply_index(build_dir)
   end
 
   return read_reply_index(path)
+end
+
+--- Gets the reply for a client stateless query.
+---@param build_dir string The build directory for the API.
+---@param client string The name or ID of the client.
+---@param kind cmakeseer.cmake.file_api.object_kind.ObjectKindType The object kind for the query.
+---@param major_version integer The desired major version.
+---@param index_time? "latest"|"last_successful" Whether to try getting the latest, even if it's an error, or the last successful index. Defaults to latest.
+---@return cmakeseer.cmake.file_api.Reply? reply, string? err The reply, if the file has it. Otherwise an error.
+function M.get_client_stateless_reply(build_dir, client, kind, major_version, index_time)
+  index_time = index_time or "latest"
+
+  local err
+  local index
+  if index_time == "latest" then
+    index, err = M.find_latest_reply_index(build_dir)
+  elseif index_time == "last_successful" then
+    index, err = M.find_last_successful_reply_index(build_dir)
+  else
+    err = "Unknown index_time: " .. vim.inspect(index_time)
+  end
+
+  if index == nil then
+    return nil, err or "Unknown error"
+  end
+
+  if not index.succeeded then
+    return nil, "Failed to configure"
+  end
+
+  local reply = index:get_client_stateless_reply(client, kind, major_version)
+  if reply == nil then
+    return nil, "Could not find stateless reply for " .. client
+  end
+  return reply
 end
 
 return M

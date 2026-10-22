@@ -36,4 +36,15 @@ function M.build_client_id(client)
   return ("client-%s"):format(client)
 end
 
+---@param build_dir string The build directory for the reply.
+---@param client string The name or ID of the client.
+---@return boolean
+function M.client_query_issued(build_dir, client)
+  local query_dir = M.query_dir(build_dir)
+  local client_id = M.build_client_id(client)
+  local client_dir = vim.fs.joinpath(query_dir, client_id)
+  local stat = vim.uv.fs_stat(client_dir)
+  return stat ~= nil and stat.type == "directory"
+end
+
 return M

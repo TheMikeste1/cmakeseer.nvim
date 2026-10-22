@@ -10,7 +10,7 @@ local Variant = {
 
 --- @type cmakeseer.Kit[]
 local __discovered_kits = {}
---- @type cmakeseer.cmake.api.codemodel.Target[]
+--- @type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
 local __targets = {}
 
 ---@class cmakeseer.State.Selections
@@ -91,19 +91,19 @@ function M.set_discovered_kits(kits)
   __discovered_kits = kits
 end
 
----@return cmakeseer.cmake.api.codemodel.Target[] targets The list of CMake targets.
+---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Target[] targets The list of CMake targets.
 function M.targets()
   return __targets
 end
 M.get_targets = M.targets
 
----@param targets  cmakeseer.cmake.api.codemodel.Target[] The new list of CMake targets.
+---@param targets cmakeseer.cmake.file_api.object_kind.Codemodel.Target[] The new list of CMake targets.
 function M.set_targets(targets)
   --- TODO: Validate targets
   __targets = targets
 end
 
----@return cmakeseer.cmake.api.codemodel.Target[] targets The list of CMake targets.
+---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Target[] targets The list of CMake targets.
 function M.reload_targets()
   if require("cmakeseer").project_is_configured() then
     require("cmakeseer.callbacks").on_post_configure_success()
