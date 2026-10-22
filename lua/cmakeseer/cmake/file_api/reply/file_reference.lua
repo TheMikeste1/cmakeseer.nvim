@@ -1,4 +1,5 @@
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
+local ObjectKindType = object_kind.ObjectKindType
 
 --- A reference to another file containing an object kind.
 ---@class cmakeseer.cmake.file_api.reply.FileReference
@@ -69,6 +70,24 @@ function FileReference.try_from_json(json, index_file_path)
   end
 
   return FileReference.new_unchecked(kind, version, json_file)
+end
+
+--- Attempts to load the object kind.
+---@return cmakeseer.cmake.file_api.object_kind.ObjectKind? obj, string? err The object kind if successful. Otherwise an error.
+function FileReference:try_load()
+  if self.kind == ObjectKindType.Codemodel then
+    return require("cmakeseer.cmake.file_api.object_kind.codemodel").try_from_file(self.json_file)
+  elseif self.kind == ObjectKindType.ConfigureLog then
+    return require("cmakeseer.cmake.file_api.object_kind.configure_log").try_from_file(self.json_file)
+  elseif self.kind == ObjectKindType.Cache then
+    return require("cmakeseer.cmake.file_api.object_kind.cache").try_from_file(self.json_file)
+  elseif self.kind == ObjectKindType.CMakeFiles then
+    return require("cmakeseer.cmake.file_api.object_kind.cmake_files").try_from_file(self.json_file)
+  elseif self.kind == ObjectKindType.Toolchains then
+    return require("cmakeseer.cmake.file_api.object_kind.toolchains").try_from_file(self.json_file)
+  end
+
+  assert("Unreachable")
 end
 
 return FileReference
