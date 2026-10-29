@@ -503,9 +503,13 @@ function M.build_spec(args)
     local executable_target = target_and_ids.target
     local executable_test_ids = target_and_ids.ids
 
-    local command = executable_target.name_on_disk or executable_target.name
-    local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", command .. ".json")
-    command = vim.fs.joinpath(build_dir, command)
+    local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", (executable_target.name_on_disk or executable_target.name) .. ".json")
+
+    assert(#executable_target.artifacts == 1, "Should only ever have exactly 1 artifact")
+    local command = executable_target.artifacts[1]
+    if vim.fn.isabsolutepath(command) == 0 then
+      command = vim.fs.joinpath(build_dir, command)
+    end
 
     local filter
     local has_disabled = false
