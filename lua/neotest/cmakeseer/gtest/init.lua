@@ -309,6 +309,11 @@ local function parse_id(id)
   elseif id_type == "parameterized_typed" then
     return { file = id_parts[1], type = id_type, suite = id_parts[3], name = id_parts[4] or "*", prefix = id_parts[5] or "*", postfix = id_parts[6] or "*" }
   end
+
+  local stat = vim.uv.fs_stat(id)
+  if stat and stat.type == "directory" then
+    return { type = "dir", file = id }
+  end
   return { type = "file", file = id }
 end
 
@@ -429,89 +434,136 @@ end
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 function M.build_spec(args)
-  local test_id = parse_id(args[1])
-  if test_id.type == "unknown" or test_id.suite_type == "unknown" then
+  local original_test_id = parse_id(args[1])
+  if original_test_id.type == "unknown" or original_test_id.suite_type == "unknown" then
     vim.notify("Recompile before running tests", vim.log.levels.ERROR)
-    return nil
+    return {}
   end
 
-  local project_root = CMakeSeer.get_config():get_project_root()
-  local resolved_file_path = vim.fs.relpath(project_root, test_id.file) or test_id.file
-  local targets = fetch_gtest_executables()
-  ---@type table<string, cmakeseer.cmake.file_api.object_kind.Codemodel.Target>
-  local executables = {}
-  local total_executables = 0
-  for _, target in ipairs(targets) do
-    for _, source in ipairs(target.sources or {}) do
-      if source.path == resolved_file_path then
-        if executables[target.name] then
-          total_executables = total_executables + 1
-        end
-        executables[target.name] = target
+  local test_ids = {}
+  if original_test_id.type == "dir" then
+    -- We'll fetch all the file IDs
+    local tree = args.tree
+    for _, child in tree:iter() do
+      if child.type == "file" then
+        table.insert(test_ids, parse_id(child.id))
       end
     end
+  else
+    table.insert(test_ids, original_test_id)
   end
 
-  local _, executable_target = next(executables)
-  if executable_target == nil then
-    vim.notify_once("No suites detected for " .. test_id.file, vim.log.levels.WARN)
-    return nil
-  end
-  if total_executables > 1 then
-    -- TODO: Support multiple executables per file
-    vim.notify(("Multiple executables are not yet supported. Running %s"):format(executable_target.name), vim.log.levels.WARN)
-  end
+  ---@type table<string, {target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, ids: table[]}>
+  local executable_targets = {}
+  local total_executable_targets = 0
+  local targets = fetch_gtest_executables()
+  local project_root = CMakeSeer.get_config():get_project_root()
+  for _, test_id in ipairs(test_ids) do
+    local executables = {}
+    local total_executables = 0
+    local resolved_file_path = vim.fs.relpath(project_root, test_id.file) or test_id.file
+    for _, target in ipairs(targets) do
+      for _, source in ipairs(target.sources or {}) do
+        if source.path == resolved_file_path then
+          if executables[target.name] == nil then
+            total_executables = total_executables + 1
+          end
+          executables[target.name] = target
+        end
+      end
+    end
 
-  local build_dir = CMakeSeer.resolve_build_directory()
-  local command = executable_target.name_on_disk or executable_target.name
-  local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", command .. ".json")
-  command = vim.fs.joinpath(build_dir, command)
+    if total_executables == 0 then
+      vim.notify("No suites detected for " .. test_id.file, vim.log.levels.WARN)
+      return {}
+    end
 
-  local filter = id_to_filter(test_id)
-  if filter == nil then
-    vim.notify(("Failed to generate gtest filter for %s"):format(args[1]), vim.log.levels.ERROR)
-    return nil
-  end
-
-  local command_args = {
-    command,
-    ("--gtest_output=json:%s"):format(report_path),
-    ("--gtest_filter=%s"):format(filter),
-  }
-
-  local suite_is_disabled = test_id.suite and vim.startswith(test_id.suite, "DISABLED_")
-  local test_is_disabled = test_id.name and vim.startswith(test_id.name, "DISABLED_")
-  if suite_is_disabled or test_is_disabled then
-    table.insert(command_args, "--gtest_also_run_disabled_tests")
-  end
-
-  local strategy = args.strategy
-  local dap_config
-  if strategy == "dap" then
-    dap_config = build_dap_config(executable_target.name, command_args)
-    if dap_config == nil then
-      vim.notify("Failed to build dap configuration for " .. test_id.file, vim.log.levels.ERROR)
-      return nil
+    for _, executable_target in pairs(executables) do
+      if executable_targets[executable_target.name] == nil then
+        total_executable_targets = total_executable_targets + 1
+        executable_targets[executable_target.name] = {
+          target = executable_target,
+          ids = {},
+        }
+      end
+      table.insert(executable_targets[executable_target.name].ids, test_id)
     end
   end
 
-  ---@type neotest.RunSpec
-  local spec = {
-    command = command_args,
-    strategy = dap_config,
-    ---@class neotest.cmakeseer.Context
-    ---@field executable cmakeseer.cmake.file_api.object_kind.Codemodel.Target
-    ---@field report_path string
-    ---@field raw_id string
-    ---@field test_id table
-    context = {
-      executable = executable_target,
-      report_path = report_path,
-      raw_id = args[1],
-      test_id = test_id,
-    },
-  }
-  return spec
+  assert(total_executable_targets > 0, "Should never be 0 because we're checking inside the loop as well")
+  local strategy = args.strategy
+  if strategy == "dap" and total_executable_targets > 1 then
+    vim.notify(("Cannot run DAP with more than one executable. Found %d for %s"):format(total_executable_targets, original_test_id.file), vim.log.levels.WARN)
+    return {}
+  end
+
+  local specs = {}
+  local build_dir = CMakeSeer.resolve_build_directory()
+  for _, target_and_ids in pairs(executable_targets) do
+    local executable_target = target_and_ids.target
+    local executable_test_ids = target_and_ids.ids
+
+    local command = executable_target.name_on_disk or executable_target.name
+    local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", command .. ".json")
+    command = vim.fs.joinpath(build_dir, command)
+
+    local filter
+    local has_disabled = false
+    for _, test_id in ipairs(executable_test_ids) do
+      local new_filter = id_to_filter(test_id)
+      if new_filter == nil then
+        vim.notify(("Failed to generate gtest filter for %s"):format(test_id.name), vim.log.levels.ERROR)
+        return {}
+      end
+      if filter then
+        filter = ("%s:%s"):format(filter, new_filter)
+      else
+        filter = new_filter
+      end
+      local suite_is_disabled = test_id.suite and vim.startswith(test_id.suite, "DISABLED_")
+      local test_is_disabled = test_id.name and vim.startswith(test_id.name, "DISABLED_")
+      has_disabled = has_disabled or suite_is_disabled or test_is_disabled
+    end
+    assert(filter, "Should have had at least one test ID")
+
+    local command_args = {
+      command,
+      ("--gtest_output=json:%s"):format(report_path),
+      ("--gtest_filter=%s"):format(filter),
+    }
+
+    if has_disabled then
+      table.insert(command_args, "--gtest_also_run_disabled_tests")
+    end
+
+    ---@type neotest.RunSpec
+    local spec = {
+      command = command_args,
+      ---@class neotest.cmakeseer.Context
+      ---@field executable cmakeseer.cmake.file_api.object_kind.Codemodel.Target
+      ---@field report_path string
+      ---@field raw_id string
+      ---@field original_test_id table
+      context = {
+        executable = executable_target,
+        report_path = report_path,
+        raw_id = args[1],
+        original_test_id = original_test_id,
+      },
+    }
+    table.insert(specs, spec)
+  end
+
+  if strategy == "dap" then
+    assert(#specs == 1)
+    local dap_config = build_dap_config(specs[1].context.executable.name, specs[1].command)
+    if dap_config == nil then
+      vim.notify("Failed to build dap configuration for " .. original_test_id.file, vim.log.levels.ERROR)
+      return {}
+    end
+    specs[1].strategy = dap_config
+  end
+  return specs
 end
 
 ---@async
@@ -536,14 +588,22 @@ function M.results(spec, exe_result, _)
   -- Get the result for every test that was run
   ---@type table<string, neotest.Result>
   local results = {}
+  ---@type table<string, neotest.ResultStatus>
+  local file_statuses = {}
   for _, suite in pairs(report.testsuites) do
     local suite_type = suite.type
-    local suite_status = ResultStatus.skipped
+    ---@type table<string, neotest.ResultStatus>
+    local suite_statuses = {} -- We need multiple statuses in case the suite spans multiple files
     for _, test in ipairs(suite.tests) do
       local test_status = get_test_status(test)
-      suite_status = get_new_status(suite_status, test_status)
 
-      local test_id = ("%s::%s::%s::%s"):format(context.test_id.file, test.type, suite.name, test.name)
+      suite_statuses[test.file] = suite_statuses[test.file] or ResultStatus.skipped
+      suite_statuses[test.file] = get_new_status(suite_statuses[test.file], test_status)
+
+      file_statuses[test.file] = file_statuses[test.file] or ResultStatus.skipped
+      file_statuses[test.file] = get_new_status(file_statuses[test.file], test_status)
+
+      local test_id = ("%s::%s::%s::%s"):format(test.file, test.type, suite.name, test.name)
       if test.type == "typed" then
         -- Set the test name status
         results[test_id] = results[test_id] or {
@@ -608,27 +668,23 @@ function M.results(spec, exe_result, _)
       results[test_id] = test_result
     end
 
-    local suite_id = ("%s::suite::%s::%s"):format(context.test_id.file, suite_type, suite.name)
-    ---@type neotest.Result
-    local suite_result = {
-      status = suite_status,
+    for file, suite_status in pairs(suite_statuses) do
+      local suite_id = ("%s::suite::%s::%s"):format(file, suite_type, suite.name)
+      ---@type neotest.Result
+      local suite_result = {
+        status = suite_status,
+        output = exe_result.output,
+      }
+      results[suite_id] = suite_result
+    end
+  end
+
+  for file, status in pairs(file_statuses) do
+    results[file] = {
+      status = status,
       output = exe_result.output,
     }
-    results[suite_id] = suite_result
   end
-
-  -- Set the file status
-  -- Success if all tests succeeded, failure if a single failed
-  -- Skipped if ALL tests skipped
-  local aggregate_status = ResultStatus.skipped
-  for _, result in pairs(results) do
-    aggregate_status = get_new_status(aggregate_status, result.status)
-  end
-
-  results[context.test_id.file] = {
-    status = aggregate_status,
-    output = exe_result.output,
-  }
 
   return results
 end
