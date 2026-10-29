@@ -1,6 +1,6 @@
 --- Source file entry.
 ---@class cmakeseer.cmake.file_api.object_kind.Codemodel.Target.Source
----@field path string Path to the source file.
+---@field path string Path to the source file. Relative if in the top-level project directory. Otherwise absolute.
 ---@field compile_group_index? number Index into the compileGroups array.
 ---@field source_group_index? number Index into the sourceGroups array.
 ---@field generated boolean True if the source is generated.

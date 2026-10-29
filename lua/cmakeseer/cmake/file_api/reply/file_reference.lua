@@ -87,7 +87,7 @@ function FileReference:try_load()
     return require("cmakeseer.cmake.file_api.object_kind.toolchains").try_from_file(self.json_file)
   end
 
-  assert("Unreachable")
+  error("Unreachable")
 end
 
 return FileReference

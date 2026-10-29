@@ -1,23 +1,14 @@
+local Suite = require("cmakeseer.gtest.json_report.testsuite")
+
 ---@class neotest.cmakeseer.gtest.treesitter.CapturedTest
 ---@field name string The name of the test.
----@field type "TEST"|"TEST_F"|"TEST_P"|"TYPED_TEST"|"TYPED_TEST_P" The type of the test.
+---@field type cmakeseer.gtest.JsonReport.TestSuite.Type The type of the test.
 ---@field suite string The suite to which the test belongs.
 ---@field range [integer, integer, integer, integer] The range of the test.
-
----@class neotest.cmakeseer.gtest.treesitter.CapturedFileTest: neotest.cmakeseer.gtest.treesitter.CapturedTest
----@field filepath string The path to the file containing the test.
 
 ---@private
 --- Treesitter query to extract GTest tests.
 local GTEST_QUERY = [[
-(call_expression
-  (identifier) @p_suite.type (#any-of? @p_suite.type "INSTANTIATE_TEST_SUITE_P" "INSTANTIATE_TYPED_TEST_SUITE_P")
-  (argument_list
-    (identifier) @p_suite.prefix
-    (identifier) @p_suite.name
-  )
-)
-
 (function_definition
   declarator: (function_declarator
     declarator: (identifier) @test.type (#any-of? @test.type "TEST" "TEST_F" "TEST_P" "TYPED_TEST" "TYPED_TEST_P")
@@ -64,12 +55,26 @@ end
 ---@return neotest.cmakeseer.gtest.treesitter.CapturedTest captured_test The fully constructed test object.
 local function build_captured_test(test, test_string)
   local name = vim.treesitter.get_node_text(test["name"], test_string)
-  local type = vim.treesitter.get_node_text(test["type"], test_string)
+  local type_ = vim.treesitter.get_node_text(test["type"], test_string)
   local suite = vim.treesitter.get_node_text(test["suite"], test_string)
   local definition = test["definition"]
+
+  local resolved_type = (function()
+    if type_ == "TEST" or type_ == "TEST_F" then
+      return Suite.Type.Basic
+    elseif type_ == "TEST_P" then
+      return Suite.Type.Parameterized
+    elseif type_ == "TYPED_TEST" then
+      return Suite.Type.Typed
+    elseif type_ == "TYPED_TEST_P" then
+      return Suite.Type.ParameterizedTyped
+    end
+    error("Unreachable")
+  end)()
+
   return {
     name = name,
-    type = type,
+    type = resolved_type,
     suite = suite,
     range = { definition:range() },
   }
@@ -79,16 +84,12 @@ local M = {}
 
 --- Queries for tests in a string.
 ---@param test_string string The string to parse.
----@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>|string maybe_tests The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
+---@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>? tests, string? err The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
 function M.query_tests_from_string(test_string)
-  if test_string == nil then
-    return {}
-  end
-
   local parser = vim.treesitter.get_string_parser(test_string, LANG, { injections = { [LANG] = "" } })
   local trees = parser:parse()
   if trees == nil or #trees < 1 then
-    return "Failed to parse"
+    return nil, "Failed to parse"
   end
 
   -- There should only ever be one tree since there's only one language
@@ -117,29 +118,18 @@ end
 
 --- Queries for tests in a file.
 ---@param filepath string The path to the file.
----@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedFileTest[]>|string maybe_tests The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
+---@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>? tests, string? err The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
 function M.query_tests(filepath)
   local file = io.open(filepath, "r")
   if file == nil then
-    return "Could not open " .. filepath
+    return nil, "Could not open " .. filepath
   end
 
   ---@type string
   local contents = file:read("*a")
   file:close()
 
-  local maybe_test_suites = M.query_tests_from_string(contents)
-  if type(maybe_test_suites) ~= "string" then
-    for _, tests in pairs(maybe_test_suites) do
-      for _, test in ipairs(tests) do
-        ---@cast test neotest.cmakeseer.gtest.treesitter.CapturedFileTest
-        test.filepath = filepath
-      end
-    end
-    ---@cast maybe_test_suites table<string, neotest.cmakeseer.gtest.treesitter.CapturedFileTest[]>
-  end
-
-  return maybe_test_suites
+  return M.query_tests_from_string(contents)
 end
 
 return M

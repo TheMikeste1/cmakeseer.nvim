@@ -56,10 +56,10 @@ describe("file_api.reply", function()
   end
 
   describe("find_latest_reply_index", function()
-    it("returns nil when there are no reply files", function()
+    it("returns error when there are no reply files", function()
       local index, err = file_api_reply.find_latest_reply_index(tmp.path)
       assert.is_nil(index)
-      assert.is_nil(err)
+      assert.equal(err, "Could not find index")
     end)
 
     it("parses the index file", function()

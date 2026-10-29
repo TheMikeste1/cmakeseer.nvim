@@ -1,4 +1,4 @@
-local Suite = require("neotest.cmakeseer.gtest.suite")
+local Suite = require("cmakeseer.gtest.json_report.testsuite")
 
 ---@private
 ---@class neotest.cmakeseer.gtest.structure.Suite
@@ -7,309 +7,320 @@ local Suite = require("neotest.cmakeseer.gtest.suite")
 
 local M = {}
 
---- Builds the structure for a basic test suite.
----@param executable string The path to the executable containing suites.
----@param suite_definition neotest.cmakeseer.gtest.suite.Basic The definition for the Suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
----@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
-local function build_basic_suite_structure(executable, suite_definition, tests)
-  local suite_id = string.format("%s::%s", executable, suite_definition.name)
-  local positions = {}
-  for _, test in ipairs(tests) do
-    local test_is_recogized = suite_definition.tests[test.name] ~= nil
-    if test_is_recogized then
-      local position = {
-        id = string.format("%s::%s", suite_id, test.name),
-        type = "test",
-        name = test.name,
-        path = test.filepath,
+--- The Neotest nested structure.
+--- The first element at each level serves as the root for every following element.
+--- So in a flat list, the first element is the root, and 2..n are nested under the root
+--- This occurs for every recursive list in the structure.
+---@alias neotest.cmakeseer.Structure
+---| neotest.Position
+---| (neotest.cmakeseer.Structure)[]
+
+local function build_test_id(file, type_, test)
+  return ("%s::%s::%s::%s"):format(file, type_, test.suite, test.name)
+end
+
+--- Builds the structure for an unknown test.
+---@param file string The path to the file containing suites.
+---@param test neotest.cmakeseer.gtest.treesitter.CapturedTest The treesitter captured test.
+---@return neotest.cmakeseer.Structure position The position for the test
+local function build_unknown_test_structure(file, test)
+  local test_id = build_test_id(file, "unknown", test)
+  ---@type neotest.Position
+  local position = {
+    id = test_id,
+    type = "namespace",
+    name = ("%s (RECOMPILE)"):format(test.name),
+    path = file,
+    range = test.range,
+  }
+  return position
+end
+
+--- Builds the structure for a basic test.
+---@param file string The path to the file containing suites.
+---@param test neotest.cmakeseer.gtest.treesitter.CapturedTest The treesitter captured test.
+---@return neotest.cmakeseer.Structure position The positions for the test.
+local function build_basic_test_structure(file, test)
+  local test_id = build_test_id(file, "basic", test)
+  ---@type neotest.Position
+  local position = {
+    id = test_id,
+    type = "test",
+    name = test.name,
+    path = file,
+    range = test.range,
+  }
+  return position
+end
+
+--- Builds the structure for a parameterized test.
+---@param file string The path to the executable containing suites.
+---@param suite cmakeseer.gtest.JsonReport.TestSuite.Parameterized The definition for the suite.
+---@param test neotest.cmakeseer.gtest.treesitter.CapturedTest The treesitter capture test.
+---@return neotest.cmakeseer.Structure position The position for the test.
+local function build_parameterized_test_structure(file, suite, test)
+  local test_id = build_test_id(file, "parameterized", test)
+  ---@type neotest.cmakeseer.Structure
+  local test_positions = {}
+  for prefix, variants in pairs(suite.variants) do
+    local variant_id = ("%s::%s"):format(test_id, prefix)
+    ---@type neotest.Position[]
+    local positions = {}
+    for postfix, _ in pairs(variants) do
+      local postfix_id = ("%s::%s"):format(variant_id, postfix)
+      table.insert(
+        positions,
+        ---@type neotest.Position
+        {
+          id = postfix_id,
+          type = "test",
+          name = postfix,
+          path = file,
+          range = test.range,
+        }
+      )
+    end
+    table.sort(positions, function(a, b)
+      return a.name < b.name
+    end)
+
+    table.insert(
+      positions,
+      1,
+      ---@type neotest.Position
+      {
+        id = variant_id,
+        type = "namespace",
+        name = prefix,
+        path = file,
         range = test.range,
       }
-      table.insert(positions, { position })
-    end
+    )
+    table.insert(test_positions, positions)
   end
+  table.sort(test_positions, function(a, b)
+    return a[1].name < b[1].name
+  end)
 
-  if #positions == 0 then
-    return {}
-  end
-
-  ---@type neotest.Position
-  local suite_position = {
-    id = suite_id,
-    type = "namespace",
-    name = suite_definition.name,
-    path = positions[1][1].path,
-    range = positions[1][1].range,
-  }
-
-  return { {
-    suite = suite_position,
-    tests = positions,
-  } }
-end
-
---- Builds the structure for a parameterized test suite.
----@param executable string The path to the executable containing suites.
----@param suite_definition neotest.cmakeseer.gtest.suite.Parameterized The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
----@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
-local function build_parameterized_suite_structure(executable, suite_definition, tests)
-  local suite_structures = {}
-  for prefix, params in pairs(suite_definition.value_parameters) do
-    local suite_name = string.format("%s/%s", prefix, suite_definition.name)
-    local suite_id = string.format("%s::%s", executable, suite_name)
-    local positions = {}
-    for _, test in ipairs(tests) do
-      local test_is_recogized = suite_definition.tests[test.name] ~= nil
-      if test_is_recogized then
-        local test_id = string.format("%s::%s", suite_id, test.name)
-        local test_positions = {
-          {
-            id = test_id,
-            type = "dir",
-            name = test.name,
-            path = test.filepath,
-            range = test.range,
-          },
-        }
-
-        for i, param in ipairs(params) do
-          ---@type neotest.Position
-          local position = {
-            id = string.format("%s/%d", test_id, i - 1),
-            type = "file",
-            name = param,
-            path = test.filepath,
-            range = test.range,
-          }
-          table.insert(test_positions, { position })
-        end
-
-        table.insert(positions, test_positions)
-      end
-    end
-
+  table.insert(
+    test_positions,
+    1,
     ---@type neotest.Position
-    local suite_position = {
-      id = suite_id,
+    {
+      id = test_id,
       type = "namespace",
-      name = suite_name,
-      path = positions[1][1].path,
-      range = positions[1][1].range,
+      name = test.name,
+      path = file,
+      range = test.range,
     }
-
-    table.insert(suite_structures, {
-      suite = suite_position,
-      tests = positions,
-    })
-  end
-  return suite_structures
-end
-
---- Builds the structure for a typed test suite.
----@param executable string The path to the executable containing suites.
----@param suite_definition neotest.cmakeseer.gtest.suite.ParameterizedTyped The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
----@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
-local function build_parameterized_typed_suite_structure(executable, suite_definition, tests)
-  local suite_structures = {}
-  for prefix, type_parameters in pairs(suite_definition.parameterized_type_parameters) do
-    local suite_id = string.format("%s::%s/%s", executable, prefix, suite_definition.name)
-    local suite_positions = {}
-    for i, type_param in ipairs(type_parameters) do
-      local postfix_id = string.format("%s/%d", suite_id, i - 1)
-      local positions = {}
-      for _, test in ipairs(tests) do
-        local test_is_recogized = suite_definition.tests[test.name] ~= nil
-        if test_is_recogized then
-          local test_id = string.format("%s::%s", postfix_id, test.name)
-          local position = {
-            id = test_id,
-            type = "test",
-            name = test.name,
-            path = test.filepath,
-            range = test.range,
-          }
-
-          table.insert(positions, { position })
-        end
-      end
-
-      local postfix_position = {
-        id = postfix_id,
-        type = "dir",
-        name = type_param,
-        path = positions[1][1].path,
-        range = positions[1][1].range,
-      }
-
-      table.insert(positions, 1, postfix_position)
-      table.insert(suite_positions, positions)
-    end
-
-    ---@type neotest.Position
-    local suite_position = {
-      id = suite_id,
-      type = "namespace",
-      name = string.format("%s/%s", prefix, suite_definition.name),
-      path = suite_positions[1][1].path,
-      range = suite_positions[1][1].range,
-    }
-    table.insert(suite_structures, {
-      suite = suite_position,
-      tests = suite_positions,
-    })
-  end
-
-  return suite_structures
+  )
+  return test_positions
 end
 
 --- Builds the structure for a parameterized typed test suite.
----@param executable string The path to the executable containing suites.
----@param suite_definition neotest.cmakeseer.gtest.suite.Typed The definition for the suite.
----@param tests neotest.cmakeseer.gtest.treesitter.CapturedFileTest[] The treesitter tests for the suite.
----@return neotest.cmakeseer.gtest.structure.Suite[] positions The positions for the suite and its tests.
-local function build_typed_suite_structure(executable, suite_definition, tests)
-  local suite_id = string.format("%s::%s", executable, suite_definition.name)
-  local all_positions = {}
-  for i, type_param in ipairs(suite_definition.type_parameters) do
-    local postfix_id = string.format("%s/%d", suite_id, i - 1)
+---@param file string The path to the executable containing suites.
+---@param suite cmakeseer.gtest.JsonReport.TestSuite.Typed The definition for the suite.
+---@param test neotest.cmakeseer.gtest.treesitter.CapturedTest The treesitter capture test.
+---@return neotest.cmakeseer.Structure position The position for the test.
+local function build_typed_test_structure(file, suite, test)
+  local test_id = build_test_id(file, "typed", test)
+  ---@type neotest.cmakeseer.Structure
+  local test_positions = {}
+  for variant, _ in pairs(suite.variants) do
+    local variant_id = ("%s::%s"):format(test_id, variant)
+    table.insert(
+      test_positions,
+      ---@type neotest.Position
+      {
+        id = variant_id,
+        type = "test",
+        name = variant,
+        path = file,
+        range = test.range,
+      }
+    )
+  end
+  table.sort(test_positions, function(a, b)
+    return a.name < b.name
+  end)
+
+  table.insert(
+    test_positions,
+    1,
+    ---@type neotest.Position
+    {
+      id = test_id,
+      type = "namespace",
+      name = test.name,
+      path = file,
+      range = test.range,
+    }
+  )
+  return test_positions
+end
+
+--- Builds the structure for a parameterized typed test suite.
+---@param file string The path to the executable containing suites.
+---@param suite cmakeseer.gtest.JsonReport.TestSuite.ParameterizedTyped The definition for the suite.
+---@param test neotest.cmakeseer.gtest.treesitter.CapturedTest The treesitter capture test.
+---@return neotest.cmakeseer.Structure position The position for the test.
+local function build_parameterized_typed_test_structure(file, suite, test)
+  local test_id = build_test_id(file, "parameterized_typed", test)
+  ---@type neotest.cmakeseer.Structure
+  local test_positions = {}
+  for prefix, variants in pairs(suite.variants) do
+    local variant_id = ("%s::%s"):format(test_id, prefix)
+    ---@type neotest.Position[]
     local positions = {}
-    for _, test in ipairs(tests) do
-      local test_is_recogized = suite_definition.tests[test.name] ~= nil
-      if test_is_recogized then
-        local test_id = string.format("%s::%s", postfix_id, test.name)
-        local position = {
-          id = test_id,
+    for postfix, _ in pairs(variants) do
+      local postfix_id = ("%s::%s"):format(variant_id, postfix)
+      table.insert(
+        positions,
+        ---@type neotest.Position
+        {
+          id = postfix_id,
           type = "test",
-          name = test.name,
-          path = test.filepath,
+          name = postfix,
+          path = file,
           range = test.range,
         }
-
-        table.insert(positions, { position })
-      end
+      )
     end
+    table.sort(positions, function(a, b)
+      return a.name < b.name
+    end)
 
-    local postfix_position = {
-      id = postfix_id,
-      type = "dir",
-      name = type_param,
-      path = positions[1][1].path,
-      range = positions[1][1].range,
-    }
-
-    table.insert(positions, 1, postfix_position)
-    table.insert(all_positions, positions)
-  end
-
-  if #all_positions == 0 then
-    vim.notify(string.format("No tests found for %s", suite_id), vim.log.levels.WARN)
-    return {
-      suite = {
-        id = suite_id,
+    table.insert(
+      positions,
+      1,
+      ---@type neotest.Position
+      {
+        id = variant_id,
         type = "namespace",
-        name = suite_definition.name,
-        path = executable,
-        range = { 0, 0, 0, 0 },
-      },
-      tests = {},
-    }
+        name = prefix,
+        path = file,
+        range = test.range,
+      }
+    )
+    table.insert(test_positions, positions)
   end
+  table.sort(test_positions, function(a, b)
+    return a[1].name < b[1].name
+  end)
 
-  ---@type neotest.Position
-  local suite_position = {
-    id = suite_id,
-    type = "namespace",
-    name = suite_definition.name,
-    path = all_positions[1][1].path,
-    range = all_positions[1][1].range,
-  }
-
-  return { {
-    suite = suite_position,
-    tests = all_positions,
-  } }
+  table.insert(
+    test_positions,
+    1,
+    ---@type neotest.Position
+    {
+      id = test_id,
+      type = "namespace",
+      name = test.name,
+      path = file,
+      range = test.range,
+    }
+  )
+  return test_positions
 end
 
 --- Builds the structure tree for GTests.
----@param executable string The path to the executable containing the tests.
----@param queried_tests table<string, neotest.cmakeseer.gtest.treesitter.CapturedFileTest[]> The queried tests for the entire executable.
----@param suites table<string, table<neotest.cmakeseer.gtest.suite.Type, neotest.cmakeseer.gtest.suite.Basic>> The known GTest suites.
+---@param file string The absolute path to the file containing the tests.
+---@param queried_tests table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]> The queried tests for the entire executable, keyed by suite name.
+---@param suites table<string, cmakeseer.gtest.JsonReport.TestSuite> The GTest suites associated with the file, keyed by name.
 ---@return any[] structure The recursive tree structure representing the tests.
-function M.build(executable, queried_tests, suites)
-  --  - Executable
-  --    - Prefix/Suite/Postfix; Might separate these later
-  --      - Test/Postfix
-  local structure = {
-    ---@type neotest.Position
-    {
-      id = executable,
-      type = "file",
-      name = vim.fn.fnamemodify(executable, ":t:r"),
-      path = executable,
-      range = { 0, 0, 0, 0 },
-    },
-  }
-
+function M.build(file, queried_tests, suites)
+  -- Build all the test positions
   local all_suite_positions = {}
   for suite_name, tests in pairs(queried_tests) do
-    local suite_definitions = suites[suite_name]
-    if suite_definitions ~= nil then
-      local tests_by_type = {
-        [Suite.Type.Basic] = {},
-        [Suite.Type.Parameterized] = {},
-        [Suite.Type.ParameterizedTyped] = {},
-        [Suite.Type.Typed] = {},
-      }
-      for _, test in ipairs(tests) do
-        if test.type == "TEST" or test.type == "TEST_F" then
-          table.insert(tests_by_type[Suite.Type.Basic], test)
-        elseif test.type == "TEST_P" then
-          table.insert(tests_by_type[Suite.Type.Parameterized], test)
-        elseif test.type == "TYPED_TEST_P" then
-          table.insert(tests_by_type[Suite.Type.ParameterizedTyped], test)
-        elseif test.type == "TYPED_TEST" then
-          table.insert(tests_by_type[Suite.Type.Typed], test)
-        else
-          vim.notify(string.format("Unrecognized test type %s for test %s::%s at %s:%d", test.type, test.suite, test.name, test.filepath, test.range[1]), vim.log.levels.WARN)
+    assert(#tests > 0)
+    table.sort(tests, function(a, b)
+      return a.name < b.name
+    end)
+
+    local suite = suites[suite_name]
+    local suite_range = { math.huge, math.huge, 0, 0 }
+    ---@type neotest.Position[]
+    local suite_positions = {}
+    for _, test in ipairs(tests) do
+      ---@type neotest.cmakeseer.Structure?
+      local test_position
+      if suite ~= nil and test.type == suite.type then
+        -- We have additional data about the test
+        if test.type == Suite.Type.Basic then
+          ---@cast suite cmakeseer.gtest.JsonReport.TestSuite.Basic
+          test_position = build_basic_test_structure(file, test)
+        elseif test.type == Suite.Type.Parameterized then
+          ---@cast suite cmakeseer.gtest.JsonReport.TestSuite.Parameterized
+          test_position = build_parameterized_test_structure(file, suite, test)
+        elseif test.type == Suite.Type.Typed then
+          ---@cast suite cmakeseer.gtest.JsonReport.TestSuite.Typed
+          test_position = build_typed_test_structure(file, suite, test)
+        elseif test.type == Suite.Type.ParameterizedTyped then
+          ---@cast suite cmakeseer.gtest.JsonReport.TestSuite.ParameterizedTyped
+          test_position = build_parameterized_typed_test_structure(file, suite, test)
         end
+      else
+        -- We don't have meta data-- just do what we can
+        test_position = build_unknown_test_structure(file, test)
       end
 
-      for suite_type, suite_definition in pairs(suite_definitions) do
-        local suite_tests = tests_by_type[suite_type]
-        local suite_positions
-        if suite_type == Suite.Type.Basic then
-          suite_positions = build_basic_suite_structure(executable, suite_definition, suite_tests)
-        elseif suite_type == Suite.Type.Parameterized then
-          ---@cast suite_definition neotest.cmakeseer.gtest.suite.Parameterized
-          suite_positions = build_parameterized_suite_structure(executable, suite_definition, suite_tests)
-        elseif suite_type == Suite.Type.Typed then
-          ---@cast suite_definition neotest.cmakeseer.gtest.suite.Typed
-          suite_positions = build_typed_suite_structure(executable, suite_definition, suite_tests)
-        elseif suite_type == Suite.Type.ParameterizedTyped then
-          ---@cast suite_definition neotest.cmakeseer.gtest.suite.ParameterizedTyped
-          suite_positions = build_parameterized_typed_suite_structure(executable, suite_definition, suite_tests)
-        else
-          vim.notify_once("Unrecognized suite type for suite " .. suite_name, vim.log.levels.DEBUG)
-          suite_positions = nil
+      if test_position ~= nil then
+        if test.range[1] < suite_range[1] then
+          suite_range[1] = test.range[1]
+        end
+        if test.range[2] < suite_range[2] then
+          suite_range[2] = test.range[2]
+        end
+        if test.range[3] > suite_range[3] then
+          suite_range[3] = test.range[3]
+        end
+        if test.range[4] > suite_range[4] then
+          suite_range[4] = test.range[4]
         end
 
-        if suite_positions ~= nil then
-          vim.list_extend(all_suite_positions, suite_positions)
-        end
+        table.insert(suite_positions, test_position)
       end
     end
+
+    local suite_type = suite and suite.type or "unknown"
+    ---@type neotest.Position
+    local suite_position = {
+      id = ("%s::suite::%s::%s"):format(file, suite_type, suite_name),
+      type = "namespace",
+      name = suite_name,
+      path = file,
+      range = suite_range,
+    }
+
+    table.insert(all_suite_positions, {
+      suite = suite_position,
+      tests = suite_positions,
+    })
   end
 
   table.sort(all_suite_positions, function(a, b)
     return a.suite.name < b.suite.name
   end)
 
-  for _, positions in ipairs(all_suite_positions) do
-    local position = positions.tests
-    table.insert(position, 1, positions.suite)
-    table.insert(structure, position)
+  --  - Path-to-file (relative to the project root)
+  --    - Prefix/Suite/Postfix; Might separate these later
+  --      - Test/Postfix
+  local structure = {
+    ---@type neotest.Position
+    {
+      id = file,
+      type = "file",
+      name = vim.fn.fnamemodify(file, ":t:r"),
+      path = file,
+      -- TODO: Get the actual range
+      range = { 0, 0, math.huge, math.huge },
+    },
+  }
+
+  for _, suite_positions in ipairs(all_suite_positions) do
+    local positions = suite_positions.tests
+    table.insert(positions, 1, suite_positions.suite)
+    table.insert(structure, positions)
   end
 
   return structure

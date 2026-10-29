@@ -43,6 +43,8 @@ luac.out
 
 # Test dependencies
 .dependencies/
+.luarocks/
+.cache/
 luacov_html/
 luacov.report.out.index
 */build/
