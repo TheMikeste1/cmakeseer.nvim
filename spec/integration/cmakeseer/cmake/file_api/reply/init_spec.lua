@@ -28,10 +28,10 @@ describe("file_api.reply", function()
   local client = "cmakeseer"
 
   describe("find_latest_reply_index", function()
-    it("returns nothing when the build directory has no replies", function()
+    it("returns err when the build directory has no replies", function()
       local index, err = file_api_reply.find_latest_reply_index(tmp.path)
       assert.is_nil(index)
-      assert.is_nil(err)
+      assert.equal(err, "Could not find index")
     end)
 
     it("returns the index of a successful configure", function()

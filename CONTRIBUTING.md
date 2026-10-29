@@ -32,11 +32,24 @@ Install these tools before running the targets below:
 - **Neovim** - tests run in headless Neovim.
 - **CMake** - for the integration test suite. Newer is better.
 - **[LuaRocks](https://luarocks.org)** - package manager used for Lua tools.
-- `luarocks install luacheck` - Lua linter.
+- **Lua 5.1 / LuaJIT** - Neovim runs LuaJIT (Lua 5.1 compatible), so LuaRocks
+  needs a Lua 5.1 interpreter to install `busted` and `luacheck`.
+  - `lua5.1`, `luajit`, or `lua` (if it is 5.1) on `PATH` suffices.
+  - `make test` / `make luacheck` will print a warning if none is found.
 - `luarocks install luacov` - coverage tracking (`luacov-multiple` enables the HTML report).
-  - `busted` (the test runner) is installed automatically by `make test`.
 - **[stylua](https://github.com/JohnnyMorganz/StyLua)** - formatter (via cargo, homebrew, or a release binary).
 - **[lua-language-server](https://luals.github.io)** - provides `llscheck` for static type checking.
+
+#### Lua tooling ("virtual environment")
+
+The Makefile installs Lua tools into a project-local tree at `.luarocks/`
+(via `luarocks --tree=.luarocks`) instead of the per-user `~/.luarocks`.
+This keeps the project self-contained and is ignored through `.gitignore`.
+
+`make test` and `make luacheck` automatically install `busted` and `luacheck`
+into `.luarocks/` if they are not already on `PATH`-- you do not need to install
+them manually. `llscheck` and `stylua` are **not** LuaRocks packages, so they
+must be installed separately (see Prerequisites).
 
 ### Linting and Formatting
 
