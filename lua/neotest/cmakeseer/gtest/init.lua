@@ -74,8 +74,9 @@ end
 
 --- Generates all the test commands to check if an executable is a GTest executable.
 ---@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The targets to check.
+---@param on_exit? fun(target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, cache: string, out?: vim.SystemCompleted)
 ---@return {cmd: vim.SystemObj?, cache: string} gtest_list_commnd The command.
-local function generate_gtest_list_command(target)
+local function execute_gtest_list_command(target, on_exit)
   assert(target.type == TargetType.Executable, "Only executable targets are supported")
   assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
   assert(#target.artifacts == 1, "Should only have one artifact for executable")
@@ -89,6 +90,9 @@ local function generate_gtest_list_command(target)
     local exe_stat = vim.uv.fs_stat(executable)
     if exe_stat ~= nil and compares_times(cache_stat.mtime, exe_stat.mtime) == 1 then
       -- Cache is not outdated; use it instead
+      if on_exit then
+        on_exit(target, cache)
+      end
       return { cache = cache }
     end
   end
@@ -98,11 +102,19 @@ local function generate_gtest_list_command(target)
     return {}
   end
 
+  ---@type function?
+  local handle_on_exit
+  if on_exit then
+    handle_on_exit = function(out)
+      on_exit(target, cache, out)
+    end
+  end
+
   local success, test_cmd = pcall(vim.system, {
     executable,
     "--gtest_list_tests",
     string.format("--gtest_output=json:%s", cache),
-  })
+  }, nil, handle_on_exit)
   if success then
     return { cmd = test_cmd, cache = cache }
   end
@@ -136,12 +148,65 @@ local function get_new_status(prev_status, new_status)
   return prev_status
 end
 
+---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
+local gtest_executables = nil
+---@type table<string, string>
+local gtest_caches = {}
+
+local function update_state()
+  gtest_executables = fetch_gtest_executables()
+
+  for _, executable_target in pairs(gtest_executables) do
+    execute_gtest_list_command(executable_target, function(target, cache, complete)
+      if complete ~= nil and complete.code ~= 0 then
+        vim.notify(("Failed to generate GTest info for %s: %s"):format(target.name, complete.stderr or "Unknown error"))
+        return
+      end
+
+      gtest_caches[target.name] = cache
+    end)
+  end
+end
+
+local function executables_for_file(file_path)
+  local project_root = CMakeSeer.get_config():get_project_root()
+  local resolved_file_path = vim.fs.relpath(project_root, file_path) or file_path
+
+  local executables = {}
+  local total_executables = 0
+  for _, target in ipairs(gtest_executables) do
+    for _, source in ipairs(target.sources or {}) do
+      if source.path == resolved_file_path then
+        if executables[target.name] == nil then
+          total_executables = total_executables + 1
+        end
+        executables[target.name] = target
+      end
+    end
+  end
+  return executables, total_executables
+end
+
+local setup_called = false
+
 --- Sets up the adapter.
 ---@param opts table
 ---@return neotest.Adapter adapter The adapter.
 function M.setup(opts)
   M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
-  -- TODO: Add a post-build callback to refresh tests
+  if not setup_called then
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "CMakeSeerPostbuild",
+      callback = function(args)
+        if args.data.status ~= "SUCCESS" then
+          return
+        end
+
+        update_state()
+      end,
+    })
+  end
+  setup_called = true
   return M
 end
 
@@ -177,6 +242,11 @@ function M.root(cwd)
   in_project = in_project or (#cwd > #project_root and vim.startswith(cwd, project_root))
 
   if in_project then
+    if not setup_called then
+      M.setup()
+      update_state()
+    end
+
     return project_root
   end
   return nil
@@ -189,8 +259,7 @@ end
 ---@param _project_root string Root directory of project
 ---@return boolean
 function M.filter_dir(_directory, rel_path, _project_root)
-  local targets = fetch_gtest_executables()
-  for _, target in ipairs(targets) do
+  for _, target in ipairs(gtest_executables) do
     for _, source in ipairs(target.sources or {}) do
       for path in vim.fs.parents(source.path) do
         if path == rel_path then
@@ -209,8 +278,7 @@ end
 function M.is_test_file(file_path)
   local project_root = CMakeSeer.get_config():get_project_root()
   file_path = vim.fs.relpath(project_root, file_path) or file_path
-  local targets = fetch_gtest_executables()
-  for _, target in ipairs(targets) do
+  for _, target in ipairs(gtest_executables) do
     for _, source in ipairs(target.sources or {}) do
       if file_path == source.path then
         return true
@@ -239,24 +307,8 @@ function M.discover_positions(file_path)
     vim.list_extend(suite_tests[suite], tests)
   end
 
-  local project_root = CMakeSeer.get_config():get_project_root()
-  local resolved_file_path = vim.fs.relpath(project_root, file_path) or file_path
-  local targets = fetch_gtest_executables()
-
-  ---@type table<string, cmakeseer.cmake.file_api.object_kind.Codemodel.Target>
-  local executables = {}
-  local total_executables = 0
-  for _, target in ipairs(targets) do
-    for _, source in ipairs(target.sources or {}) do
-      if source.path == resolved_file_path then
-        if executables[target.name] then
-          total_executables = total_executables + 1
-        end
-        executables[target.name] = target
-      end
-    end
-  end
-
+  ---@type table<string, cmakeseer.cmake.file_api.object_kind.Codemodel.Target>, number
+  local executables, total_executables = executables_for_file(file_path)
   local _, executable_target = next(executables)
   if executable_target == nil then
     vim.notify_once("No suites detected for " .. file_path, vim.log.levels.WARN)
@@ -267,22 +319,18 @@ function M.discover_positions(file_path)
     vim.notify(("Multiple executables are not yet supported. Running %s"):format(executable_target.name), vim.log.levels.WARN)
   end
 
-  local gtest_list_cmd = generate_gtest_list_command(executable_target)
-  if gtest_list_cmd.cmd ~= nil then
-    -- Cache was not used
-    local complete = gtest_list_cmd.cmd:wait(100)
-    if complete.code ~= 0 then
-      vim.notify(("Failed to generate GTest info for %s: %s"):format(executable_target.name, complete.stderr or "Unknown error"))
-      return nil
-    end
+  local gtest_cache = gtest_caches[executable_target.name]
+  if gtest_cache == nil then
+    vim.notify(("Could not find gtest report for %s"):format(executable_target.name))
+    return nil
   end
 
   local report
-  report, err = GTestJsonReport.try_from_file(gtest_list_cmd.cache)
+  report, err = GTestJsonReport.try_from_file(gtest_cache)
   if report == nil then
     vim.notify(("Failed to read output for executable %s; cannot detect if it is a gtest. Error: %s"):format(executable_target.name, err), vim.log.levels.ERROR)
     vim.notify(("Deleting cache for %s"):format(executable_target.name))
-    vim.fs.rm(gtest_list_cmd.cache, { force = true })
+    vim.fs.rm(gtest_cache, { force = true })
     return nil
   end
 
@@ -456,23 +504,8 @@ function M.build_spec(args)
   ---@type table<string, {target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, ids: table[]}>
   local executable_targets = {}
   local total_executable_targets = 0
-  local targets = fetch_gtest_executables()
-  local project_root = CMakeSeer.get_config():get_project_root()
   for _, test_id in ipairs(test_ids) do
-    local executables = {}
-    local total_executables = 0
-    local resolved_file_path = vim.fs.relpath(project_root, test_id.file) or test_id.file
-    for _, target in ipairs(targets) do
-      for _, source in ipairs(target.sources or {}) do
-        if source.path == resolved_file_path then
-          if executables[target.name] == nil then
-            total_executables = total_executables + 1
-          end
-          executables[target.name] = target
-        end
-      end
-    end
-
+    local executables, total_executables = executables_for_file(test_id.file)
     if total_executables == 0 then
       vim.notify("No suites detected for " .. test_id.file, vim.log.levels.WARN)
       return {}
@@ -576,8 +609,12 @@ end
 ---@param _ neotest.Tree
 ---@return table<string, neotest.Result>
 function M.results(spec, exe_result, _)
-  ---@type neotest.cmakeseer.Context
-  local context = assert(spec.context)
+  ---@type neotest.cmakeseer.Context?
+  local context = spec.context
+  if context == nil then
+    return {}
+  end
+
   local report, err = GTestJsonReport.try_from_file(context.report_path)
   if report == nil then
     vim.notify(("Failed to read GTest output for executable %s; cannot parse results. Error: %s"):format(context.executable.name, err), vim.log.levels.ERROR)
