@@ -18,8 +18,9 @@ AbstractTestSuite.__index = AbstractTestSuite
 
 --- Determines the type of the test given the name.
 ---@param name string The name of the tests
----@return cmakeseer.gtest.JsonReport.TestSuite.Type?
-local function determine_test_type(name)
+---@param testsuite any[] The raw tests of the suite
+---@return cmakeseer.gtest.JsonReport.TestSuite.Type? type_, string? err
+local function determine_test_type(name, testsuite)
   local parts = vim.split(name, "/", { plain = true })
   if #parts == 1 then
     return AbstractTestSuite.Type.Basic
@@ -29,15 +30,20 @@ local function determine_test_type(name)
   end
 
   if #parts > 3 then
-    return nil
+    return nil, "Invalid name: " .. name
   end
 
-  local discriminator = parts[2]
-  local maybe_num = tonumber(discriminator)
-  if maybe_num == nil then
+  -- Parameterized and Typed can be indistinguishable by name alone.
+  -- We could look for name hints, but not everyone follows conventions.
+  -- This ends up requiring more information about the suite than I'd like, but
+  -- there's not too much I can do about it.
+  local test = testsuite[1]
+  if test.value_param ~= nil then
     return AbstractTestSuite.Type.Parameterized
+  elseif test.type_param ~= nil then
+    return AbstractTestSuite.Type.Typed
   end
-  return AbstractTestSuite.Type.Typed
+  return nil, "Name does not fit Basic or ParameterizedTyped, and tests do not have type_param nor value_param"
 end
 
 --- Creates a new TestSuite instance from JSON.
@@ -53,14 +59,14 @@ function AbstractTestSuite.try_from_json(json)
     return nil, "name is wrong type: " .. type(name)
   end
 
-  local type_ = determine_test_type(name)
-  if type_ == nil then
-    return nil, "Invalid name: " .. name
-  end
-
   local raw_tests = json.testsuite
   if not vim.islist(raw_tests) then
     return nil, "testsuite is wrong type: " .. type(raw_tests)
+  end
+
+  local type_, err = determine_test_type(name, raw_tests)
+  if type_ == nil then
+    return nil, "Cannot determine test type: " .. err
   end
 
   local Counts = require("cmakeseer.gtest.json_report.testsuite.counts")
