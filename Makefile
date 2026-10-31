@@ -7,7 +7,7 @@ export PATH := $(LUAROCKS_TREE)/bin:$(PATH)
 export LUA_PATH := $(LUAROCKS_TREE)/share/lua/$(LUAROCKS_VER)/?.lua;$(LUAROCKS_TREE)/share/lua/$(LUAROCKS_VER)/?/init.lua;;
 export LUA_CPATH := $(LUAROCKS_TREE)/lib/lua/$(LUAROCKS_VER)/?.so;$(LUAROCKS_TREE)/lib64/lua/$(LUAROCKS_VER)/?.so;;
 
-.PHONY: download-types install-lua-tools install-busted install-luacheck check-lua-51 check-llscheck check-stylua-bin llscheck-all llscheck llscheck-spec check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop
+.PHONY: download-types install-lua-tools install-busted install-luacheck install-llscheck check-lua-51 check-stylua-bin llscheck-all llscheck llscheck-spec check-stylua luacheck stylua test test-profile test-jit coverage coverage-text coverage-html coverage-summary clean-test clean all doc doc-panvimdoc doc-mini profile-start profile-stop jit-start jit-stop
 
 ifeq ($(OS),Windows_NT)
     IGNORE_EXISTING =
@@ -24,7 +24,7 @@ SPEC_CONFIGURATION = .luarc_spec.json
 # release and stylua is a Rust binary -- so they must be installed separately.
 LUA_TOOLS := busted luacheck
 
-install-lua-tools: check-lua-51 install-busted install-luacheck
+install-lua-tools: check-lua-51 install-busted install-luacheck install-llscheck
 
 # Verify a Lua 5.1 interpreter (lua5.1, luajit, or lua 5.1) is available.
 # Neovim runs LuaJIT (Lua 5.1 compatible), so LuaRocks needs Lua 5.1 to
@@ -63,17 +63,6 @@ check-lua-51:
 		esac; \
 	fi
 
-check-llscheck:
-	@if ! command -v llscheck > /dev/null 2>&1; then \
-		echo ""; \
-		echo "WARNING: llscheck not found on PATH."; \
-		echo "         llscheck ships with the lua-language-server binary release."; \
-		echo ""; \
-		echo "         Install lua-language-server, e.g.:"; \
-		echo "           https://github.com/LuaLS/lua-language-server/releases"; \
-		echo ""; \
-	fi
-
 check-stylua-bin:
 	@if ! command -v stylua > /dev/null 2>&1; then \
 		echo ""; \
@@ -87,6 +76,9 @@ check-stylua-bin:
 
 install-busted:
 	@which busted > /dev/null 2>&1 || luarocks $(LUAROCKS_FLAGS) install busted
+
+install-llscheck:
+	@which llscheck > /dev/null 2>&1 || luarocks $(LUAROCKS_FLAGS) install llscheck
 
 install-luacheck:
 	@which luacheck > /dev/null 2>&1 || luarocks $(LUAROCKS_FLAGS) install luacheck

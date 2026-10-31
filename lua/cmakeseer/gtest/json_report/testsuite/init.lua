@@ -71,7 +71,8 @@ function AbstractTestSuite.try_from_json(json)
 
   local Counts = require("cmakeseer.gtest.json_report.testsuite.counts")
 
-  local counts, err = Counts.try_from_json(json)
+  local counts
+  counts, err = Counts.try_from_json(json)
   if counts == nil then
     return nil, "counts: " .. err
   end
@@ -103,6 +104,7 @@ end
 ---@param _other cmakeseer.gtest.JsonReport.AbstractTestSuite The other suite to merge with. Must be the same type as self.
 function AbstractTestSuite:merge(_other)
   assert(false, "Cannot call merge on an abstract test suite!")
+  local _ = self
 end
 
 ---@alias cmakeseer.gtest.JsonReport.TestSuite
