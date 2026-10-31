@@ -16,7 +16,6 @@ local TargetType = require("cmakeseer.cmake.file_api.object_kind.codemodel.targe
 ---@field suite string?
 ---@field test string?
 
--- TODO: Have the plugin subscribe to build events
 local M
 ---@class cmakeseer.GTestAdapter : neotest.Adapter
 ---@field setup fun(opts: table?): neotest.Adapter
@@ -135,7 +134,12 @@ local function get_test_status(test)
 end
 
 local function get_new_status(prev_status, new_status)
-  --- Skipped has lowest priority
+  -- Running is lowest priority
+  if prev_status == "running" then
+    return new_status
+  end
+
+  -- Skipped has next lowest priority
   if prev_status == ResultStatus.skipped then
     return new_status
   end
@@ -482,61 +486,71 @@ end
 ---@param args neotest.RunArgs
 ---@return nil | neotest.RunSpec | neotest.RunSpec[]
 function M.build_spec(args)
-  local original_test_id = parse_id(args[1])
-  if original_test_id.type == "unknown" or original_test_id.suite_type == "unknown" then
+  local test_id = parse_id(args[1])
+  if test_id.type == "unknown" or test_id.suite_type == "unknown" then
     vim.notify("Recompile before running tests", vim.log.levels.ERROR)
     return {}
   end
 
-  local test_ids = {}
-  if original_test_id.type == "dir" then
-    -- We'll fetch all the file IDs
-    local tree = args.tree
-    for _, child in tree:iter() do
-      if child.type == "file" then
-        table.insert(test_ids, parse_id(child.id))
-      end
-    end
-  else
-    table.insert(test_ids, original_test_id)
-  end
+  local suite_is_disabled = test_id.suite and vim.startswith(test_id.suite, "DISABLED_")
+  local test_is_disabled = test_id.name and vim.startswith(test_id.name, "DISABLED_")
+  local has_disabled = suite_is_disabled or test_is_disabled
 
-  ---@type table<string, {target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, ids: table[]}>
+  -- We make a table of results here so Neotest displays the correct values, regardless of how many executables run
+  ---@type table<string, neotest.Result>
+  local results = {}
+  ---@type table<string, {target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, filter: string?}>
   local executable_targets = {}
   local total_executable_targets = 0
-  for _, test_id in ipairs(test_ids) do
-    local executables, total_executables = executables_for_file(test_id.file)
-    if total_executables == 0 then
-      vim.notify("No suites detected for " .. test_id.file, vim.log.levels.WARN)
-      return {}
-    end
+  for _, child in args.tree:iter() do
+    results[child.id] = {
+      status = "running", ---@diagnostic disable-line: assign-type-mismatch
+    }
 
-    for _, executable_target in pairs(executables) do
-      if executable_targets[executable_target.name] == nil then
-        total_executable_targets = total_executable_targets + 1
-        executable_targets[executable_target.name] = {
-          target = executable_target,
-          ids = {},
-        }
+    local id = parse_id(child.id)
+    if id.name ~= "*" and (id.type == "basic" or id.type == "typed" or id.type == "parameterized" or id.type == "parameterized_typed") then
+      local new_filter = id_to_filter(id)
+      if new_filter == nil then
+        vim.notify(("Failed to generate gtest filter for %s"):format(id.name), vim.log.levels.ERROR)
+        return {}
       end
-      table.insert(executable_targets[executable_target.name].ids, test_id)
+
+      local executables, total_executables = executables_for_file(id.file)
+      if total_executables == 0 then
+        vim.notify("No suites detected for " .. id.file, vim.log.levels.ERROR)
+        return {}
+      end
+
+      for _, executable_target in pairs(executables) do
+        if executable_targets[executable_target.name] == nil then
+          total_executable_targets = total_executable_targets + 1
+          executable_targets[executable_target.name] = {
+            target = executable_target,
+          }
+        end
+
+        local filter = executable_targets[executable_target.name].filter
+        if filter then
+          filter = ("%s:%s"):format(filter, new_filter)
+        else
+          filter = new_filter
+        end
+        executable_targets[executable_target.name].filter = filter
+      end
     end
   end
 
   assert(total_executable_targets > 0, "Should never be 0 because we're checking inside the loop as well")
   local strategy = args.strategy
   if strategy == "dap" and total_executable_targets > 1 then
-    vim.notify(("Cannot run DAP with more than one executable. Found %d for %s"):format(total_executable_targets, original_test_id.file), vim.log.levels.WARN)
+    vim.notify(("Cannot run DAP with more than one executable. Found %d for %s"):format(total_executable_targets, test_id.file), vim.log.levels.WARN)
     return {}
   end
 
   local specs = {}
   local build_dir = CMakeSeer.resolve_build_directory()
-  for _, target_and_ids in pairs(executable_targets) do
-    local executable_target = target_and_ids.target
-    local executable_test_ids = target_and_ids.ids
-
-    local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", (executable_target.name_on_disk or executable_target.name) .. ".json")
+  for _, target_data in pairs(executable_targets) do
+    local executable_target = target_data.target
 
     assert(#executable_target.artifacts == 1, "Should only ever have exactly 1 artifact")
     local command = executable_target.artifacts[1]
@@ -544,25 +558,10 @@ function M.build_spec(args)
       command = vim.fs.joinpath(build_dir, command)
     end
 
-    local filter
-    local has_disabled = false
-    for _, test_id in ipairs(executable_test_ids) do
-      local new_filter = id_to_filter(test_id)
-      if new_filter == nil then
-        vim.notify(("Failed to generate gtest filter for %s"):format(test_id.name), vim.log.levels.ERROR)
-        return {}
-      end
-      if filter then
-        filter = ("%s:%s"):format(filter, new_filter)
-      else
-        filter = new_filter
-      end
-      local suite_is_disabled = test_id.suite and vim.startswith(test_id.suite, "DISABLED_")
-      local test_is_disabled = test_id.name and vim.startswith(test_id.name, "DISABLED_")
-      has_disabled = has_disabled or suite_is_disabled or test_is_disabled
-    end
-    assert(filter, "Should have had at least one test ID")
+    local filter = target_data.filter
+    assert(filter, "Should have had at least one test")
 
+    local report_path = vim.fs.joinpath(M.opts.cache_directory(), "reports", (executable_target.name_on_disk or executable_target.name) .. ".json")
     local command_args = {
       command,
       ("--gtest_output=json:%s"):format(report_path),
@@ -580,12 +579,13 @@ function M.build_spec(args)
       ---@field executable cmakeseer.cmake.file_api.object_kind.Codemodel.Target
       ---@field report_path string
       ---@field raw_id string
-      ---@field original_test_id table
+      ---@field results table<string, neotest.Result>
+      ---@type neotest.cmakeseer.Context
       context = {
         executable = executable_target,
         report_path = report_path,
         raw_id = args[1],
-        original_test_id = original_test_id,
+        results = results,
       },
     }
     table.insert(specs, spec)
@@ -595,7 +595,7 @@ function M.build_spec(args)
     assert(#specs == 1)
     local dap_config = build_dap_config(specs[1].context.executable.name, specs[1].command)
     if dap_config == nil then
-      vim.notify("Failed to build dap configuration for " .. original_test_id.file, vim.log.levels.ERROR)
+      vim.notify("Failed to build dap configuration for " .. test_id.file, vim.log.levels.ERROR)
       return {}
     end
     specs[1].strategy = dap_config
@@ -606,33 +606,30 @@ end
 ---@async
 ---@param spec neotest.RunSpec
 ---@param exe_result neotest.StrategyResult
----@param _ neotest.Tree
+---@param tree neotest.Tree
 ---@return table<string, neotest.Result>
-function M.results(spec, exe_result, _)
+function M.results(spec, exe_result, tree)
   ---@type neotest.cmakeseer.Context?
   local context = spec.context
   if context == nil then
     return {}
   end
 
+  local results = context.results
   local report, err = GTestJsonReport.try_from_file(context.report_path)
   if report == nil then
     vim.notify(("Failed to read GTest output for executable %s; cannot parse results. Error: %s"):format(context.executable.name, err), vim.log.levels.ERROR)
-    return {
-      [context.raw_id] = {
-        status = exe_result.code == 0 and ResultStatus.passed or ResultStatus.failed,
-        output = exe_result.output,
-      },
+    results[context.raw_id] = {
+      status = exe_result.code == 0 and ResultStatus.passed or ResultStatus.failed,
+      output = exe_result.output,
     }
+    return results
   end
 
-  -- Get the result for every test that was run
-  ---@type table<string, neotest.Result>
-  local results = {}
+  -- Update the result for every test that was run
   ---@type table<string, neotest.ResultStatus>
   local file_statuses = {}
   for _, suite in pairs(report.testsuites) do
-    local suite_type = suite.type
     ---@type table<string, neotest.ResultStatus>
     local suite_statuses = {} -- We need multiple statuses in case the suite spans multiple files
     for _, test in ipairs(suite.tests) do
@@ -707,24 +704,36 @@ function M.results(spec, exe_result, _)
       }
 
       results[test_id] = test_result
-    end
 
-    for file, suite_status in pairs(suite_statuses) do
-      local suite_id = ("%s::suite::%s::%s"):format(file, suite_type, suite.name)
-      ---@type neotest.Result
-      local suite_result = {
-        status = suite_status,
-        output = exe_result.output,
-      }
-      results[suite_id] = suite_result
-    end
-  end
+      local test_node = tree:get_key(test_id)
+      if test_node ~= nil then
+        for parent in test_node:iter_parents() do
+          local children = parent:children()
+          local parent_id = parent:data().id
+          local parent_result = results[parent_id]
+          if parent_result == nil then
+            -- Parent can be nil if it's the top, top level
+            break
+          end
 
-  for file, status in pairs(file_statuses) do
-    results[file] = {
-      status = status,
-      output = exe_result.output,
-    }
+          local parent_status = parent_result.status
+          if parent_status == "running" then
+            for _, child in ipairs(children) do
+              local child_status = results[child:data().id].status
+              parent_status = get_new_status(parent_status, child_status)
+            end
+          end
+          if parent_status == "running" then
+            -- Still running. . .
+            break
+          end
+          results[parent_id] = {
+            status = parent_status,
+            output = exe_result.output,
+          }
+        end
+      end
+    end
   end
 
   return results
