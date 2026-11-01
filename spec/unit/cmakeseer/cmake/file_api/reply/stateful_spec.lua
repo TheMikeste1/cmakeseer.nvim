@@ -284,12 +284,31 @@ describe("reply.Stateful", function()
       assert.is_nil(stateful:get_response({ kind = "codemodel", version = 1 }))
     end)
 
-    it("returns nothing when the version is in a different form than the request", function()
+    it("matches a request when the version is in a different form than the request", function()
       local stateful = Stateful.new({ { kind = "codemodel", version = { major = 2, minor = 6 } } }, {
         Reply.from_json(valid_json(), INDEX_FILE_PATH),
       })
-      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 2 }))
-      assert.is_nil(stateful:get_response({ kind = "codemodel", version = { 2, 6 } }))
+
+      local response = assert(stateful:get_response({ kind = "codemodel", version = 2 }))
+      assert.are.equal("valid", response.kind)
+
+      response = assert(stateful:get_response({ kind = "codemodel", version = { 2, 6 } }))
+      assert.are.equal("valid", response.kind)
+    end)
+
+    it("returns nothing when the major version differs even across forms", function()
+      local stateful = Stateful.new({ { kind = "codemodel", version = { major = 2, minor = 6 } } }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+      })
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = 1 }))
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = { major = 1 } }))
+      assert.is_nil(stateful:get_response({ kind = "codemodel", version = { 1, 6 } }))
+
+      local other = Stateful.new({ { kind = "codemodel", version = 2 } }, {
+        Reply.from_json(valid_json(), INDEX_FILE_PATH),
+      })
+      assert.is_nil(other:get_response({ kind = "codemodel", version = { major = 1 } }))
+      assert.is_nil(other:get_response({ kind = "codemodel", version = { 1, 6 } }))
     end)
 
     it("returns the first response when the same kind and version is requested twice", function()

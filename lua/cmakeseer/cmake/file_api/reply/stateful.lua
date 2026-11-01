@@ -84,6 +84,42 @@ function Stateful.try_from_json(json, index_file_path)
   return Stateful.new(requests, responses, client)
 end
 
+--- Normalizes a version to its major component so that different CMake file API
+--- forms of the same version compare equal.
+---
+--- The file API permits a version as an integer (`2`), an object with `major`
+--- and optional `minor` (`{ major = 2, minor = 6 }`), or an array of either
+--- (`[2, 1]`, `[2, { major = 1, minor = 2 }]`). CMake treats all of these as
+--- the same major version when selecting a response, so this collapses them to
+--- `{ major = N }`.
+---@param version cmakeseer.cmake.file_api.query.ObjectKindVersion The version to normalize.
+---@return { major: integer }? normalized The normalized version, or nil when it cannot be parsed.
+local function normalize_version(version)
+  if type(version) == "number" then
+    return { major = version }
+  end
+
+  if type(version) == "table" then
+    -- Array form: the first element is the major version.
+    if vim.islist(version) then
+      local first = version[1]
+      if type(first) == "number" then
+        return { major = first }
+      end
+      if type(first) == "table" and type(first.major) == "number" then
+        return { major = first.major }
+      end
+    end
+
+    -- Object form: { major = N, minor = M }.
+    if type(version.major) == "number" then
+      return { major = version.major }
+    end
+  end
+
+  return nil
+end
+
 ---@param lhs cmakeseer.cmake.file_api.query.ObjectKind The lhs kind.
 ---@param rhs cmakeseer.cmake.file_api.query.ObjectKind The rhs kind.
 ---@return boolean
@@ -92,7 +128,13 @@ local function object_kinds_same(lhs, rhs)
     return false
   end
 
-  return vim.deep_equal(lhs.version, rhs.version)
+  local lhs_version = normalize_version(lhs.version)
+  local rhs_version = normalize_version(rhs.version)
+  if lhs_version == nil or rhs_version == nil then
+    return false
+  end
+
+  return lhs_version.major == rhs_version.major
 end
 
 ---Gets a response from the stateful query.
