@@ -32,7 +32,7 @@ M = {
       return vim.fs.joinpath(CMakeSeer.resolve_build_directory(), ".cache", "cmakeseer", "gtest")
     end,
     --- DAP configuration used when tests are run with the "dap" strategy. If nil and nvim-dap is installed, a default configuration is used.
-    ---@type table|nil
+    ---@type table|string|nil
     dap = nil,
   },
   treesitter = require("neotest.cmakeseer.gtest.treesitter"),
@@ -191,14 +191,9 @@ local function executables_for_file(file_path)
   return executables, total_executables
 end
 
-local setup_called = false
-
---- Sets up the adapter.
----@param opts table
----@return neotest.Adapter adapter The adapter.
-function M.setup(opts)
-  M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
-  if not setup_called then
+local subscribed_to_events = false
+local function subscribe_events()
+  if not subscribed_to_events then
     vim.api.nvim_create_autocmd("User", {
       pattern = "CMakeSeerPostbuild",
       callback = function(args)
@@ -210,7 +205,14 @@ function M.setup(opts)
       end,
     })
   end
-  setup_called = true
+  subscribed_to_events = true
+end
+
+--- Sets up the adapter.
+---@param opts table
+---@return neotest.Adapter adapter The adapter.
+function M.setup(opts)
+  M.opts = vim.tbl_extend("keep", opts or {}, M.opts)
   return M
 end
 
@@ -246,8 +248,10 @@ function M.root(cwd)
   in_project = in_project or (#cwd > #project_root and vim.startswith(cwd, project_root))
 
   if in_project then
-    if not setup_called then
-      M.setup()
+    if not subscribed_to_events then
+      subscribe_events()
+    end
+    if gtest_executables == nil then
       update_state()
     end
 
@@ -451,20 +455,24 @@ end
 ---@return table? config, string? err The dap configuration.
 local function build_dap_config(target_name, command_args)
   local config = M.opts.dap
-  if config == nil then
-    local ok, dap = pcall(require, "dap")
-    if not ok then
-      return nil, "nvim-dap is not installed; cannot use the dap strategy"
-    end
-
-    -- Detect the adapter type from the installed adapters, falling back to
-    -- "cppdbg" (ms-vscode.cpptools) when none of the known ones are present.
+  if type(config) ~= "table" then
     local adapter_type = "cppdbg"
-    local adapters = dap.adapters or {}
-    for _, candidate in ipairs({ "cppdbg", "cpp", "codelldb" }) do
-      if adapters[candidate] ~= nil then
-        adapter_type = candidate
-        break
+    if type(config) == "string" then
+      adapter_type = config
+    else
+      local ok, dap = pcall(require, "dap")
+      if not ok then
+        return nil, "nvim-dap is not installed; cannot use the dap strategy"
+      end
+
+      -- Detect the adapter type from the installed adapters, falling back to
+      -- "cppdbg" (ms-vscode.cpptools) when none of the known ones are present.
+      local adapters = dap.adapters or {}
+      for _, candidate in ipairs({ "codelldb", "cppdbg", "cpp" }) do
+        if adapters[candidate] ~= nil then
+          adapter_type = candidate
+          break
+        end
       end
     end
 
