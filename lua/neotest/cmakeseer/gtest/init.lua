@@ -642,6 +642,13 @@ function M.results(spec, exe_result, tree)
     }
     return results
   end
+  if exe_result.code == 0 and vim.tbl_isempty(report.testsuites) then
+    vim.notify(("No tests detected for %s. Recompile!"):format(context.raw_id), vim.log.levels.ERROR)
+    results[context.raw_id] = {
+      status = ResultStatus.skipped,
+      output = exe_result.output,
+    }
+  end
 
   -- Update the result for every test that was run
   ---@type table<string, neotest.ResultStatus>
