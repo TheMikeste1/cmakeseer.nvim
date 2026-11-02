@@ -113,12 +113,12 @@ local function execute_gtest_list_command(target, on_exit)
     executable,
     "--gtest_list_tests",
     string.format("--gtest_output=json:%s", cache),
-  }, nil, handle_on_exit)
+  }, { timeout = 100 }, handle_on_exit)
   if success then
     return { cmd = test_cmd, cache = cache }
   end
 
-  vim.notify(string.format("Failed to check %s for gtests", executable), vim.log.levels.ERROR)
+  vim.notify(("Failed to check %s for gtests: %s"):format(executable, test_cmd), vim.log.levels.ERROR)
   return {}
 end
 
@@ -329,9 +329,18 @@ function M.discover_positions(file_path)
 
   local gtest_cache = gtest_caches[executable_target.name]
   if gtest_cache == nil then
-    vim.notify(("Could not find gtest report for %s"):format(executable_target.name))
-    return nil
+    local cmd = execute_gtest_list_command(executable_target)
+    if cmd.cmd ~= nil then
+      local completed = cmd.cmd:wait(100)
+      if completed.code == 0 then
+        gtest_cache = cmd.cache
+      else
+        vim.notify(("Could not find gtest report for %s"):format(executable_target.name))
+        return nil
+      end
+    end
   end
+  assert(gtest_cache ~= nil, "gtest_cache should no longer be nil")
 
   local report
   report, err = GTestJsonReport.try_from_file(gtest_cache)
