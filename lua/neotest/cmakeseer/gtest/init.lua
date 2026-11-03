@@ -557,7 +557,11 @@ function M.build_spec(args)
     end
   end
 
-  assert(total_executable_targets > 0, "Should never be 0 because we're checking inside the loop as well")
+  if total_executable_targets == 0 then
+    vim.notify(("Failed to find targets for %s"):format(test_id.file), vim.log.levels.WARN)
+    return {}
+  end
+
   local strategy = args.strategy
   if strategy == "dap" and total_executable_targets > 1 then
     vim.notify(("Cannot run DAP with more than one executable. Found %d for %s"):format(total_executable_targets, test_id.file), vim.log.levels.WARN)
