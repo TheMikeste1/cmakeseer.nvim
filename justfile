@@ -8,7 +8,6 @@ export LUA_PATH := f"{{LUAROCKS_TREE}}/share/lua/{{LUAROCKS_VER}}/?.lua;{{LUAROC
 export LUA_CPATH := f"{{LUAROCKS_TREE}}/lib/lua/{{LUAROCKS_VER}}/?.so;{{LUAROCKS_TREE}}/lib64/lua/{{LUAROCKS_VER}}/?.so;;"
 
 [default]
-[parallel]
 all: test llscheck-all luacheck check-stylua
 
 clean: clean-test

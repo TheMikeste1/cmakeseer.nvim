@@ -26,6 +26,11 @@ local GTEST_QUERY = [[
 local LANG = "cpp"
 local parse_query = vim.treesitter.query.parse or vim.treesitter.parse_query
 
+--- Cache of treesitter query results, keyed by file path.
+--- Avoids re-reading and re-parsing a source file on every discovery when it has not changed.
+---@type table<string, { mtime: integer, tests: table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>?, err: string? }>
+local query_cache = {}
+
 --- @description Extracts structured node information from matches and captures returned by the treesitter query matching process.
 --- @param matches table<integer, TSNode[]> The array of successful match nodes.
 --- @param captures string[] The array of capture groups defined in the query.
@@ -120,6 +125,13 @@ end
 ---@param filepath string The path to the file.
 ---@return table<string, neotest.cmakeseer.gtest.treesitter.CapturedTest[]>? tests, string? err The queried tests, if the query succeeded. Otherwise, a string with describing why the query failed.
 function M.query_tests(filepath)
+  local stat = vim.uv.fs_stat(filepath)
+  local mtime = stat and stat.mtime.sec or 0
+  local cached = query_cache[filepath]
+  if cached ~= nil and cached.mtime == mtime then
+    return cached.tests, cached.err
+  end
+
   local file = io.open(filepath, "r")
   if file == nil then
     return nil, "Could not open " .. filepath
@@ -129,7 +141,9 @@ function M.query_tests(filepath)
   local contents = file:read("*a")
   file:close()
 
-  return M.query_tests_from_string(contents)
+  local tests, err = M.query_tests_from_string(contents)
+  query_cache[filepath] = { mtime = mtime, tests = tests, err = err }
+  return tests, err
 end
 
 return M

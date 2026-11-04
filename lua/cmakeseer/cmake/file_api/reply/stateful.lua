@@ -92,7 +92,7 @@ end
 --- (`[2, 1]`, `[2, { major = 1, minor = 2 }]`). CMake treats all of these as
 --- the same major version when selecting a response, so this collapses them to
 --- `{ major = N }`.
----@param version cmakeseer.cmake.file_api.query.ObjectKindVersion The version to normalize.
+---@param version cmakeseer.cmake.file_api.query.ObjectKind.Version The version to normalize.
 ---@return { major: integer }? normalized The normalized version, or nil when it cannot be parsed.
 local function normalize_version(version)
   if type(version) == "number" then

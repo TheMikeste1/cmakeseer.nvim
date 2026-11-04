@@ -1,4 +1,5 @@
 local CMakeSeer = require("cmakeseer")
+local Async = require("cmakeseer.async")
 local GTestJsonReport = require("cmakeseer.gtest.json_report")
 local ResultStatus = require("neotest.types").ResultStatus
 local TargetType = require("cmakeseer.cmake.file_api.object_kind.codemodel.target").Type
@@ -71,11 +72,12 @@ local function compares_times(a, b)
   return 0
 end
 
---- Generates all the test commands to check if an executable is a GTest executable.
----@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The targets to check.
----@param on_exit? fun(target: cmakeseer.cmake.file_api.object_kind.Codemodel.Target, cache: string, out?: vim.SystemCompleted)
----@return {cmd: vim.SystemObj?, cache: string} gtest_list_commnd The command.
-local function execute_gtest_list_command(target, on_exit)
+--- Generates the test command to check if an executable is a GTest executable.
+--- Performs the cache-staleness and executable-readability checks, but does not
+--- spawn the process; callers are responsible for running the returned command.
+---@param target cmakeseer.cmake.file_api.object_kind.Codemodel.Target The target to check.
+---@return {cmd: string[]?, cache: string} gtest_list_command The command args and cache path.
+local function build_gtest_list_command(target)
   assert(target.type == TargetType.Executable, "Only executable targets are supported")
   assert(target.artifacts ~= nil, "Artifacts for executable should not have been nil")
   assert(#target.artifacts == 1, "Should only have one artifact for executable")
@@ -89,9 +91,6 @@ local function execute_gtest_list_command(target, on_exit)
     local exe_stat = vim.uv.fs_stat(executable)
     if exe_stat ~= nil and compares_times(cache_stat.mtime, exe_stat.mtime) == 1 then
       -- Cache is not outdated; use it instead
-      if on_exit then
-        on_exit(target, cache)
-      end
       return { cache = cache }
     end
   end
@@ -101,25 +100,14 @@ local function execute_gtest_list_command(target, on_exit)
     return {}
   end
 
-  ---@type function?
-  local handle_on_exit
-  if on_exit then
-    handle_on_exit = function(out)
-      on_exit(target, cache, out)
-    end
-  end
-
-  local success, test_cmd = pcall(vim.system, {
-    executable,
-    "--gtest_list_tests",
-    string.format("--gtest_output=json:%s", cache),
-  }, { timeout = 100 }, handle_on_exit)
-  if success then
-    return { cmd = test_cmd, cache = cache }
-  end
-
-  vim.notify(("Failed to check %s for gtests: %s"):format(executable, test_cmd), vim.log.levels.ERROR)
-  return {}
+  return {
+    cmd = {
+      executable,
+      "--gtest_list_tests",
+      string.format("--gtest_output=json:%s", cache),
+    },
+    cache = cache,
+  }
 end
 
 local function get_test_status(test)
@@ -161,14 +149,22 @@ local function update_state()
   gtest_executables = fetch_gtest_executables()
 
   for _, executable_target in pairs(gtest_executables) do
-    execute_gtest_list_command(executable_target, function(target, cache, complete)
-      if complete ~= nil and complete.code ~= 0 then
-        vim.notify(("Failed to generate GTest info for %s: %s"):format(target.name, complete.stderr or "Unknown error"))
-        return
+    local command = build_gtest_list_command(executable_target)
+    if command.cmd == nil then
+      -- Cache hit or unreadable; nothing to spawn.
+      if command.cache ~= nil then
+        gtest_caches[executable_target.name] = command.cache
       end
+    else
+      vim.system(command.cmd, { timeout = 100 }, function(out)
+        if out.code ~= 0 then
+          vim.notify(("Failed to generate GTest info for %s: %s"):format(executable_target.name, out.stderr or "Unknown error"))
+          return
+        end
 
-      gtest_caches[target.name] = cache
-    end)
+        gtest_caches[executable_target.name] = command.cache
+      end)
+    end
   end
 end
 
@@ -329,15 +325,19 @@ function M.discover_positions(file_path)
 
   local gtest_cache = gtest_caches[executable_target.name]
   if gtest_cache == nil then
-    local cmd = execute_gtest_list_command(executable_target)
-    if cmd.cmd ~= nil then
-      local completed = cmd.cmd:wait(100)
-      if completed.code == 0 then
-        gtest_cache = cmd.cache
-      else
+    local command = build_gtest_list_command(executable_target)
+    if command.cmd ~= nil then
+      -- `discover_positions` is `@async`, so yield instead of blocking the UI on `:wait()`.
+      local completed, sys_err = Async.system(command.cmd, nil, 100)
+      if sys_err ~= nil then
+        vim.notify(("Failed to check %s for gtests: %s"):format(executable_target.name, sys_err), vim.log.levels.ERROR)
+        return nil
+      end
+      if completed == nil or completed.code ~= 0 then
         vim.notify(("Could not find gtest report for %s"):format(executable_target.name))
         return nil
       end
+      gtest_cache = command.cache
     end
   end
   assert(gtest_cache ~= nil, "gtest_cache should no longer be nil")
