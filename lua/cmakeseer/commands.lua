@@ -125,7 +125,8 @@ function M.select_build_preset(preset)
   end)
 end
 
---- Gets all available variants: the well-known variants plus the additional variants from the configuration, in sorted order.
+--- Gets all available variants: the well-known variants, the additional variants from the configuration,
+--- and the configurations reported by the CMake codemodel, in sorted order.
 ---@return cmakeseer.Variant[] variants All available variants.
 local function all_variants()
   local seen = {}
@@ -135,17 +136,22 @@ local function all_variants()
   for _, variant in ipairs(CMakeSeer.get_config().additional_variants or {}) do
     seen[variant] = true
   end
+  for _, configuration_name in ipairs(CMakeSeer.state.configuration_names() or {}) do
+    seen[configuration_name] = true
+  end
 
   local variants = vim.tbl_keys(seen)
   table.sort(variants)
   return variants
 end
 
---- Select a variant to use
+--- Select a variant to use. When the project is configured, the targets are reloaded to reflect
+--- the configuration matching the new variant.
 ---@param variant cmakeseer.Variant? The variant to select. When nil, a picker is opened.
 function M.select_variant(variant)
   if variant ~= nil then
     CMakeSeer.state.selections.variant = variant
+    CMakeSeer.state.reload_targets()
     return
   end
 
@@ -156,6 +162,7 @@ function M.select_variant(variant)
       return
     end
     CMakeSeer.state.selections.variant = selected
+    CMakeSeer.state.reload_targets()
   end)
 end
 

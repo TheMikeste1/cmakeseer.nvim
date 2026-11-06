@@ -15,6 +15,8 @@ local Variant = {
 local __discovered_kits = {}
 --- @type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
 local __targets = {}
+--- @type string[] The names of the configurations reported by the CMake codemodel.
+local __configuration_names = {}
 
 ---@class cmakeseer.State.Selections
 local __selections = {
@@ -104,6 +106,16 @@ M.get_targets = M.targets
 function M.set_targets(targets)
   --- TODO: Validate targets
   __targets = targets
+end
+
+---@return string[] configuration_names The names of the configurations reported by the CMake codemodel.
+function M.configuration_names()
+  return vim.deepcopy(__configuration_names)
+end
+
+---@param configuration_names string[] The names of the configurations reported by the CMake codemodel.
+function M.set_configuration_names(configuration_names)
+  __configuration_names = configuration_names
 end
 
 ---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Target[] targets The list of CMake targets.

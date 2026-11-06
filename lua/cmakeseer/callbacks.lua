@@ -5,6 +5,26 @@ local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 local ObjectKindType = object_kind.ObjectKindType
 local state = require("cmakeseer.state")
 
+--- The configuration of a codemodel whose targets should be loaded.
+---
+--- Single configuration generators write a single configuration with an empty name, while multi
+--- configuration generators write one configuration per build type. The selected variant names the
+--- configuration to use for a multi configuration generator; when the generator has no configuration
+--- with that name, the first one is used instead.
+---@param codemodel cmakeseer.cmake.file_api.object_kind.Codemodel The codemodel to select a configuration from.
+---@return cmakeseer.cmake.file_api.object_kind.Codemodel.Configuration? configuration The configuration to load targets from, or nil when the codemodel has none.
+local function select_configuration(codemodel)
+  local variant = state.selections.variant
+  local configuration = codemodel.configurations[variant]
+  if configuration ~= nil then
+    return configuration
+  end
+
+  ---@type string?, cmakeseer.cmake.file_api.object_kind.Codemodel.Configuration?
+  local _, first_configuration = next(codemodel.configurations)
+  return first_configuration
+end
+
 ---@param build_dir? string The build directory to load the targets from. Defaults to CMakeSeer's resolved build directory.
 local function load_targets(build_dir)
   build_dir = build_dir or cmakeseer.resolve_build_directory()
@@ -30,14 +50,14 @@ local function load_targets(build_dir)
   assert(codemodel.kind == ObjectKindType.Codemodel, "Response should only be able to be a codemodel")
   ---@cast codemodel cmakeseer.cmake.file_api.object_kind.Codemodel
 
-  if vim.tbl_isempty(codemodel.configurations) then
+  local configuration = select_configuration(codemodel)
+  if configuration == nil then
     vim.notify("No configurations exist in CMake codemodel: `" .. latest_reply.reply.json_file .. "`", vim.log.levels.ERROR)
     return
   end
 
-  -- TODO: Support multiple configurations
-  ---@type string,cmakeseer.cmake.file_api.object_kind.Codemodel.Configuration
-  local _, configuration = assert(next(codemodel.configurations))
+  state.set_configuration_names(vim.tbl_keys(codemodel.configurations))
+
   local target_references = configuration.targets
   ---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
   local targets = {}
