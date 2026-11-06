@@ -112,19 +112,30 @@ function M.get_basic_configure_args()
     current_config:get_project_root(),
   }
 
+  local project_root = current_config:get_project_root()
+  local CMakePreset = require("cmakeseer.cmake.preset")
+
+  local build_preset = M.state.selections.build_preset
+  local build_binary_dir = build_preset and CMakePreset.try_determine_binary_dir(build_preset, project_root, CMakePreset.Types.Build, { resolve_path = true }) or nil
+
   local binary_dir = nil
-  -- TODO: Account for build preset
   local preset = M.state.selections.configure_preset
   if preset ~= nil then
     vim.list_extend(args, { "--preset", preset })
 
     -- Check if the preset includes the build directory
-    local CMakePreset = require("cmakeseer.cmake.preset")
-    binary_dir = CMakePreset.try_determine_binary_dir(preset, current_config:get_project_root(), CMakePreset.Types.Configure)
+    binary_dir = CMakePreset.try_determine_binary_dir(preset, project_root, CMakePreset.Types.Configure)
     -- We won't need to specify the dir if it does as the --preset flag will take care of it for us
   end
 
-  if binary_dir == nil then
+  -- The build preset takes precedence, then the configure preset, then the default build directory.
+  -- This is mostly just so we can configure and build without issue.
+  if build_binary_dir ~= nil then
+    vim.list_extend(args, {
+      "-B",
+      build_binary_dir,
+    })
+  elseif binary_dir == nil then
     -- Add the default build directory
     vim.list_extend(args, {
       "-B",
