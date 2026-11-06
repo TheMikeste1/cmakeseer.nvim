@@ -1,5 +1,8 @@
---- TODO: Allow custom variants. We should be able to fetch available configurations from the file API.
----@enum cmakeseer.Variant
+--- A variant is the name of the CMake configuration to build, e.g. `Debug` or `Release`.
+--- Variants are not limited to any fixed set: the CMake file API reports the configurations available for the project, and those (or any other string) may be used.
+---@alias cmakeseer.Variant string
+
+--- The well-known variants, always available.
 local Variant = {
   Debug = "Debug",
   Release = "Release",

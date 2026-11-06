@@ -280,6 +280,7 @@ end
 ---@field kit_paths string[]? Paths to files containing CMake kit definitions. These will not be expanded.
 ---@field kits cmakeseer.Kit[]? Global user-defined kits.
 ---@field persist_file string? The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.
+---@field additional_variants string[]? Additional variants (e.g. build types) to offer when selecting the variant, beyond the well-known defaults.
 
 ---@param opts cmakeseer.Options
 function M.setup(opts)
