@@ -216,8 +216,8 @@ function PresetFile:expand_includes()
       return self:expand_macros(path) ---@diagnostic disable-line: missing-return-value
     end)
     :map(function(path)
-      -- TODO: Support Windows?
-      if path[1] == "/" then
+      ---@cast path string
+      if vim.fn.isabsolutepath(path) == 1 then
         return path ---@diagnostic disable-line: missing-return-value
       end
 
@@ -232,22 +232,66 @@ function PresetFile:resolve_includes()
   return self:expand_includes() or {}
 end
 
-local function expand_presets(file, presets)
+--- Builds a name->preset lookup table from a list of presets.
+---@param presets table[] List of presets.
+---@return table<string, table> lookup
+local function build_lookup(presets)
+  local lookup = {}
+  for _, preset in ipairs(presets) do
+    lookup[preset.name] = preset
+  end
+  return lookup
+end
+
+local function expand_presets(file, presets, all_presets_of_type)
   if presets == nil then
     return nil
   end
+
+  local lookup = all_presets_of_type and build_lookup(all_presets_of_type) or build_lookup(presets)
 
   return vim
     .iter(presets)
     :map(function(preset)
       ---@cast preset cmakeseer.cmake.preset.BasePreset
-      return preset:expanded(file) ---@diagnostic disable-line: missing-return-value
+      local flat = preset:flatten(lookup)
+      return flat:expanded(file) ---@diagnostic disable-line: missing-return-value
     end)
     :totable()
 end
 
+--- Collects all presets of a given type visible from this file (including
+--- transitively included files), used to build a full inheritance lookup.
+---@param field string The field name on PresetFile (e.g. "configure_presets").
+---@param already_seen? table<string, boolean>
+---@return table[] all_presets
+function PresetFile:collect_all_presets(field, already_seen)
+  already_seen = already_seen or {}
+  if already_seen[self.path] then
+    return {}
+  end
+  already_seen[self.path] = true
+
+  local result = {}
+  local own = self[field]
+  if own ~= nil then
+    vim.list_extend(result, own)
+  end
+
+  local includes = self:resolve_includes()
+  for _, inc_path in ipairs(includes) do
+    local inc_file = require("cmakeseer.cmake.preset.preset_file").try_from_file(inc_path)
+    if inc_file ~= nil then
+      vim.list_extend(result, inc_file:collect_all_presets(field, already_seen))
+    end
+  end
+
+  return result
+end
+
 function PresetFile:expand_configure_presets()
-  return expand_presets(self, self.configure_presets)
+  local all = self:collect_all_presets("configure_presets")
+  return expand_presets(self, self.configure_presets, all)
 end
 
 function PresetFile:resolve_configure_presets()
@@ -255,7 +299,8 @@ function PresetFile:resolve_configure_presets()
 end
 
 function PresetFile:expand_build_presets()
-  return expand_presets(self, self.build_presets)
+  local all = self:collect_all_presets("build_presets")
+  return expand_presets(self, self.build_presets, all)
 end
 
 function PresetFile:resolve_build_presets()
@@ -263,7 +308,8 @@ function PresetFile:resolve_build_presets()
 end
 
 function PresetFile:expand_test_presets()
-  return expand_presets(self, self.test_presets)
+  local all = self:collect_all_presets("test_presets")
+  return expand_presets(self, self.test_presets, all)
 end
 
 function PresetFile:resolve_test_presets()
@@ -271,7 +317,8 @@ function PresetFile:resolve_test_presets()
 end
 
 function PresetFile:expand_package_presets()
-  return expand_presets(self, self.package_presets)
+  local all = self:collect_all_presets("package_presets")
+  return expand_presets(self, self.package_presets, all)
 end
 
 function PresetFile:resolve_package_presets()

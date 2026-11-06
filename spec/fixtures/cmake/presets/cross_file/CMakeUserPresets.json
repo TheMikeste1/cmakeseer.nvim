@@ -1,0 +1,12 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "user-preset",
+      "inherits": ["shared-base"],
+      "environment": {
+        "FROM_USER": "user_val"
+      }
+    }
+  ]
+}

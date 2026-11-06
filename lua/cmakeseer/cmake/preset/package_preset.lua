@@ -38,6 +38,14 @@ function PackagePreset.take(o)
   return self
 end
 
+--- Produces a new PackagePreset with all inherited fields merged in.
+---@param all_presets table<string, cmakeseer.cmake.preset.PackagePreset> Lookup by name.
+---@return cmakeseer.cmake.preset.PackagePreset flattened
+function PackagePreset:flatten(all_presets)
+  local merged = Preset.flatten_preset(self, all_presets)
+  return PackagePreset.take(merged)
+end
+
 --- Copies the preset, expanding its fields.
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.PackagePreset expanded

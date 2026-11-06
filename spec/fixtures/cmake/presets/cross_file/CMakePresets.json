@@ -1,0 +1,13 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "shared-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "environment": {
+        "FROM_SHARED": "shared_val"
+      }
+    }
+  ]
+}

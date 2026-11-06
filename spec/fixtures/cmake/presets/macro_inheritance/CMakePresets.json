@@ -1,0 +1,35 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "environment": {
+        "INHERITED_MACRO": "inherited_value_of_${presetName}",
+        "SOURCE_DIR_BUILD": "${sourceDir}/build"
+      }
+    },
+    {
+      "name": "child",
+      "inherits": ["base"],
+      "environment": {
+        "OWN_MACRO": "own_value_of_${presetName}"
+      }
+    },
+    {
+      "name": "overriding",
+      "inherits": ["base"],
+      "environment": {
+        "INHERITED_MACRO": "overridden_value_of_${presetName}"
+      }
+    },
+    {
+      "name": "standalone",
+      "generator": "Unix Makefiles",
+      "environment": {
+        "STANDALONE": "no_inheritance"
+      }
+    }
+  ]
+}

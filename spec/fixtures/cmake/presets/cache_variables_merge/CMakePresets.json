@@ -1,0 +1,28 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "BASE_VAR": "base_value",
+        "SHARED_VAR": "from_base"
+      }
+    },
+    {
+      "name": "child",
+      "inherits": ["base"],
+      "cacheVariables": {
+        "CHILD_VAR": "child_value"
+      }
+    },
+    {
+      "name": "overriding",
+      "inherits": ["base"],
+      "cacheVariables": {
+        "SHARED_VAR": "overridden_${presetName}"
+      }
+    }
+  ]
+}
