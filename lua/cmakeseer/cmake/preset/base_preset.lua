@@ -120,6 +120,105 @@ function BasePreset.try_from_json(json)
   }
 end
 
+--- Fields whose entries are merged key-by-key during inheritance (child wins
+--- per key, earlier parents preferable to later ones), matching CMake's
+--- documented union semantics for these maps. All other fields are merged
+--- whole: earlier parents win, and the child wins over everyone.
+local MERGEABLE_MAP_FIELDS = { "environment", "cache_variables" }
+
+--- Fields CMake never inherits (they are the preset's own identity, not
+--- inherited state). Children always set these themselves; parents skip them.
+local NON_INHERITABLE_FIELDS = { "name", "hidden", "inherits", "description", "display_name" }
+
+--- Merges map-like field entries key-by-key. `merged[k]` acts as the
+--- accumulator; entries already present take precedence over `incoming`.
+---@param merged table
+---@param k string
+---@param incoming table
+local function merge_map_entries(merged, k, incoming)
+  if merged[k] == nil then
+    merged[k] = {}
+  end
+  for entry_k, entry_v in pairs(incoming) do
+    if merged[k][entry_k] == nil then
+      merged[k][entry_k] = vim.deepcopy(entry_v)
+    end
+  end
+end
+
+--- Layers a child's map-like field entries on top of merged; the child's
+--- entries win per key.
+---@param merged table
+---@param k string
+---@param incoming table
+local function overlay_map_entries(merged, k, incoming)
+  for entry_k, entry_v in pairs(incoming) do
+    merged[k][entry_k] = vim.deepcopy(entry_v)
+  end
+end
+
+--- Flattens a preset by merging all inherited fields into a single plain table.
+--- The child's values take precedence over parent values. Map-like fields
+--- (`environment`, `cache_variables`) are merged key-by-key (child wins per
+--- key). Fields CMake does not inherit (`name`, `hidden`, `inherits`,
+--- `description`, `display_name`) are never taken from parents. Call this
+--- before macro expansion so inherited fields are available during expansion.
+---@param preset table The raw preset table (must have at minimum a `name` field).
+---@param all_presets table<string, table> Lookup of all sibling presets by name.
+---@param visited? string[] Names already on the current resolution stack (cycle guard).
+---@return table merged The fully-merged plain table, with `inherits` removed.
+local function flatten_preset(preset, all_presets, visited)
+  visited = visited or {}
+
+  local inherits = preset.inherits
+  if inherits == nil or #inherits == 0 then
+    -- Nothing to merge; return a shallow copy without inherits.
+    local result = vim.deepcopy(preset)
+    result.inherits = nil
+    return result
+  end
+
+  -- Start from a base that has no inherited data of its own.
+  local merged = {}
+
+  -- Walk parents left-to-right. Earlier parents take precedence over later ones,
+  -- but the child itself takes precedence over all parents.
+  for _, parent_name in ipairs(inherits) do
+    if vim.list_contains(visited, parent_name) then
+      vim.notify(("Cycle detected in preset inheritance: %s -> %s"):format(table.concat(visited, " -> "), parent_name), vim.log.levels.WARN)
+    else
+      local parent = all_presets[parent_name]
+      if parent ~= nil then
+        local flat_parent = flatten_preset(parent, all_presets, vim.list_extend(vim.deepcopy(visited), { preset.name }))
+        -- Merge flat_parent INTO merged; already-set keys in merged win.
+        for k, v in pairs(flat_parent) do
+          if not vim.list_contains(NON_INHERITABLE_FIELDS, k) then
+            if vim.list_contains(MERGEABLE_MAP_FIELDS, k) then
+              -- Merge map entries key-by-key; existing keys in merged win.
+              merge_map_entries(merged, k, v)
+            elseif merged[k] == nil then
+              merged[k] = vim.deepcopy(v)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- Finally overlay the child's own fields (child wins over everything).
+  for k, v in pairs(preset) do
+    if vim.list_contains(MERGEABLE_MAP_FIELDS, k) and merged[k] ~= nil then
+      -- Child map entries win; parent-only entries remain.
+      overlay_map_entries(merged, k, v)
+    elseif k ~= "inherits" then
+      -- Drop inherits from the flattened result; otherwise child wins.
+      merged[k] = vim.deepcopy(v)
+    end
+  end
+
+  return merged
+end
+
 --- Copies the preset, expanding its fields.
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.BasePreset expanded
@@ -147,6 +246,18 @@ function BasePreset:expanded(maybe_file)
   }
   return BasePreset.take(o)
 end
+
+--- Produces a new BasePreset with all inherited fields merged in.
+--- Must be called with the full sibling lookup before macro expansion.
+---@param all_presets table<string, cmakeseer.cmake.preset.BasePreset> Lookup by name.
+---@return cmakeseer.cmake.preset.BasePreset flattened
+function BasePreset:flatten(all_presets)
+  local merged = flatten_preset(self, all_presets)
+  return BasePreset.take(merged)
+end
+
+--- Module-level helper exposed for subclass use.
+BasePreset.flatten_preset = flatten_preset
 
 --- Determines the preset type of a preset instance.
 ---@param preset cmakeseer.cmake.preset.BasePreset

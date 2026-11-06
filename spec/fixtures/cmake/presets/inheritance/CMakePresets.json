@@ -1,0 +1,78 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "environment": {
+        "FROM_BASE": "base_val",
+        "SHARED_KEY": "from_base"
+      }
+    },
+    {
+      "name": "middle",
+      "hidden": true,
+      "inherits": ["base"],
+      "environment": {
+        "FROM_MIDDLE": "middle_val",
+        "SHARED_KEY": "from_middle"
+      }
+    },
+    {
+      "name": "child",
+      "inherits": ["middle"],
+      "environment": {
+        "FROM_CHILD": "child_val"
+      }
+    },
+    {
+      "name": "override-generator",
+      "inherits": ["base"],
+      "generator": "Unix Makefiles"
+    },
+    {
+      "name": "multi-parent-a",
+      "hidden": true,
+      "environment": { "FROM_A": "val_a", "PRIORITY": "from_a" }
+    },
+    {
+      "name": "multi-parent-b",
+      "hidden": true,
+      "environment": { "FROM_B": "val_b", "PRIORITY": "from_b" }
+    },
+    {
+      "name": "multi-child",
+      "inherits": ["multi-parent-a", "multi-parent-b"]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "base-build",
+      "hidden": true,
+      "environment": {
+        "BUILD_VAR": "from_base_build"
+      }
+    },
+    {
+      "name": "child-build",
+      "inherits": ["base-build"],
+      "configurePreset": "child"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "base-test",
+      "hidden": true,
+      "environment": {
+        "TEST_VAR": "from_base_test"
+      }
+    },
+    {
+      "name": "child-test",
+      "inherits": ["base-test"],
+      "configurePreset": "child"
+    }
+  ]
+}

@@ -29,6 +29,14 @@ function BuildPreset.take(o)
   return self
 end
 
+--- Produces a new BuildPreset with all inherited fields merged in.
+---@param all_presets table<string, cmakeseer.cmake.preset.BuildPreset> Lookup by name.
+---@return cmakeseer.cmake.preset.BuildPreset flattened
+function BuildPreset:flatten(all_presets)
+  local merged = Preset.flatten_preset(self, all_presets)
+  return BuildPreset.take(merged)
+end
+
 --- Copies the preset, expanding its fields.
 ---@param maybe_file? cmakeseer.cmake.preset.PresetFile The file owning this preset.
 ---@return cmakeseer.cmake.preset.BuildPreset expanded
