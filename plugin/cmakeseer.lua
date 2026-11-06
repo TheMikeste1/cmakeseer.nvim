@@ -17,7 +17,9 @@ local API_COMMAND_HANDLERS = {
 vim.api.nvim_create_user_command("CMakeSeer", function(opts)
   local handler = API_COMMAND_HANDLERS[opts.fargs[1]]
   if handler ~= nil then
-    handler()
+    -- Selections may contain spaces (e.g. kit names), so rejoin every argument after the command name.
+    local selection = table.concat(opts.fargs, " ", 2)
+    handler(selection ~= "" and selection or nil)
     return
   end
 
@@ -33,6 +35,8 @@ end, {
       for key, _ in pairs(API_COMMAND_HANDLERS) do
         table.insert(possibilities, key)
       end
+    elseif command_parts[2] ~= nil then
+      possibilities = require("cmakeseer.commands").selections_for(command_parts[2])
     end
 
     local matches = {}
