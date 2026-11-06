@@ -3,12 +3,13 @@ local cmake_reply = require("cmakeseer.cmake.file_api.reply")
 local cmakeseer = require("cmakeseer")
 local object_kind = require("cmakeseer.cmake.file_api.object_kind")
 local ObjectKindType = object_kind.ObjectKindType
+local state = require("cmakeseer.state")
 
-local function load_targets()
-  local state = require("cmakeseer.state")
+---@param build_dir? string The build directory to load the targets from. Defaults to CMakeSeer's resolved build directory.
+local function load_targets(build_dir)
+  build_dir = build_dir or cmakeseer.resolve_build_directory()
   state.set_targets({})
 
-  local build_dir = cmakeseer.resolve_build_directory()
   local latest_reply, err = cmake_reply.get_client_stateless_reply(build_dir, cmakeseer.CLIENT_ID, ObjectKindType.Codemodel, 2)
   if latest_reply == nil then
     vim.notify("Unable to load targets: " .. err, vim.log.levels.ERROR)
@@ -63,15 +64,19 @@ end
 local M = {}
 
 --- Called before the project is configured.
-function M.on_pre_configure()
-  local maybe_error = CMakeQuery.issue_client_stateless_query(cmakeseer.CLIENT_ID, cmakeseer.resolve_build_directory(), ObjectKindType.Codemodel, 2)
+---@param build_dir? string The build directory to issue the query in. Defaults to CMakeSeer's resolved build directory.
+function M.on_pre_configure(build_dir)
+  build_dir = build_dir or cmakeseer.resolve_build_directory()
+  local maybe_error = CMakeQuery.issue_client_stateless_query(cmakeseer.CLIENT_ID, build_dir, ObjectKindType.Codemodel, 2)
   if maybe_error ~= nil then
     vim.notify("Failed to issue CMake query: " .. maybe_error, vim.log.levels.ERROR)
   end
 end
 
-function M.on_post_configure_success()
-  load_targets()
+--- Called after the project is configured successfully.
+---@param build_dir? string The build directory to load the targets from. Defaults to CMakeSeer's resolved build directory.
+function M.on_post_configure_success(build_dir)
+  load_targets(build_dir)
 end
 
 return M
