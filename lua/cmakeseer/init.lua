@@ -164,13 +164,32 @@ function M.get_configure_args()
     end
   end
 
-  -- TODO: Check if this is taken care of in the preset
+  -- Skip the definitions if the selected configure preset already sets them
+  local CMakePreset = require("cmakeseer.cmake.preset")
+  ---@param cache_variable string
+  ---@return boolean
+  local function preset_sets_cache_variable(cache_variable)
+    local preset = M.state.selections.configure_preset
+    return preset ~= nil and CMakePreset.try_determine_cache_variable(preset, current_config:get_project_root(), CMakePreset.Types.Configure, cache_variable) ~= nil
+  end
+
+  local preset_sets_c_compiler = preset_sets_cache_variable("CMAKE_C_COMPILER")
+  local preset_sets_cxx_compiler = preset_sets_cache_variable("CMAKE_CXX_COMPILER")
+
   local maybe_selected_kit = M.state.selections.kit
   if maybe_selected_kit == nil then
-    vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)
+    -- The preset taking care of both compilers means a kit isn't needed.
+    if not (preset_sets_c_compiler and preset_sets_cxx_compiler) then
+      vim.notify("No kit selected; not specifying compilers in CMake configuration", vim.log.levels.WARN)
+    end
   else
-    table.insert(args, "-DCMAKE_C_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.C)
-    table.insert(args, "-DCMAKE_CXX_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.CXX)
+    if not preset_sets_c_compiler then
+      table.insert(args, "-DCMAKE_C_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.C)
+    end
+
+    if not preset_sets_cxx_compiler then
+      table.insert(args, "-DCMAKE_CXX_COMPILER:FILEPATH=" .. maybe_selected_kit.compilers.CXX)
+    end
   end
 
   local configure_settings = Settings.get_settings().configureSettings
