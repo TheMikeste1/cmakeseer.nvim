@@ -200,6 +200,66 @@ function M.entry_for(preset, dir, preset_type)
   error("UNREACHABLE: file_for would only have returned if the preset existed")
 end
 
+--- Gets the value of a cache variable for the given preset, if it sets one.
+--- A variable explicitly set to null counts as set.
+---@param preset string The preset to check.
+---@param dir string Directory for fetching presets from another directory.
+---@param preset_type cmakeseer.cmake.preset.Type The type of preset to check.
+---@param name string The name of the cache variable.
+---@return boolean|string|table|vim.NIL|nil value The value of the cache variable, or nil if the preset does not set it.
+function M.try_determine_cache_variable(preset, dir, preset_type, name)
+  -- Workflows are unique and may not set cache variables
+  if preset_type == Types.Workflow then
+    return nil
+  end
+
+  local preset_entry = M.entry_for(preset, dir, preset_type)
+  if preset_entry == nil then
+    return nil
+  end
+
+  if preset_type == Types.Configure then
+    ---@cast preset_entry cmakeseer.cmake.preset.ConfigurePreset
+    local cache_variables = preset_entry.cache_variables
+    local value = nil
+    if cache_variables ~= nil then
+      value = cache_variables[name]
+    end
+    if value == nil and preset_entry.inherits ~= nil then
+      ---@type string[]
+      local inherits = preset_entry.inherits
+      for _, inherited in ipairs(inherits) do
+        value = M.try_determine_cache_variable(inherited, dir, Types.Configure, name)
+        if value ~= nil then
+          -- Break on the first to set the variable.
+          break
+        end
+      end
+    end
+    return value
+  end
+
+  local value = nil
+  local configure_preset = preset_entry.configure_preset
+  if configure_preset ~= nil then
+    value = M.try_determine_cache_variable(configure_preset, dir, Types.Configure, name)
+  end
+
+  if value == nil and preset_entry.inherits ~= nil then
+    ---@type string[]
+    local inherits = preset_entry.inherits
+    for _, inherited in ipairs(inherits) do
+      value = M.try_determine_cache_variable(inherited, dir, preset_type, name)
+      if value ~= nil then
+        -- Break on the first to set the variable.
+        break
+      end
+    end
+  end
+
+  return value
+end
+
 --- Gets the value of a field for the given preset, if it has one.
 ---@param preset string The preset to check.
 ---@param dir string Directory for fetching presets from another directory.

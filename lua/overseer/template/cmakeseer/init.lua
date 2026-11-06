@@ -61,7 +61,6 @@ return {
     end
 
     local templates = {
-      -- TODO: Allow users to select a target and provide a template for that target
       require("overseer.cmakeseer.template.cmake_build"),
       require("overseer.cmakeseer.template.cmake_configure"),
       require("overseer.cmakeseer.template.cmake_configure_no_defines"),

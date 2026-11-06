@@ -141,11 +141,16 @@ function M.get_configure_args()
   local Settings = require("cmakeseer.settings")
 
   local args = M.get_basic_configure_args()
-  -- TODO: Check if this is taken care of in the preset
   local variant = M.state.selections.variant
   if variant ~= M.Variant.Unspecified then
-    local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
-    table.insert(args, definition)
+    -- Skip the definition if the selected configure preset already sets it
+    local preset = M.state.selections.configure_preset
+    local CMakePreset = require("cmakeseer.cmake.preset")
+    local preset_sets_build_type = preset ~= nil and CMakePreset.try_determine_cache_variable(preset, current_config:get_project_root(), CMakePreset.Types.Configure, "CMAKE_BUILD_TYPE") ~= nil
+    if not preset_sets_build_type then
+      local definition = string.format("-DCMAKE_BUILD_TYPE:STRING=%s", variant)
+      table.insert(args, definition)
+    end
   end
 
   -- TODO: Check if this is taken care of in the preset

@@ -12,7 +12,6 @@ local function find_active_targets()
   local targets = require("cmakeseer").state.get_targets()
   local active_file = get_active_file()
 
-  -- TODO: Look into caching. Note that is will need to be refreshed whenever the project is reconfigured.
   ---@type cmakeseer.cmake.file_api.object_kind.Codemodel.Target[]
   return vim
     .iter(targets)
