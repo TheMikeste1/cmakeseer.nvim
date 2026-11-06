@@ -105,6 +105,8 @@ local _defaults = {
   },
   ---@type string[] Paths to files containing CMake kit definitions. These will not be expanded.
   kit_paths = {},
+  ---@type string[] Additional variants (e.g. build types) to offer when selecting the variant, beyond the well-known defaults.
+  additional_variants = {},
   ---@type cmakeseer.Kit[] Global user-defined kits.
   kits = {},
   ---@type string? The file to which kit information should be persisted. If nil, kits will not be persisted. Kits will be automatically loaded from this file.

@@ -125,13 +125,19 @@ function M.select_build_preset(preset)
   end)
 end
 
---- Gets all available variants.
+--- Gets all available variants: the well-known variants plus the additional variants from the configuration, in sorted order.
 ---@return cmakeseer.Variant[] variants All available variants.
 local function all_variants()
-  local variants = {}
-  for _, value in pairs(CMakeSeer.Variant) do
-    table.insert(variants, value)
+  local seen = {}
+  for _, variant in pairs(CMakeSeer.Variant) do
+    seen[variant] = true
   end
+  for _, variant in ipairs(CMakeSeer.get_config().additional_variants or {}) do
+    seen[variant] = true
+  end
+
+  local variants = vim.tbl_keys(seen)
+  table.sort(variants)
   return variants
 end
 
